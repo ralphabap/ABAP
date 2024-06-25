@@ -1,0 +1,2310 @@
+*-----------------------------------------------------------------------
+* Programa : ZPFIR_019
+* Cliente  : CEEE
+* Módulo   : FI
+* Transação: ZTFI030
+* Descrição: Programa de Prestação Contas de Viagem
+* Delta    : D0414
+* Autor    : Ralph Zuanella                          Data: 07/12/2015
+*-----------------------------------------------------------------------
+* Histórico de Alterações:
+*-----------------------------------------------------------------------
+* Data       |Change #   |Autor            |Alteração
+*-----------------------------------------------------------------------
+* 07/12/2015 |CEDK905347 |Ralph Zuanella   |Desenvolvimento Inicial
+*-----------------------------------------------------------------------
+REPORT zpfir_019 MESSAGE-ID zfi.
+
+*--------------------------------------------------------------------*
+* Tabelas
+*--------------------------------------------------------------------*
+TABLES:
+  bsik,
+  bsid,
+  ptrv_head.
+
+*--------------------------------------------------------------------*
+* Tipos
+*--------------------------------------------------------------------*
+TYPES:
+  BEGIN OF bsik_type,
+    bukrs TYPE bsik-bukrs,
+    lifnr TYPE bsik-lifnr,
+    zuonr TYPE bsik-zuonr,
+    gjahr TYPE bsik-gjahr,
+    belnr TYPE bsik-belnr,
+    buzei TYPE bsik-buzei,
+    xblnr TYPE bsik-xblnr,
+    blart TYPE bsik-blart,
+    prctr TYPE bsik-prctr,
+    hbkid TYPE bsik-hbkid,
+  END OF bsik_type,
+
+  BEGIN OF bsid_type,
+    bukrs TYPE bsid-bukrs,
+    kunnr TYPE bsid-kunnr,
+    zuonr TYPE bsid-zuonr,
+    gjahr TYPE bsid-gjahr,
+    belnr TYPE bsid-belnr,
+    buzei TYPE bsid-buzei,
+    xblnr TYPE bsid-xblnr,
+    blart TYPE bsid-blart,
+    wrbtr TYPE bsid-wrbtr,
+    zfbdt TYPE bsid-zfbdt,
+  END OF bsid_type,
+
+  BEGIN OF lfa1_type,
+    lifnr TYPE lfa1-lifnr,
+    name1 TYPE lfa1-name1,
+  END OF lfa1_type,
+
+  BEGIN OF kna1_type,
+    kunnr TYPE kna1-kunnr,
+    name1 TYPE kna1-name1,
+  END OF kna1_type,
+
+  BEGIN OF ptrv_head_type,
+    pernr TYPE ptrv_head-pernr,
+    reinr TYPE ptrv_head-reinr,
+    hdvrs TYPE ptrv_head-hdvrs,
+    datb1 TYPE ptrv_head-datb1,
+    zuonr TYPE bsik-zuonr,
+    xblnr TYPE bsik-xblnr,
+  END OF ptrv_head_type,
+
+  BEGIN OF ptrv_doc_hd_type,
+    awref TYPE ptrv_doc_hd-awref,
+    aworg TYPE ptrv_doc_hd-aworg,
+    bukrs TYPE ptrv_doc_hd-bukrs,
+    xblnr TYPE ptrv_doc_hd-xblnr,
+    blart TYPE ptrv_doc_hd-blart,
+    bldat TYPE ptrv_doc_hd-bldat,
+  END OF ptrv_doc_hd_type,
+
+  BEGIN OF ptrv_doc_it_type,
+    awref TYPE ptrv_doc_it-awref,
+    aworg TYPE ptrv_doc_it-aworg,
+    awlin TYPE ptrv_doc_it-awlin,
+    bukrs TYPE ptrv_doc_it-bukrs,
+    lifnr TYPE ptrv_doc_it-lifnr,
+    pernr TYPE ptrv_doc_it-pernr,
+    wrbtr TYPE ptrv_doc_it-wrbtr,
+  END OF ptrv_doc_it_type,
+
+  BEGIN OF knb1_type,
+    kunnr TYPE knb1-kunnr,
+    bukrs TYPE knb1-bukrs,
+    pernr TYPE knb1-pernr,
+    akont TYPE knb1-akont,
+  END OF knb1_type,
+
+  BEGIN OF log_pre_type,
+    icon  TYPE icon_d,
+    proc  TYPE asr_process,
+    pernr TYPE ptrv_head-pernr,
+    lifnr TYPE lfa1-lifnr,
+    name1 TYPE name1_gp,
+    reinr TYPE reinr,
+    msg   TYPE bapiret2-message,
+  END OF log_pre_type.
+
+*--------------------------------------------------------------------*
+* Estruturas
+*--------------------------------------------------------------------*
+DATA:
+  gs_layout_pre TYPE lvc_s_layo,
+  gs_layout_fat TYPE lvc_s_layo.
+
+*--------------------------------------------------------------------*
+* Tabelas Internas
+*--------------------------------------------------------------------*
+DATA:
+  gw_bsik           TYPE TABLE OF bsik_type,
+  gw_bsid           TYPE TABLE OF bsid_type,
+  gw_bsid_faturados TYPE TABLE OF bsid_type,
+  gw_lfa1           TYPE TABLE OF lfa1_type,
+  gw_kna1           TYPE TABLE OF kna1_type,
+  gw_ptrv_head      TYPE TABLE OF ptrv_head_type,
+  gw_ptrv_doc_hd    TYPE TABLE OF ptrv_doc_hd_type,
+  gw_ptrv_doc_it    TYPE TABLE OF ptrv_doc_it_type,
+  gw_alv_pre        TYPE TABLE OF zstfi_pres_con,
+  gw_alv_fat        TYPE TABLE OF zstfi_fatu_via,
+  gw_log_pre        TYPE TABLE OF log_pre_type,
+  gw_bdcdata        TYPE TABLE OF bdcdata,
+  gw_bdc_msg        TYPE TABLE OF bdcmsgcoll,
+
+  gw_fieldcat_pre   TYPE TABLE OF lvc_s_fcat,
+  gw_fieldcat_fat   TYPE TABLE OF lvc_s_fcat,
+  gw_sort_pre       TYPE lvc_t_sort,
+  gw_sort_fat       TYPE lvc_t_sort,
+
+  gw_p0001          TYPE TABLE OF p0001,
+  gw_p0002          TYPE TABLE OF p0002,
+  gw_p0006          TYPE TABLE OF p0006,
+  gw_p0009          TYPE TABLE OF p0009,
+  gw_p0465          TYPE TABLE OF p0465.
+
+*--------------------------------------------------------------------*
+* Variáveis
+*--------------------------------------------------------------------*
+DATA:
+  gc_ok_code9001 TYPE sy-ucomm,
+  gc_ok_code9002 TYPE sy-ucomm.
+
+*--------------------------------------------------------------------*
+* Constantes
+*--------------------------------------------------------------------*
+CONSTANTS:
+  c_s_buk_p        TYPE char8          VALUE 'S_BUK_P',
+  c_s_dat_p        TYPE char8          VALUE 'S_DAT_P',
+  c_s_per_p        TYPE char8          VALUE 'S_PER_P',
+  c_s_rei_p        TYPE char8          VALUE 'S_REI_P',
+  c_s_buk_f        TYPE char8          VALUE 'S_BUK_F',
+  c_s_dat_f        TYPE char8          VALUE 'S_DAT_F',
+  c_s_kun_f        TYPE char8          VALUE 'S_KUN_F',
+  c_s_bel_f        TYPE char8          VALUE 'S_BEL_F',
+  c_s_rei_f        TYPE char8          VALUE 'S_REI_F',
+  c_zstfi_pres_con TYPE dd02l-tabname  VALUE 'ZSTFI_PRES_CON',
+  c_zstfi_fatu_via TYPE dd02l-tabname  VALUE 'ZSTFI_FATU_VIA',
+  c_status_fat     TYPE lvc_fname      VALUE 'STATUS_FAT',
+  c_pernr          TYPE lvc_fname      VALUE 'PERNR',
+  c_lifnr          TYPE lvc_fname      VALUE 'LIFNR',
+  c_kunnr          TYPE lvc_fname      VALUE 'KUNNR',
+  c_name1          TYPE lvc_fname      VALUE 'NAME1',
+  c_reinr          TYPE lvc_fname      VALUE 'REINR',
+  c_belnr          TYPE lvc_fname      VALUE 'BELNR',
+  c_wrbtr          TYPE lvc_fname      VALUE 'WRBTR',
+  c_zfbdt          TYPE lvc_fname      VALUE 'ZFBDT',
+  c_waers          TYPE lvc_fname      VALUE 'WAERS',
+  c_datb1          TYPE lvc_fname      VALUE 'DATB1',
+  c_mark           TYPE lvc_fname      VALUE 'MARK',
+  c_1              TYPE c              VALUE '1',
+  c_2              TYPE c              VALUE '2',
+  c_3              TYPE c              VALUE '3',
+  c_4              TYPE c              VALUE '4',
+  c_5              TYPE c              VALUE '5',
+  c_6              TYPE c              VALUE '6',
+  c_7              TYPE c              VALUE '7',
+  c_8              TYPE c              VALUE '8',
+  c_9              TYPE c              VALUE '9',
+  c_10(02)         TYPE c              VALUE '10',
+  c_11(02)         TYPE c              VALUE '11',
+  c_12(02)         TYPE c              VALUE '12',
+  c_13(02)         TYPE c              VALUE '13',
+  c_14(02)         TYPE c              VALUE '14',
+  c_15(02)         TYPE c              VALUE '15',
+  c_16(02)         TYPE c              VALUE '16',
+  c_17(02)         TYPE c              VALUE '17',
+  c_18(02)         TYPE c              VALUE '18',
+  c_19(02)         TYPE c              VALUE '19',
+  c_20(02)         TYPE c              VALUE '20',
+  c_21(02)         TYPE c              VALUE '21',
+  c_22(02)         TYPE c              VALUE '22',
+  c_23(02)         TYPE c              VALUE '23',
+  c_e              TYPE c              VALUE 'E',
+  c_c              TYPE c              VALUE 'C',
+  c_d              TYPE c              VALUE 'D',
+  c_s              TYPE c              VALUE 'S',
+  c_n              TYPE c              VALUE 'N',
+  c_w              TYPE c              VALUE 'W',
+  c_a              TYPE c              VALUE 'A',
+  c_fat(03)        TYPE c              VALUE 'FAT',
+  c_bol(03)        TYPE c              VALUE 'BOL',
+  c_0001           TYPE prelp-infty    VALUE '0001',
+  c_0002           TYPE prelp-infty    VALUE '0002',
+  c_0006           TYPE prelp-infty    VALUE '0006',
+  c_0009           TYPE prelp-infty    VALUE '0009',
+  c_0465           TYPE prelp-infty    VALUE '0465',
+  c_0011k          TYPE kna1-ktokd     VALUE '0011',
+  c_0013k          TYPE kna1-ktokd     VALUE '0013',
+  c_0001k          TYPE kna1-ktokd     VALUE '0001',
+  c_virgula        TYPE c              VALUE ',',
+  c_hifen          TYPE c              VALUE '-',
+  c_1219114101     TYPE knb1-akont     VALUE '1219114101',
+  c_1119101004     TYPE knb1-akont     VALUE '1119101004',
+  c_g15            TYPE knb1-fdgrv     VALUE 'G15',
+  c_c011           TYPE knb1-fdgrv     VALUE 'C011',
+  c_c012           TYPE knb1-fdgrv     VALUE 'C012',
+  c_c001           TYPE knb1-fdgrv     VALUE 'C001',
+  c_0003           TYPE knb1-zterm     VALUE '0003',
+  c_zwels_d        TYPE knb1-zwels     VALUE 'D',
+  c_prest_cont_tc  TYPE bkpf-blart     VALUE 'TC', "'DR', "TV
+  c_brl            TYPE bkpf-waers     VALUE 'BRL',
+  c_1119101999(10) TYPE c              VALUE '1119101999', "'1119101001',
+  c_2000027(07)    TYPE c              VALUE '2000027',
+  c_2000           TYPE bsik-bukrs     VALUE '2000',
+  c_3000           TYPE bsik-bukrs     VALUE '3000',
+  c_1999           TYPE bsik-prctr     VALUE '1999',
+  c_3999           TYPE bsik-prctr     VALUE '3999',
+  c_0418           TYPE bsik-hbkid     VALUE '0418',
+  c_0418g          TYPE bsik-hbkid     VALUE '0418G'.
+
+*--------------------------------------------------------------------*
+* Includes
+*--------------------------------------------------------------------*
+INCLUDE zpfir_019_c01. "Classes
+INCLUDE zpfir_019_pbo. "PBO das Telas
+INCLUDE zpfir_019_pai. "PAI das Telas
+
+*--------------------------------------------------------------------*
+* Tela de Seleção
+*--------------------------------------------------------------------*
+PARAMETERS:
+  p_pre RADIOBUTTON GROUP gp1 USER-COMMAND rad1 DEFAULT 'X',
+  p_fat RADIOBUTTON GROUP gp1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS:
+  s_buk_p FOR bsik-bukrs,
+  s_dat_p FOR ptrv_head-datb1,
+  s_per_p FOR ptrv_head-pernr,
+  s_rei_p FOR ptrv_head-reinr.
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+SELECT-OPTIONS:
+  s_buk_f FOR bsid-bukrs,
+  s_dat_f FOR ptrv_head-datb1,
+  s_kun_f FOR bsid-kunnr,
+  s_bel_f FOR bsid-belnr,
+  s_rei_f FOR ptrv_head-reinr.
+SELECTION-SCREEN END OF BLOCK b2.
+
+*--------------------------------------------------------------------*
+* At selection-screen OUTPUT
+*--------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+
+* Trata os campos radio buttons
+  PERFORM zf_trata_campos_rd.
+
+*--------------------------------------------------------------------*
+* Start-of-Selection
+*--------------------------------------------------------------------*
+START-OF-SELECTION.
+
+* No caso de estar marcado a opção Prestação de Contas
+  IF p_pre = abap_true.
+
+* Validações dos campos
+    PERFORM zf_validacoes_campos_pre.
+
+* Seleciona registros para prestação de contas
+    PERFORM zf_selecao_pre.
+
+* Processa os dados e monta a tabela do ALV
+    PERFORM zf_processa_pre.
+
+* Monta fieldcat
+    PERFORM zf_prepara_fieldcat_pre.
+
+* Prepara layout do relatório ALV
+    PERFORM zf_prepara_layout_pre.
+
+* Chama tela com o ALV de Prestação de Contas
+    CALL SCREEN 9001.
+
+* No caso de estar marcado a opção Faturas
+  ELSEIF p_fat = abap_true.
+
+* Validações dos campos
+    PERFORM zf_validacoes_campos_fat.
+
+* Seleciona registros para fatura
+    PERFORM zf_selecao_fat.
+
+* Processa os dados e monta a tabela do ALV
+    PERFORM zf_processa_fat.
+
+* Monta fieldcat
+    PERFORM zf_prepara_fieldcat_fat.
+
+* Prepara layout do relatório ALV
+    PERFORM zf_prepara_layout_fat.
+
+* Chama tela com o ALV de Faturas Viagem
+    CALL SCREEN 9002.
+
+  ENDIF.
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_TRATA_CAMPOS_RD
+*&---------------------------------------------------------------------*
+*       Trata campos
+*----------------------------------------------------------------------*
+FORM zf_trata_campos_rd .
+
+  IF p_pre = abap_true.
+
+    LOOP AT SCREEN.
+
+      IF screen-name CS c_s_buk_f OR
+         screen-name CS c_s_dat_f OR
+         screen-name CS c_s_kun_f OR
+         screen-name CS c_s_bel_f OR
+         screen-name CS c_s_rei_f.
+
+        screen-active   = 0.
+        MODIFY SCREEN.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ELSEIF p_fat = abap_true.
+
+    LOOP AT SCREEN.
+
+      IF screen-name CS c_s_buk_p OR
+         screen-name CS c_s_dat_p OR
+         screen-name CS c_s_per_p OR
+         screen-name CS c_s_rei_p.
+
+        screen-active   = 0.
+        MODIFY SCREEN.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_VALIDACOES_CAMPOS_PRE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_validacoes_campos_pre .
+
+  IF s_buk_p[] IS INITIAL.
+
+    MESSAGE s999 WITH 'Campo Empresa é obrigatório'(E01) DISPLAY LIKE c_e.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+  IF s_dat_p[] IS INITIAL.
+
+    MESSAGE s999 WITH 'Campo Data Final da Viagem é obrigatório'(E02) DISPLAY LIKE c_e.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+* >>> 20/01/2016 - Alteração - Início
+*  IF s_per_p[] IS INITIAL.
+*
+*    MESSAGE s999 WITH 'Campo Número Pessoal é obrigatório'(E03) DISPLAY LIKE c_e.
+*    LEAVE LIST-PROCESSING.
+*
+*  ENDIF.
+*
+*  IF s_rei_p[] IS INITIAL.
+*
+*    MESSAGE s999 WITH 'Campo Número da Viagem é obrigatório'(E04) DISPLAY LIKE c_e.
+*    LEAVE LIST-PROCESSING.
+*
+*  ENDIF.
+* <<< 20/01/2016 - Alteração - Fim
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_VALIDACOES_CAMPOS_FAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_validacoes_campos_fat.
+
+  IF s_buk_f[] IS INITIAL.
+
+    MESSAGE s999 WITH 'Campo Empresa é obrigatório'(E01) DISPLAY LIKE c_e.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+  IF s_dat_f[] IS INITIAL.
+
+    MESSAGE s999 WITH 'Campo Data Final da Viagem é obrigatório'(E02) DISPLAY LIKE c_e.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+* >>> 20/01/2016 - Alteração - Início
+*  IF s_kun_f[] IS INITIAL.
+*
+*    MESSAGE s999 WITH 'Campo Número Cliente é obrigatório'(E05) DISPLAY LIKE c_e.
+*    LEAVE LIST-PROCESSING.
+*
+*  ENDIF.
+*
+*  IF s_bel_f[] IS INITIAL.
+*
+*    MESSAGE s999 WITH 'Campo Número de Documento é obrigatório'(E06) DISPLAY LIKE c_e.
+*    LEAVE LIST-PROCESSING.
+*
+*  ENDIF.
+*
+*  IF s_rei_f[] IS INITIAL.
+*
+*    MESSAGE s999 WITH 'Campo Número da Viagem é obrigatório'(E04) DISPLAY LIKE c_e.
+*    LEAVE LIST-PROCESSING.
+*
+*  ENDIF.
+* <<< 20/01/2016 - Alteração - Fim
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SELECAO_PRE
+*&---------------------------------------------------------------------*
+*       Seleção de dados
+*----------------------------------------------------------------------*
+FORM zf_selecao_pre .
+
+* Declarações Locais
+  DATA:
+    lw_ptrv_head_fae TYPE TABLE OF ptrv_head_type,
+    lw_bsik_fae      TYPE TABLE OF bsik_type,
+
+    ls_ptrv_head     TYPE ptrv_head_type,
+    ls_bsik          TYPE bsik_type,
+
+    li_index         TYPE sy-tabix,
+    ld_dt_corte      TYPE sy-datum.
+
+
+* Seleciona viagens
+  REFRESH gw_ptrv_head[].
+  SELECT  pernr
+          reinr
+          hdvrs
+          datb1
+    FROM ptrv_head
+    INTO TABLE gw_ptrv_head
+    WHERE pernr IN s_per_p
+      AND reinr IN s_rei_p
+      AND datb1 IN s_dat_p.
+
+  IF sy-subrc IS INITIAL.
+
+* Lógica para Prestação de Contas vencidas mais do que 5 dias com base na
+* data final da viagem (PTRV_HEAD-DATB1).
+    CLEAR ld_dt_corte.
+    ld_dt_corte = sy-datum - 5. "Retira os 5 dias de vencimento
+
+    DELETE gw_ptrv_head WHERE datb1 > ld_dt_corte.
+
+  ENDIF.
+
+* Monta campo auxiliar para selecionar a tabela BSIK, pois o
+* tamanho dos campos entre as tabelas são diferentes
+  LOOP AT gw_ptrv_head INTO ls_ptrv_head.
+
+    CLEAR li_index.
+    li_index = sy-tabix.
+
+    ls_ptrv_head-zuonr = ls_ptrv_head-reinr.
+    ls_ptrv_head-xblnr = ls_ptrv_head-reinr.
+
+    MODIFY gw_ptrv_head FROM ls_ptrv_head INDEX li_index.
+
+  ENDLOOP.
+
+  REFRESH lw_ptrv_head_fae[].
+  lw_ptrv_head_fae[] = gw_ptrv_head[].
+  SORT lw_ptrv_head_fae BY zuonr.
+  DELETE ADJACENT DUPLICATES FROM lw_ptrv_head_fae COMPARING zuonr.
+
+  IF lw_ptrv_head_fae[] IS NOT INITIAL.
+
+* Seleção BSIK
+    REFRESH gw_bsik[].
+    SELECT  bukrs
+            lifnr
+            zuonr
+            gjahr
+            belnr
+            buzei
+            xblnr
+            blart
+            prctr
+            hbkid
+      FROM bsik
+      INTO TABLE gw_bsik
+      FOR ALL ENTRIES IN lw_ptrv_head_fae
+      WHERE bukrs IN  s_buk_p
+        AND zuonr =   lw_ptrv_head_fae-zuonr.
+
+  ENDIF.
+
+  REFRESH lw_bsik_fae[].
+  lw_bsik_fae[] = gw_bsik[].
+  SORT lw_bsik_fae BY lifnr.
+  DELETE ADJACENT DUPLICATES FROM lw_bsik_fae COMPARING lifnr.
+
+  IF lw_bsik_fae[] IS NOT INITIAL.
+
+* Seleção fornecedores
+    REFRESH gw_lfa1[].
+    SELECT  lifnr
+            name1
+      FROM lfa1
+      INTO TABLE gw_lfa1
+      FOR ALL ENTRIES IN lw_bsik_fae
+      WHERE lifnr = lw_bsik_fae-lifnr.
+
+  ENDIF.
+
+  REFRESH lw_bsik_fae[].
+  lw_bsik_fae[] = gw_bsik[].
+  SORT lw_bsik_fae BY xblnr blart.
+  DELETE ADJACENT DUPLICATES FROM lw_bsik_fae COMPARING xblnr blart.
+
+  IF lw_bsik_fae[] IS NOT INITIAL.
+
+* Transferência travel -> FI/CO: cabeçalho doc.intermédio TRV
+    REFRESH gw_ptrv_doc_hd.
+    SELECT  awref
+            aworg
+            bukrs
+            xblnr
+            blart
+            bldat
+      FROM ptrv_doc_hd
+      INTO TABLE gw_ptrv_doc_hd
+      FOR ALL ENTRIES IN lw_bsik_fae
+      WHERE xblnr = lw_bsik_fae-xblnr
+        AND blart = lw_bsik_fae-blart.
+
+    IF sy-subrc IS INITIAL.
+
+* Transferência travel -> FI/CO: linhas doc.intermédio TRV
+      REFRESH gw_ptrv_doc_it.
+      SELECT  awref
+              aworg
+              awlin
+              bukrs
+              lifnr
+              pernr
+              wrbtr
+        FROM ptrv_doc_it
+        INTO TABLE gw_ptrv_doc_it
+        FOR ALL ENTRIES IN gw_ptrv_doc_hd
+        WHERE awref = gw_ptrv_doc_hd-awref
+          AND aworg = gw_ptrv_doc_hd-aworg.
+
+    ENDIF.
+
+  ENDIF.
+
+  REFRESH lw_ptrv_head_fae[].
+  lw_ptrv_head_fae[] = gw_ptrv_head[].
+  SORT lw_ptrv_head_fae BY xblnr.
+  DELETE ADJACENT DUPLICATES FROM lw_ptrv_head_fae COMPARING xblnr.
+
+  IF lw_ptrv_head_fae[] IS NOT INITIAL.
+
+* Seleção BSID
+    REFRESH gw_bsid_faturados[].
+    SELECT  bukrs
+            kunnr
+            zuonr
+            gjahr
+            belnr
+            buzei
+            xblnr
+            blart
+            wrbtr
+            zfbdt
+      FROM bsid
+      INTO TABLE gw_bsid_faturados
+      FOR ALL ENTRIES IN lw_ptrv_head_fae
+      WHERE xblnr =   lw_ptrv_head_fae-xblnr
+        AND bukrs IN  s_buk_p.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_PROCESSA_PRE
+*&---------------------------------------------------------------------*
+*       Processa dados
+*----------------------------------------------------------------------*
+FORM zf_processa_pre .
+
+* Declarações Locais
+  DATA:
+    lw_it_aux      TYPE TABLE OF ptrv_doc_it_type,
+
+    ls_ptrv_head   TYPE ptrv_head_type,
+    ls_bsik        TYPE bsik_type,
+    ls_lfa1        TYPE lfa1_type,
+    ls_ptrv_doc_hd TYPE ptrv_doc_hd_type,
+    ls_ptrv_doc_it TYPE ptrv_doc_it_type,
+    ls_alv_pre     TYPE zstfi_pres_con.
+
+* Ordena tabelas internas para BINARY SEARCH
+  SORT: gw_lfa1           BY lifnr,
+        gw_bsik           BY zuonr,
+        gw_ptrv_doc_hd    BY xblnr blart,
+        gw_ptrv_doc_it    BY awref aworg lifnr pernr,
+        gw_bsid_faturados BY xblnr.
+
+  REFRESH gw_alv_pre[].
+  LOOP AT gw_ptrv_head INTO ls_ptrv_head.
+
+    CLEAR ls_alv_pre.
+    ls_alv_pre-pernr      = ls_ptrv_head-pernr.
+    ls_alv_pre-reinr      = ls_ptrv_head-reinr.
+    ls_alv_pre-datb1      = ls_ptrv_head-datb1.
+
+    CLEAR ls_bsik.
+    READ TABLE gw_bsik INTO ls_bsik WITH KEY zuonr = ls_ptrv_head-zuonr
+                                             BINARY SEARCH.
+    IF sy-subrc IS NOT INITIAL.
+
+* Registro não deve ser considerado por conta dos filtros informados na tela de seleção
+      CONTINUE.
+
+    ELSE.
+
+* Centro de Lucro
+      ls_alv_pre-prctr = ls_bsik-prctr.
+
+* Empresa
+      ls_alv_pre-bukrs = ls_bsik-bukrs.
+
+* Fornecedor
+      ls_alv_pre-lifnr = ls_bsik-lifnr.
+
+* Banco empresa
+      ls_alv_pre-hbkid = ls_bsik-hbkid.
+
+      CLEAR ls_lfa1.
+      READ TABLE gw_lfa1 INTO ls_lfa1 WITH KEY  lifnr = ls_bsik-lifnr
+                                                BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+
+        ls_alv_pre-name1 = ls_lfa1-name1.
+
+      ENDIF.
+
+* Lógica para cálculo do Montante
+      CLEAR ls_ptrv_doc_hd.
+      READ TABLE gw_ptrv_doc_hd INTO ls_ptrv_doc_hd WITH KEY  xblnr = ls_bsik-xblnr
+                                                              blart = ls_bsik-blart
+                                                              BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+
+        ls_alv_pre-bldat  = ls_ptrv_doc_hd-bldat.
+
+* Armazena apenas as linhas de itens pertinentes ao header
+        REFRESH lw_it_aux[].
+        lw_it_aux[] = gw_ptrv_doc_it[].
+        DELETE lw_it_aux WHERE awref <> ls_ptrv_doc_hd-awref
+                            OR aworg <> ls_ptrv_doc_hd-aworg
+                            OR lifnr <> ls_bsik-lifnr
+                            OR pernr <> ls_ptrv_head-pernr.
+
+        LOOP AT lw_it_aux INTO ls_ptrv_doc_it.
+
+          ls_alv_pre-wrbtr = ls_alv_pre-wrbtr + ls_ptrv_doc_it-wrbtr.
+
+        ENDLOOP.
+
+      ENDIF.
+
+* Verifica Status Faturamento
+      READ TABLE gw_bsid_faturados TRANSPORTING NO FIELDS WITH KEY  xblnr = ls_ptrv_head-xblnr
+                                                                    BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+
+        ls_alv_pre-status_fat = icon_led_green.
+
+      ELSE.
+
+        ls_alv_pre-status_fat = icon_led_red.
+
+      ENDIF.
+
+    ENDIF.
+
+    APPEND ls_alv_pre TO gw_alv_pre.
+
+  ENDLOOP.
+
+* Verifica se foi encontrado algum registro para os parâmetros informados
+  IF gw_alv_pre[] IS INITIAL.
+
+    MESSAGE s999 WITH 'Nenhum registro encontrado para'(E07)
+                      'os parâmetros informados'(E08)
+                      DISPLAY LIKE c_e.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_PREPARA_FIELDCAT_PRE
+*&---------------------------------------------------------------------*
+*       Prepara Fieldcat
+*----------------------------------------------------------------------*
+FORM zf_prepara_fieldcat_pre .
+
+  FIELD-SYMBOLS: <fs_fieldcat> TYPE lvc_s_fcat.
+
+* Determina os Campos que deverão ser exibidos no ALV
+  REFRESH gw_fieldcat_pre[].
+  CALL FUNCTION 'LVC_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name = c_zstfi_pres_con
+    CHANGING
+      ct_fieldcat      = gw_fieldcat_pre.
+
+  LOOP AT gw_fieldcat_pre ASSIGNING <fs_fieldcat>.
+
+    CASE <fs_fieldcat>-fieldname.
+
+      WHEN c_status_fat.
+        <fs_fieldcat>-reptext = 'Status Faturamento'(003).
+        <fs_fieldcat>-just    = c_c.
+
+      WHEN c_pernr.
+        <fs_fieldcat>-reptext = 'Número Pessoal'(004).
+
+      WHEN c_lifnr.
+        <fs_fieldcat>-reptext = 'Número Fornecedor'(005).
+
+      WHEN c_name1.
+        <fs_fieldcat>-reptext = 'Nome'(006).
+
+      WHEN c_reinr.
+        <fs_fieldcat>-reptext = 'Número Viagem'(007).
+
+      WHEN c_wrbtr.
+        <fs_fieldcat>-reptext = 'Montante'(008).
+
+      WHEN c_datb1.
+        <fs_fieldcat>-reptext = 'Data Final Viagem'(009).
+
+      WHEN OTHERS.
+
+        <fs_fieldcat>-tech = abap_true.
+
+    ENDCASE.
+
+  ENDLOOP.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_PREPARA_LAYOUT_PRE
+*&---------------------------------------------------------------------*
+*       Prepara layout do ALV
+*----------------------------------------------------------------------*
+FORM zf_prepara_layout_pre .
+
+** Ordenação
+*  REFRESH gw_sort_pre[].
+*  PERFORM zf_add_sort TABLES gw_sort_pre
+*                      USING: c_1
+*                             c_status_fat
+*                             abap_false.
+*
+*  PERFORM zf_add_sort TABLES gw_sort_pre
+*                      USING: c_2
+*                             c_pernr
+*                             abap_false.
+
+* Layout
+  CLEAR gs_layout_pre.
+  gs_layout_pre-zebra      = abap_true. "Linhas zebradas do relatório
+  gs_layout_pre-cwidth_opt = abap_true. "Otimização das colunas do relatório
+  gs_layout_pre-sel_mode   = c_a.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SORT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_add_sort TABLES pw_sort
+                 USING  p_ordem
+                        p_campo
+                        p_up.
+
+  DATA: ls_sort    TYPE lvc_s_sort.
+
+*Opções para classificação dos dados do Relatório
+  CLEAR: ls_sort.
+  ls_sort-spos      = p_ordem.
+  ls_sort-fieldname = p_campo.
+  ls_sort-up        = p_up.
+  APPEND ls_sort TO pw_sort.
+
+ENDFORM.                    " ZF_SORT
+
+* -----------------------------------------------------------------------
+* Form  ZF_HANDLE_TOOLBAR_PRE
+* -----------------------------------------------------------------------
+* Monta botões Zs dos ALVs
+* -----------------------------------------------------------------------
+FORM zf_handle_toolbar_pre USING e_object TYPE REF TO cl_alv_event_toolbar_set.
+
+  DATA: ls_toolbar  TYPE stb_button.
+
+* Adiciona um espaço (separador) no final dos botões STANDARD.
+  CLEAR ls_toolbar.
+  MOVE 3 TO ls_toolbar-butn_type.
+  APPEND ls_toolbar TO e_object->mt_toolbar.
+
+* Adiciona atributos para a criação de um novo botão.
+  CLEAR ls_toolbar.
+  ls_toolbar-function    = c_fat.
+  ls_toolbar-quickinfo   = 'Criar Fatura'(010).
+  ls_toolbar-text        = 'Criar Fatura'(010).
+  ls_toolbar-disabled    = space.
+  ls_toolbar-icon        = icon_activity.
+  APPEND ls_toolbar      TO e_object->mt_toolbar.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_HANDLE_COMMAND_PRE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_handle_command_pre  USING    p_ucomm TYPE sy-ucomm.
+
+  CASE p_ucomm.
+
+    WHEN c_fat. "Criar Fatura
+
+      PERFORM zf_cria_fatura_pre.
+
+  ENDCASE.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CRIA_FATURA_PRE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_cria_fatura_pre .
+
+  DATA:
+    lw_rows    TYPE lvc_t_roid,
+    lw_alv_sel TYPE TABLE OF zstfi_pres_con,
+
+    ls_rows    LIKE LINE OF lw_rows,
+    ls_alv_sel TYPE zstfi_pres_con,
+    ls_alv_pre TYPE zstfi_pres_con,
+
+    lc_kunnr   TYPE kna1-kunnr,
+    lc_erro    TYPE c,
+    lc_msg     TYPE bapiret2-message.
+
+* Obtém Linhas selecionadas
+  CALL METHOD go_alv_pre->get_selected_rows
+    IMPORTING
+      et_row_no = lw_rows.
+
+  IF lw_rows[] IS INITIAL.
+
+    MESSAGE s999 WITH 'Nenhum registro selecionado'(E09)
+                      DISPLAY LIKE c_e.
+    EXIT.
+
+  ENDIF.
+
+* Monta tabela interna LW_ALV_SEL com apenas os registros selecionados
+  REFRESH lw_alv_sel[].
+  LOOP AT lw_rows INTO ls_rows.
+
+    CLEAR ls_alv_sel.
+    READ TABLE gw_alv_pre INTO ls_alv_sel INDEX ls_rows-row_id.
+
+    IF sy-subrc IS INITIAL.
+
+      ls_alv_sel-row_id = ls_rows-row_id.
+      APPEND ls_alv_sel TO lw_alv_sel.
+
+    ENDIF.
+
+  ENDLOOP.
+
+* Verifica se o usuário não marcou registros já com Faturas Criadas
+  CLEAR ls_alv_sel.
+  READ TABLE lw_alv_sel INTO ls_alv_sel WITH KEY status_fat = icon_led_green.
+  IF sy-subrc IS INITIAL.
+
+    MESSAGE s999 WITH 'Nenhum registro selecionado'(E40)
+                      ls_alv_sel-reinr
+                      DISPLAY LIKE c_e.
+    EXIT.
+
+  ENDIF.
+
+* Limpa LOG
+  REFRESH gw_log_pre[].
+
+* Processa as linhas selecionadas pelo usuário
+  LOOP AT lw_alv_sel INTO ls_alv_sel.
+
+* Limpa flag erro
+    CLEAR lc_erro.
+
+    CLEAR lc_kunnr.
+    PERFORM zf_verifica_cliente_existe  USING ls_alv_sel
+                                        CHANGING lc_kunnr.
+
+* Se o Cliente ainda não existe, então será necessário criá-lo
+    IF lc_kunnr IS INITIAL.
+
+      PERFORM zf_cria_cliente USING ls_alv_sel
+                              CHANGING lc_kunnr
+                                       lc_erro.
+
+    ELSE.
+
+      CLEAR lc_msg.
+      CONCATENATE 'Cliente encontrado. Não será necessário a criação:'(W01)
+                  lc_kunnr
+             INTO lc_msg.
+
+* Adiciona LOG PRE
+      PERFORM zf_add_log_pre USING ls_alv_sel
+                                   'CRIACAO_CLIENTE'(015)
+                                   c_w
+                                   lc_msg.
+
+    ENDIF.
+
+    IF lc_erro IS INITIAL.
+
+* Faz a criação da PArtida em Aberto (Fatura)
+      PERFORM zf_shdb_fatura_pre USING ls_alv_sel
+                                       lc_kunnr
+                              CHANGING lc_erro.
+
+** Faz a criação da PArtida em Aberto (Fatura)
+*      PERFORM zf_bapi_fatura_pre USING ls_alv_sel
+*                                       lc_kunnr
+*                              CHANGING lc_erro.
+
+      IF lc_erro IS INITIAL.
+
+* Se ocorreu td certo, muda o Status para Verde
+        CLEAR ls_alv_pre.
+        READ TABLE gw_alv_pre INTO ls_alv_pre INDEX ls_alv_sel-row_id.
+        IF sy-subrc IS INITIAL.
+
+          ls_alv_pre-status_fat = icon_led_green.
+          MODIFY gw_alv_pre FROM ls_alv_pre INDEX ls_alv_sel-row_id.
+
+        ENDIF.
+
+* Atualiza o ALV
+        CALL METHOD go_alv_pre->refresh_table_display.
+
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+* Exibe LOG
+  PERFORM zf_exibe_log_pre.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SELECAO_FAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_selecao_fat .
+
+* Declarações Locais
+  DATA:
+    lw_ptrv_head_fae TYPE TABLE OF ptrv_head_type,
+    lw_bsid_fae      TYPE TABLE OF bsid_type,
+
+    ls_ptrv_head     TYPE ptrv_head_type,
+
+    li_index         TYPE sy-tabix.
+
+
+* Seleciona viagens
+  REFRESH gw_ptrv_head[].
+  SELECT  pernr
+          reinr
+          hdvrs
+          datb1
+    FROM ptrv_head
+    INTO TABLE gw_ptrv_head
+    WHERE reinr IN s_rei_f
+      AND datb1 IN s_dat_f.
+
+* Monta campo auxiliar para selecionar a tabela BSID, pois o
+* tamanho dos campos entre as tabelas são diferentes
+  LOOP AT gw_ptrv_head INTO ls_ptrv_head.
+
+    CLEAR li_index.
+    li_index = sy-tabix.
+
+* >>> 20/01/2016 - Alteração - Início
+*    ls_ptrv_head-zuonr = ls_ptrv_head-reinr.
+    ls_ptrv_head-xblnr = ls_ptrv_head-reinr.
+* <<< 20/01/2016 - Alteração - Fim
+
+    MODIFY gw_ptrv_head FROM ls_ptrv_head INDEX li_index.
+
+  ENDLOOP.
+
+  REFRESH lw_ptrv_head_fae[].
+  lw_ptrv_head_fae[] = gw_ptrv_head[].
+* >>> 20/01/2016 - Alteração - Início
+*  SORT lw_ptrv_head_fae BY zuonr.
+*  DELETE ADJACENT DUPLICATES FROM lw_ptrv_head_fae COMPARING zuonr.
+  SORT lw_ptrv_head_fae BY xblnr.
+  DELETE ADJACENT DUPLICATES FROM lw_ptrv_head_fae COMPARING xblnr.
+* <<< 20/01/2016 - Alteração - Fim
+
+  IF lw_ptrv_head_fae[] IS NOT INITIAL.
+
+* Seleção BSID
+    REFRESH gw_bsid[].
+    SELECT  bukrs
+            kunnr
+            zuonr
+            gjahr
+            belnr
+            buzei
+            xblnr
+            blart
+            wrbtr
+            zfbdt
+      FROM bsid
+      INTO TABLE gw_bsid
+      FOR ALL ENTRIES IN lw_ptrv_head_fae
+* >>> 20/01/2016 - Alteração - Início
+*      WHERE zuonr =   lw_ptrv_head_fae-zuonr
+      WHERE xblnr =   lw_ptrv_head_fae-xblnr
+* <<< 20/01/2016 - Alteração - Fim
+        AND bukrs IN  s_buk_f
+        AND kunnr IN  s_kun_f
+        AND belnr IN  s_bel_f.
+
+  ENDIF.
+
+  REFRESH lw_bsid_fae[].
+  lw_bsid_fae[] = gw_bsid[].
+  SORT lw_bsid_fae BY kunnr.
+  DELETE ADJACENT DUPLICATES FROM lw_bsid_fae COMPARING kunnr.
+
+  IF lw_bsid_fae[] IS NOT INITIAL.
+
+* Seleção fornecedores
+    REFRESH gw_kna1[].
+    SELECT  kunnr
+            name1
+      FROM kna1
+      INTO TABLE gw_kna1
+      FOR ALL ENTRIES IN lw_bsid_fae
+      WHERE kunnr = lw_bsid_fae-kunnr.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_PROCESSA_FAT
+*&---------------------------------------------------------------------*
+*       Processa dados
+*----------------------------------------------------------------------*
+FORM zf_processa_fat .
+
+* Declarações Locais
+  DATA:
+    ls_ptrv_head TYPE ptrv_head_type,
+    ls_bsid      TYPE bsid_type,
+    ls_kna1      TYPE kna1_type,
+    ls_alv_fat   TYPE zstfi_fatu_via,
+    li_index     TYPE sy-tabix.
+
+* Ordena tabelas internas para BINARY SEARCH
+  SORT: gw_kna1         BY kunnr,
+
+* >>> 20/01/2016 - alteração - início
+*        gw_bsid         BY zuonr.
+        gw_bsid         BY xblnr.
+* <<< 20/01/2016 - Alteração - Fim
+
+  REFRESH gw_alv_fat[].
+  LOOP AT gw_ptrv_head INTO ls_ptrv_head.
+
+    CLEAR ls_alv_fat.
+    ls_alv_fat-pernr = ls_ptrv_head-pernr.
+    ls_alv_fat-reinr = ls_ptrv_head-reinr.
+
+* >>> 20/01/2016 - Alteração - Início
+*    CLEAR ls_bsid.
+*    READ TABLE gw_bsid INTO ls_bsid WITH KEY zuonr = ls_ptrv_head-zuonr
+*                                             BINARY SEARCH.
+    CLEAR ls_bsid.
+    READ TABLE gw_bsid INTO ls_bsid WITH KEY xblnr = ls_ptrv_head-xblnr
+                                             BINARY SEARCH.
+* <<< 20/01/2016 - Alteração - Fim
+
+    IF sy-subrc IS NOT INITIAL.
+
+* Registro não deve ser considerado por conta dos filtros informados na tela de seleção
+      CONTINUE.
+
+    ELSE.
+
+      CLEAR li_index.
+      li_index = sy-tabix.
+
+      LOOP AT gw_bsid INTO ls_bsid FROM li_index.
+
+* >>> 20/01/2016 - Alteração - Início
+*        IF ls_bsid-zuonr <> ls_ptrv_head-zuonr.
+*          EXIT.
+*        ENDIF.
+        IF ls_bsid-xblnr <> ls_ptrv_head-xblnr.
+          EXIT.
+        ENDIF.
+* <<< 20/01/2016 - Alteração - Fim
+
+* Fornecedor
+        ls_alv_fat-kunnr = ls_bsid-kunnr.
+
+        CLEAR ls_kna1.
+        READ TABLE gw_kna1 INTO ls_kna1 WITH KEY  kunnr = ls_bsid-kunnr
+                                                  BINARY SEARCH.
+        IF sy-subrc IS INITIAL.
+
+          ls_alv_fat-name1 = ls_kna1-name1.
+
+        ENDIF.
+
+* Empresa
+        ls_alv_fat-bukrs = ls_bsid-bukrs.
+
+* Ano
+        ls_alv_fat-gjahr = ls_bsid-gjahr.
+
+* Documento
+        ls_alv_fat-belnr = ls_bsid-belnr.
+
+* Data Vencimento
+        ls_alv_fat-zfbdt = ls_bsid-zfbdt.
+
+* Montante
+        ls_alv_fat-wrbtr = ls_bsid-wrbtr.
+
+        APPEND ls_alv_fat TO gw_alv_fat.
+
+      ENDLOOP.
+
+    ENDIF.
+
+  ENDLOOP.
+
+* Verifica se foi encontrado algum registro para os parâmetros informados
+  IF gw_alv_fat[] IS INITIAL.
+
+    MESSAGE s999 WITH 'Nenhum registro encontrado para'(E07)
+                      'os parâmetros informados'(E08)
+                      DISPLAY LIKE c_e.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_PREPARA_FIELDCAT_FAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_prepara_fieldcat_fat .
+
+  FIELD-SYMBOLS: <fs_fieldcat> TYPE lvc_s_fcat.
+
+* Determina os Campos que deverão ser exibidos no ALV
+  REFRESH gw_fieldcat_fat[].
+  CALL FUNCTION 'LVC_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name = c_zstfi_fatu_via
+    CHANGING
+      ct_fieldcat      = gw_fieldcat_fat.
+
+  LOOP AT gw_fieldcat_fat ASSIGNING <fs_fieldcat>.
+
+    CASE <fs_fieldcat>-fieldname.
+
+*      WHEN c_status_fat.
+*        <fs_fieldcat>-reptext = 'Status Faturamento'(003).
+
+      WHEN c_pernr.
+        <fs_fieldcat>-reptext = 'Número Pessoal'(004).
+
+      WHEN c_kunnr.
+        <fs_fieldcat>-reptext = 'Número Cliente'(011).
+
+      WHEN c_name1.
+        <fs_fieldcat>-reptext = 'Nome'(006).
+
+      WHEN c_reinr.
+        <fs_fieldcat>-reptext = 'Número Viagem'(007).
+
+      WHEN c_belnr.
+        <fs_fieldcat>-reptext = 'Número Documento'(012).
+
+      WHEN c_wrbtr.
+        <fs_fieldcat>-reptext = 'Montante'(008).
+
+      WHEN c_zfbdt.
+        <fs_fieldcat>-reptext = 'Data Vencimento'(013).
+
+      WHEN OTHERS.
+
+        <fs_fieldcat>-tech = abap_true.
+
+    ENDCASE.
+
+  ENDLOOP.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_PREPARA_LAYOUT_FAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_prepara_layout_fat .
+
+** Ordenação
+*  REFRESH gw_sort_fat[].
+*  PERFORM zf_add_sort TABLES gw_sort_fat
+*                      USING: c_1
+*                             c_status_fat
+*                             abap_false.
+*
+*  PERFORM zf_add_sort TABLES gw_sort_fat
+*                      USING: c_2
+*                             c_pernr
+*                             abap_false.
+
+* Layout
+  CLEAR gs_layout_fat.
+  gs_layout_fat-zebra      = abap_true. "Linhas zebradas do relatório
+  gs_layout_fat-cwidth_opt = abap_true. "Otimização das colunas do relatório
+  gs_layout_fat-sel_mode   = c_a.
+
+ENDFORM.
+
+* -----------------------------------------------------------------------
+* Form  ZF_HANDLE_TOOLBAR_FAT
+* -----------------------------------------------------------------------
+* Monta botões Zs dos ALVs
+* -----------------------------------------------------------------------
+FORM zf_handle_toolbar_fat USING e_object TYPE REF TO cl_alv_event_toolbar_set.
+
+  DATA: ls_toolbar  TYPE stb_button.
+
+* Adiciona um espaço (separador) no final dos botões STANDARD.
+  CLEAR ls_toolbar.
+  MOVE 3 TO ls_toolbar-butn_type.
+  APPEND ls_toolbar TO e_object->mt_toolbar.
+
+* Adiciona atributos para a criação de um novo botão.
+  CLEAR ls_toolbar.
+  ls_toolbar-function    = c_bol.
+  ls_toolbar-quickinfo   = 'Imprimir Boleto'(014).
+  ls_toolbar-text        = 'Imprimir Boleto'(014).
+  ls_toolbar-disabled    = space.
+  ls_toolbar-icon        = icon_report.
+  APPEND ls_toolbar      TO e_object->mt_toolbar.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_HANDLE_COMMAND_FAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_handle_command_fat  USING    p_ucomm TYPE sy-ucomm.
+
+  CASE p_ucomm.
+
+    WHEN c_bol. "Criar Fatura
+
+      PERFORM zf_imprimir_boleto_fat.
+
+  ENDCASE.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_IMPRIMIR_BOLETO_FAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_imprimir_boleto_fat.
+
+  DATA:
+    lw_rows    TYPE lvc_t_roid,
+
+    ls_rows    LIKE LINE OF lw_rows,
+    ls_alv_sel TYPE zstfi_fatu_via,
+
+
+    li_lines   TYPE i.
+
+* Obtém Linhas selecionadas
+  CALL METHOD go_alv_fat->get_selected_rows
+    IMPORTING
+      et_row_no = lw_rows.
+
+  IF lw_rows[] IS INITIAL.
+
+    MESSAGE s999 WITH 'Nenhum registro selecionado'(E09)
+                      DISPLAY LIKE c_e.
+    EXIT.
+
+  ENDIF.
+
+  CLEAR li_lines.
+  DESCRIBE TABLE lw_rows[] LINES li_lines.
+
+  IF li_lines > 1.
+
+    MESSAGE s999 WITH 'Apenas uma linha pode ser selecionada'(E39)
+                      DISPLAY LIKE c_e.
+    EXIT.
+
+  ENDIF.
+
+
+  READ TABLE lw_rows INTO ls_rows INDEX 1.
+
+  IF sy-subrc IS INITIAL.
+
+    CLEAR ls_alv_sel.
+    READ TABLE gw_alv_fat INTO ls_alv_sel INDEX ls_rows-row_id.
+
+    IF sy-subrc IS INITIAL.
+
+      SUBMIT zpfir_014
+        WITH s_kunnr EQ ls_alv_sel-kunnr
+        WITH s_bukrs EQ ls_alv_sel-bukrs
+        WITH p_gjahr EQ ls_alv_sel-gjahr
+        WITH s_belnr EQ ls_alv_sel-belnr
+        AND RETURN.
+
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_VERIFICA_CLIENTE_EXISTE
+*&---------------------------------------------------------------------*
+*       Verifica se o cliente já existe criado
+*----------------------------------------------------------------------*
+FORM zf_verifica_cliente_existe USING p_alv       TYPE zstfi_pres_con
+                                CHANGING p_kunnr  TYPE kna1-kunnr.
+
+* Se o parâmetro P_KUNNR for retornado vazio, então o Cliente ainda não existe
+
+  CLEAR p_kunnr.
+  SELECT kunnr
+    FROM kna1
+    INTO p_kunnr
+    UP TO 1 ROWS
+    WHERE lifnr = p_alv-lifnr.
+  ENDSELECT.
+
+  IF sy-subrc IS INITIAL.
+  ENDIF.
+
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CRIA_CLIENTE
+*&---------------------------------------------------------------------*
+*       Cria Cliente
+*----------------------------------------------------------------------*
+FORM zf_cria_cliente  USING    p_alv      TYPE zstfi_pres_con
+                      CHANGING p_kunnr    TYPE kna1-kunnr
+                               p_erro     TYPE c.
+
+* Declarações Locais
+  DATA:
+    ls_kna1    TYPE kna1,
+    ls_knb1    TYPE knb1,
+    ls_o_kna1  TYPE kna1,
+    ls_p0001   TYPE p0001,
+    ls_p0002   TYPE p0002,
+    ls_p0006   TYPE p0006,
+    ls_p0009   TYPE p0009,
+    ls_p0465   TYPE p0465,
+
+    lc_e_kunnr TYPE kna1-kunnr,
+    lc_msg     TYPE bapiret2-message.
+
+  CLEAR p_erro.
+
+* Carrega dados de HR
+  PERFORM zf_carrega_dados_hr   USING p_alv
+                                CHANGING p_erro.
+
+  CHECK p_erro IS INITIAL.
+
+* Leitura dos dados carregados de HR
+  CLEAR:  ls_p0001,
+          ls_p0002,
+          ls_p0006,
+          ls_p0009,
+          ls_p0465.
+  READ TABLE gw_p0001 INTO ls_p0001 INDEX 1.
+  READ TABLE gw_p0002 INTO ls_p0002 INDEX 1.
+  READ TABLE gw_p0006 INTO ls_p0006 INDEX 1.
+  READ TABLE gw_p0009 INTO ls_p0009 INDEX 1.
+  READ TABLE gw_p0465 INTO ls_p0465 INDEX 1.
+
+* Preenche dados para criação do cliente
+  CLEAR: ls_kna1,
+         ls_knb1.
+
+  ls_kna1-name1 = ls_p0001-ename.
+  ls_kna1-ort02 = ls_p0006-ort02.
+  ls_kna1-pstlz = ls_p0006-pstlz.
+  ls_kna1-ort01 = ls_p0006-ort01.
+  ls_kna1-land1 = ls_p0002-natio.
+  ls_kna1-regio = ls_p0002-gbdep.
+  ls_kna1-stcd2 = ls_p0465-cpf_nr.
+  ls_kna1-stkzn = abap_true.
+  ls_kna1-lifnr = p_alv-lifnr.
+
+  ls_knb1-bukrs = ls_p0001-bukrs.
+
+* >>> 20/01/2016 - Alteração - Início
+*  ls_knb1-fdgrv = c_g15.
+* <<< 20/01/2016 - Alteração - Fim
+
+  ls_knb1-pernr = ls_p0001-pernr.
+  ls_knb1-zterm = c_0003.
+
+* >>> 20/01/2016 - Alteração - Início
+*  ls_knb1-zwels = ls_p0009-zlsch.
+  ls_knb1-zwels = c_zwels_d.
+* <<< 20/01/2016 - Alteração - Fim
+
+* Verifica grupo de empregados
+  CASE ls_p0001-persg.
+    WHEN c_1."Conselheiro
+
+      CONCATENATE c_c
+                  ls_p0001-pernr
+             INTO ls_kna1-kunnr.
+
+      ls_kna1-ktokd = c_0011k.
+      ls_knb1-akont = c_1219114101.
+
+* >>> 20/01/2016 - Alteração - Início
+      ls_knb1-fdgrv = c_c011.
+* <<< 20/01/2016 - Alteração - Fim
+
+    WHEN c_2."Diretor
+
+      CONCATENATE c_d
+                  ls_p0001-pernr
+             INTO ls_kna1-kunnr.
+
+      ls_kna1-ktokd = c_0013k.
+      ls_knb1-akont = c_1219114101.
+
+* >>> 20/01/2016 - Alteração - Início
+      ls_knb1-fdgrv = c_c012.
+* <<< 20/01/2016 - Alteração - Fim
+
+    WHEN c_3."CLT
+
+      CONCATENATE c_e
+                  ls_p0001-pernr
+             INTO ls_kna1-kunnr.
+
+      ls_kna1-ktokd = c_0001k.
+      ls_knb1-akont = c_1119101004.
+
+* >>> 20/01/2016 - Alteração - Início
+      ls_knb1-fdgrv = c_c001.
+* <<< 20/01/2016 - Alteração - Fim
+
+  ENDCASE.
+
+  ls_knb1-kunnr = ls_kna1-kunnr.
+
+  CONCATENATE ls_p0006-stras
+              c_virgula
+              ls_p0006-hsnmr
+         INTO ls_kna1-stras.
+
+* >>> 20/01/2016 - Alteração - Início
+*  CONCATENATE ls_p0006-pstlz
+*              c_hifen
+*              ls_p0002-gbdep
+*         INTO ls_kna1-txjcd.
+* <<< 20/01/2016 - Alteração - Fim
+
+* Chama função para criação do Cliente
+  CLEAR:  lc_e_kunnr,
+          ls_o_kna1.
+  CALL FUNCTION 'SD_CUSTOMER_MAINTAIN_ALL'
+    EXPORTING
+      i_kna1                  = ls_kna1
+      i_knb1                  = ls_knb1
+    IMPORTING
+      e_kunnr                 = lc_e_kunnr
+      o_kna1                  = ls_o_kna1
+    EXCEPTIONS
+      client_error            = 1
+      kna1_incomplete         = 2
+      knb1_incomplete         = 3
+      knb5_incomplete         = 4
+      knvv_incomplete         = 5
+      kunnr_not_unique        = 6
+      sales_area_not_unique   = 7
+      sales_area_not_valid    = 8
+      insert_update_conflict  = 9
+      number_assignment_error = 10
+      number_not_in_range     = 11
+      number_range_not_extern = 12
+      number_range_not_intern = 13
+      account_group_not_valid = 14
+      parnr_invalid           = 15
+      bank_address_invalid    = 16
+      tax_data_not_valid      = 17
+      no_authority            = 18
+      company_code_not_unique = 19
+      dunning_data_not_valid  = 20
+      knb1_reference_invalid  = 21
+      cam_error               = 22
+      OTHERS                  = 23.
+
+  IF sy-subrc IS INITIAL.
+
+    IF lc_e_kunnr IS INITIAL.
+      p_kunnr = ls_o_kna1-kunnr.
+    ELSE.
+      p_kunnr   = lc_e_kunnr.
+    ENDIF.
+
+** BAPI COMMIT
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
+    WAIT UP TO 2 SECONDS.
+
+    CLEAR lc_msg.
+    CONCATENATE 'Cliente criado com sucesso:'(S01)
+                p_kunnr
+           INTO lc_msg.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_CLIENTE'(015)
+                                 c_s
+                                 lc_msg.
+
+  ELSE.
+
+    p_erro = abap_true.
+
+    CLEAR lc_msg.
+    CASE sy-subrc.
+
+      WHEN c_1.
+        lc_msg = 'client_error'(E16).
+      WHEN c_2.
+        lc_msg = 'kna1_incomplete'(E17).
+      WHEN c_3.
+        lc_msg = 'knb1_incomplete'(E18).
+      WHEN c_4.
+        lc_msg = 'knb5_incomplete'(E19).
+      WHEN c_5.
+        lc_msg = 'knvv_incomplete'(E20).
+      WHEN c_6.
+        lc_msg = 'kunnr_not_unique'(E21).
+      WHEN c_7.
+        lc_msg = 'sales_area_not_unique'(E22).
+      WHEN c_8.
+        lc_msg = 'sales_area_not_valid'(E23).
+      WHEN c_9.
+        lc_msg = 'insert_update_conflict'(E24).
+      WHEN c_10.
+        lc_msg = 'number_assignment_error'(E25).
+      WHEN c_11.
+        lc_msg = 'number_not_in_range'(E26).
+      WHEN c_12.
+        lc_msg = 'number_range_not_extern'(E27).
+      WHEN c_13.
+        lc_msg = 'number_range_not_intern'(E28).
+      WHEN c_14.
+        lc_msg = 'account_group_not_valid'(E29).
+      WHEN c_15.
+        lc_msg = 'parnr_invalid'(E30).
+      WHEN c_16.
+        lc_msg = 'bank_address_invalid'(E31).
+      WHEN c_17.
+        lc_msg = 'tax_data_not_valid'(E32).
+      WHEN c_18.
+        lc_msg = 'no_authority'(E33).
+      WHEN c_19.
+        lc_msg = 'company_code_not_unique'(E34).
+      WHEN c_20.
+        lc_msg = 'dunning_data_not_valid'(E35).
+      WHEN c_21.
+        lc_msg = 'knb1_reference_invalid'(E36).
+      WHEN c_22.
+        lc_msg = 'cam_error'(E37).
+      WHEN c_23.
+        lc_msg = 'others'(E38).
+
+    ENDCASE.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_CLIENTE'(015)
+                                 c_e
+                                 lc_msg.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CARREGA_DADOS
+*&---------------------------------------------------------------------*
+FORM zf_carrega_dados_hr  USING    p_alv    TYPE zstfi_pres_con
+                          CHANGING p_erro   TYPE c.
+
+  CLEAR: p_erro.
+
+  CALL FUNCTION 'HR_READ_INFOTYPE'
+    EXPORTING
+      pernr           = p_alv-pernr
+      infty           = c_0001
+      begda           = sy-datum
+      endda           = sy-datum
+    TABLES
+      infty_tab       = gw_p0001
+    EXCEPTIONS
+      infty_not_found = 1
+      OTHERS          = 2.
+
+  IF sy-subrc IS NOT INITIAL.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_CLIENTE'(015)
+                                 c_e
+                                 'Erro na leitura do InfoTipo 0001'(E10).
+
+    p_erro = abap_true.
+
+    EXIT.
+
+  ENDIF.
+
+  CALL FUNCTION 'HR_READ_INFOTYPE'
+    EXPORTING
+      pernr           = p_alv-pernr
+      infty           = c_0002
+      begda           = sy-datum
+      endda           = sy-datum
+    TABLES
+      infty_tab       = gw_p0002
+    EXCEPTIONS
+      infty_not_found = 1
+      OTHERS          = 2.
+
+  IF sy-subrc IS NOT INITIAL.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_CLIENTE'(015)
+                                 c_e
+                                 'Erro na leitura do InfoTipo 0002'(E11).
+
+    p_erro = abap_true.
+
+    EXIT.
+
+  ENDIF.
+
+  CALL FUNCTION 'HR_READ_INFOTYPE'
+    EXPORTING
+      pernr           = p_alv-pernr
+      infty           = c_0006
+      begda           = sy-datum
+      endda           = sy-datum
+    TABLES
+      infty_tab       = gw_p0006
+    EXCEPTIONS
+      infty_not_found = 1
+      OTHERS          = 2.
+
+  IF sy-subrc IS NOT INITIAL.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_CLIENTE'(015)
+                                 c_e
+                                 'Erro na leitura do InfoTipo 0006'(E12).
+
+    p_erro = abap_true.
+
+    EXIT.
+
+  ENDIF.
+
+  CALL FUNCTION 'HR_READ_INFOTYPE'
+    EXPORTING
+      pernr           = p_alv-pernr
+      infty           = c_0009
+      begda           = sy-datum
+      endda           = sy-datum
+    TABLES
+      infty_tab       = gw_p0009
+    EXCEPTIONS
+      infty_not_found = 1
+      OTHERS          = 2.
+
+  IF sy-subrc IS NOT INITIAL.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_CLIENTE'(015)
+                                 c_e
+                                 'Erro na leitura do InfoTipo 0009'(E13).
+
+    p_erro = abap_true.
+
+    EXIT.
+
+  ENDIF.
+
+  CALL FUNCTION 'HR_READ_INFOTYPE'
+    EXPORTING
+      pernr           = p_alv-pernr
+      infty           = c_0465
+      begda           = sy-datum
+      endda           = sy-datum
+    TABLES
+      infty_tab       = gw_p0465
+    EXCEPTIONS
+      infty_not_found = 1
+      OTHERS          = 2.
+
+  IF sy-subrc IS NOT INITIAL.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_CLIENTE'(015)
+                                 c_e
+                                 'Erro na leitura do InfoTipo 0465'(E14).
+
+    p_erro = abap_true.
+
+    EXIT.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_ADD_LOG_PRE
+*&---------------------------------------------------------------------*
+*       Add linha de log
+*----------------------------------------------------------------------*
+FORM zf_add_log_pre  USING    p_alv       TYPE zstfi_pres_con
+                              p_proc
+                              p_tipo_msg
+                              p_msg.
+
+  DATA: ls_log_pre    TYPE log_pre_type.
+
+  CLEAR ls_log_pre.
+  ls_log_pre-pernr = p_alv-pernr.
+  ls_log_pre-lifnr = p_alv-lifnr.
+  ls_log_pre-name1 = p_alv-name1.
+  ls_log_pre-reinr = p_alv-reinr.
+
+* Processo
+  ls_log_pre-proc = p_proc.
+
+* Mensagem
+  ls_log_pre-msg = p_msg.
+
+* Icone
+  CASE p_tipo_msg.
+    WHEN c_e.
+      ls_log_pre-icon = icon_led_red.
+    WHEN c_s.
+      ls_log_pre-icon = icon_led_green.
+    WHEN c_w.
+      ls_log_pre-icon = icon_led_yellow.
+  ENDCASE.
+
+  APPEND ls_log_pre TO gw_log_pre.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_EXIBE_LOG_PRE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_exibe_log_pre .
+
+  DATA: o_alv        TYPE REF TO cl_salv_table,
+        lr_columns   TYPE REF TO cl_salv_columns_table,
+        lr_functions TYPE REF TO cl_salv_functions_list.
+
+  TRY.
+      cl_salv_table=>factory( IMPORTING r_salv_table = o_alv
+                              CHANGING  t_table      = gw_log_pre[] ).
+
+    CATCH cx_salv_msg.
+  ENDTRY.
+
+* Optimize de colunas
+  lr_columns = o_alv->get_columns( ).
+  lr_columns->set_optimize( abap_true ).
+
+** Oculta colunas
+*  PERFORM: zf_oculta_colunas_log USING lr_columns c_dispo ,
+*           zf_oculta_colunas_log USING lr_columns c_vornr .
+
+* Seta botões do ALV
+  lr_functions = o_alv->get_functions( ).
+  lr_functions->set_all( abap_true ).
+
+* Exibe Alv
+  IF o_alv IS BOUND.
+    o_alv->display( ).
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_BAPI_FATURA_PRE
+*&---------------------------------------------------------------------*
+*       BAPI para criação da fatura
+*----------------------------------------------------------------------*
+FORM zf_bapi_fatura_pre  USING  p_alv   TYPE zstfi_pres_con
+                                p_kunnr TYPE kna1-kunnr
+                       CHANGING p_erro.
+
+* Declarações locais
+  DATA:
+    ls_documentheader    TYPE bapiache09,
+    ls_accountreceivable TYPE bapiacar09,
+    ls_currencyamount    TYPE bapiaccr09,
+    ls_return            TYPE bapiret2,
+
+    lw_accountreceivable TYPE TABLE OF bapiacar09,
+    lw_currencyamount    TYPE TABLE OF bapiaccr09,
+    lw_return            TYPE TABLE OF bapiret2,
+
+    lc_obj_key           TYPE bapiache09-obj_key,
+    lc_msg               TYPE bapi_msg.
+
+  CLEAR p_erro.
+
+* Preenchimento DOCUMENTHEADER
+  CLEAR ls_documentheader.
+  ls_documentheader-header_txt  = 'Prestação contas viagem'(016).
+  ls_documentheader-doc_date    = p_alv-bldat.
+* >>> 20/01/2016 - Alteração - Início
+*  ls_documentheader-doc_type    = c_doc_viag_tv.
+  ls_documentheader-doc_type    = c_prest_cont_tc.
+* <<< 20/01/2016 - Alteração - Fim
+  ls_documentheader-comp_code   = p_alv-bukrs.
+  ls_documentheader-pstng_date  = sy-datum.
+  ls_documentheader-fis_period  = sy-datum+4(02).
+  ls_documentheader-fisc_year   = sy-datum(04).
+  ls_documentheader-ref_doc_no  = p_alv-reinr.
+  ls_documentheader-username    = sy-uname.
+  ls_documentheader-trans_date  = sy-datum.
+
+* Preenchimento ACCOUNTRECEIVABLE
+  REFRESH lw_accountreceivable[].
+
+  CLEAR ls_accountreceivable.
+  ls_accountreceivable-itemno_acc   = '0000000001'.
+  ls_accountreceivable-bline_date   = sy-datum.
+  ls_accountreceivable-gl_account   = c_2000027.
+  ls_accountreceivable-customer     = p_kunnr.
+  ls_accountreceivable-pymt_amt     = p_alv-wrbtr.
+  ls_accountreceivable-pymt_meth    = c_d.
+  ls_accountreceivable-alloc_nmbr   = 'COBRANÇA'(018).
+  ls_accountreceivable-pymt_cur     = c_brl.
+  ls_accountreceivable-comp_code    = p_alv-bukrs.
+  ls_accountreceivable-pmnttrms     = '0001'.
+
+
+  IF p_alv-prctr IS NOT INITIAL.
+
+    ls_accountreceivable-profit_ctr   = p_alv-prctr.
+
+  ELSE.
+
+    CASE p_alv-bukrs.
+      WHEN c_2000.
+        ls_accountreceivable-profit_ctr   = c_1999.
+      WHEN c_3000.
+        ls_accountreceivable-profit_ctr   = c_3999.
+    ENDCASE.
+
+  ENDIF.
+
+  CONCATENATE 'Documento Viagem'(017)
+              c_hifen
+              p_alv-reinr
+         INTO ls_accountreceivable-item_text.
+
+  IF p_alv-hbkid IS NOT INITIAL.
+
+    ls_accountreceivable-bank_id      = p_alv-hbkid.
+
+  ELSE.
+
+    CASE p_alv-bukrs.
+      WHEN c_2000.
+        ls_accountreceivable-bank_id      = c_0418.
+      WHEN c_3000.
+        ls_accountreceivable-bank_id      = c_0418g.
+    ENDCASE.
+
+  ENDIF.
+
+  APPEND ls_accountreceivable TO lw_accountreceivable.
+
+  ls_accountreceivable-itemno_acc   = '0000000002'.
+  ls_accountreceivable-gl_account   = c_1119101999.
+  ls_accountreceivable-pymt_amt     = -1 * p_alv-wrbtr.
+  APPEND ls_accountreceivable TO lw_accountreceivable.
+
+* Preenchimento ACCOUNTRECEIVABLE
+  REFRESH lw_currencyamount[].
+  CLEAR ls_currencyamount.
+  ls_currencyamount-itemno_acc  = '0000000001'.
+  ls_currencyamount-currency    = c_brl.
+  ls_currencyamount-amt_doccur  = p_alv-wrbtr.
+  APPEND ls_currencyamount TO lw_currencyamount.
+
+  CLEAR ls_currencyamount.
+  ls_currencyamount-itemno_acc  = '0000000002'.
+  ls_currencyamount-currency    = c_brl.
+  ls_currencyamount-amt_doccur  = -1 * p_alv-wrbtr.
+  APPEND ls_currencyamount TO lw_currencyamount.
+
+  REFRESH lw_return[].
+  CLEAR lc_obj_key.
+  CALL FUNCTION 'BAPI_ACC_DOCUMENT_POST'
+    EXPORTING
+      documentheader    = ls_documentheader
+    IMPORTING
+      obj_key           = lc_obj_key
+    TABLES
+*     ACCOUNTGL         =
+      accountreceivable = lw_accountreceivable
+      currencyamount    = lw_currencyamount
+      return            = lw_return.
+
+*   Identifica se ocorreu erro na Criação do Documento Contábil
+  LOOP AT lw_return INTO ls_return
+                    WHERE type EQ c_e
+                    OR    type EQ c_a.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_FATURA'(019)
+                                 c_e
+                                 ls_return-message.
+
+    p_erro = abap_true.
+
+  ENDLOOP.
+
+* Se estiver sem erro então sucesso
+  IF p_erro IS INITIAL.
+
+    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+      EXPORTING
+        wait = abap_true.
+
+    CLEAR lc_msg.
+    CONCATENATE 'Documento criado com sucesso:'(020)
+                lc_obj_key
+           INTO lc_msg
+           SEPARATED BY space.
+
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_FATURA'(019)
+                                 c_s
+                                 lc_msg.
+
+  ELSE.
+
+    CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SHDB_FATURA_PRE
+*&---------------------------------------------------------------------*
+*       SHDB
+*----------------------------------------------------------------------*
+FORM zf_shdb_fatura_pre  USING  p_alv   TYPE zstfi_pres_con
+                                p_kunnr TYPE kna1-kunnr
+                       CHANGING p_erro.
+
+* Declarações locais
+  DATA: lc_sgtxt     TYPE bseg-sgtxt,
+        lc_prctr     TYPE cobl-prctr,
+        lc_msg       TYPE string,
+        ld_datum     TYPE sy-datum,
+        ld_bldat     TYPE sy-datum,
+        lc_valor(15) TYPE c,
+        lc_mode      TYPE c,
+
+        ls_bdc_msg   TYPE bdcmsgcoll,
+        ls_knb1      TYPE knb1_type.
+
+* Busca conta do cliente
+  CLEAR ls_knb1.
+  SELECT  SINGLE
+          kunnr
+          bukrs
+          pernr
+          akont
+    FROM knb1
+    INTO ls_knb1
+    WHERE kunnr = p_kunnr
+      AND bukrs = p_alv-bukrs.
+
+* Valor
+  CLEAR lc_valor.
+  lc_valor = -1 * p_alv-wrbtr.
+
+* Datas
+  CLEAR ld_datum.
+  CONCATENATE sy-datum+6(02)
+              sy-datum+4(02)
+              sy-datum(04)
+         INTO ld_datum.
+
+  CLEAR ld_bldat.
+  CONCATENATE p_alv-bldat+6(02)
+              p_alv-bldat+4(02)
+              p_alv-bldat(04)
+         INTO ld_bldat.
+
+
+* Texto
+  CLEAR lc_sgtxt.
+  CONCATENATE 'Documento Viagem'(017)
+              c_hifen
+              p_alv-reinr
+         INTO lc_sgtxt.
+
+* Centro de Custo
+  CLEAR lc_prctr.
+  IF p_alv-prctr IS NOT INITIAL.
+
+    lc_prctr   = p_alv-prctr.
+
+  ELSE.
+
+    CASE p_alv-bukrs.
+      WHEN c_2000.
+        lc_prctr   = c_1999.
+      WHEN c_3000.
+        lc_prctr   = c_3999.
+    ENDCASE.
+
+  ENDIF.
+
+  REFRESH gw_bdcdata[].
+
+  PERFORM zf_monta_shdb USING:
+    'X' 'SAPMF05A'             '0100',
+    ' ' 'BDC_OKCODE'           '/00',
+    ' ' 'BKPF-BLDAT'           ld_bldat,
+* >>> 20/01/2016 - Alteração - Início
+*    ' ' 'BKPF-BLART'           c_doc_viag_tv,
+    ' ' 'BKPF-BLART'           c_prest_cont_tc,
+* <<< 20/01/2016 - Alteração - Fim
+    ' ' 'BKPF-BUKRS'           p_alv-bukrs,
+    ' ' 'BKPF-BUDAT'           ld_datum,
+    ' ' 'BKPF-MONAT'           sy-datum+4(02),
+    ' ' 'BKPF-WAERS'           c_brl  ,
+* >>> 20/01/2016 - Alteração - Início
+*    ' ' 'BKPF-XBLNR'           'COBRANCA'(018),
+    ' ' 'BKPF-XBLNR'           p_alv-reinr,
+* <<< 20/01/2016 - Alteração - Fim
+    ' ' 'BKPF-BKTXT'           'Prestação contas viagem'(016),
+    ' ' 'FS006-DOCID'          '*',
+    ' ' 'RF05A-NEWBS'          '01',
+    ' ' 'RF05A-NEWKO'          p_kunnr. "ls_knb1-akont." '2000027'.
+
+  PERFORM zf_monta_shdb USING:
+    'X' 'SAPMF05A'             '0301',
+    ' ' 'BDC_OKCODE'           '/00',
+    ' ' 'BSEG-WRBTR'           lc_valor,
+    ' ' 'BSEG-ZTERM'           '0001',
+    ' ' 'BSEG-ZFBDT'           ld_bldat,
+    ' ' 'BSEG-ZLSPR'           'A',
+* >>> 20/01/2016 - Alteração - Início
+*    ' ' 'BSEG-ZUONR'           p_alv-reinr,
+    ' ' 'BSEG-ZUONR'           'COBRANÇA'(018),
+* <<< 20/01/2016 - Alteração - Fim
+    ' ' 'BSEG-SGTXT'           lc_sgtxt,
+    ' ' 'RF05A-NEWBS'          '50',
+    ' ' 'RF05A-NEWKO'          c_1119101999.
+
+  PERFORM zf_monta_shdb USING:
+    'X' 'SAPMF05A'             '0300',
+    ' ' 'BDC_OKCODE'           '=BU',
+    ' ' 'BSEG-WRBTR'           lc_valor,
+* >>> 20/01/2016 - Alteração - Início
+*    ' ' 'BSEG-ZUONR'           p_alv-reinr,
+    ' ' 'BSEG-ZUONR'           'COBRANÇA'(018),
+* <<< 20/01/2016 - Alteração - Fim
+    ' ' 'BSEG-SGTXT'           lc_sgtxt,
+    ' ' 'DKACB-FMORE'          'X'.
+
+  PERFORM zf_monta_shdb USING:
+    'X' 'SAPLKACB'             '0002',
+    ' ' 'BDC_OKCODE'           '=ENTE',
+    ' ' 'COBL-PRCTR'           lc_prctr.
+*    ' ' 'COBL-FIPEX'           '9990000011',
+*    ' ' 'COBL-FIPOS'           '9990000011'.
+
+
+  CLEAR lc_mode.
+  lc_mode = c_n.
+
+  REFRESH gw_bdc_msg[].
+  CALL TRANSACTION 'F-22' USING  gw_bdcdata
+                          MODE   lc_mode
+                          UPDATE c_s
+                          MESSAGES INTO gw_bdc_msg.
+
+
+  CLEAR ls_bdc_msg.
+  READ TABLE gw_bdc_msg INTO ls_bdc_msg WITH KEY  msgtyp  = 'S'
+                                                  msgid   = 'F5'
+                                                  msgnr   = '312'.
+  IF sy-subrc IS INITIAL.
+
+    CLEAR p_erro.
+
+    CLEAR lc_msg.
+    MESSAGE ID ls_bdc_msg-msgid
+      TYPE ls_bdc_msg-msgtyp
+      NUMBER ls_bdc_msg-msgnr
+      WITH ls_bdc_msg-msgv1 ls_bdc_msg-msgv2 ls_bdc_msg-msgv3 ls_bdc_msg-msgv4
+      INTO lc_msg.
+
+*    CLEAR lc_msg.
+*    CONCATENATE 'Documento criado com sucesso:'(020)
+*                ls_bdc_msg-msgv1
+*           INTO lc_msg
+*           SEPARATED BY space.
+*
+* Adiciona LOG PRE
+    PERFORM zf_add_log_pre USING p_alv
+                                 'CRIACAO_FATURA'(019)
+                                 c_s
+                                 lc_msg.
+
+  ELSE.
+
+    p_erro = abap_true.
+
+* LOG de execucao
+    LOOP AT gw_bdc_msg INTO ls_bdc_msg WHERE msgtyp = c_e
+                                          OR msgtyp = c_a.
+
+      CLEAR lc_msg.
+      MESSAGE ID ls_bdc_msg-msgid
+        TYPE ls_bdc_msg-msgtyp
+        NUMBER ls_bdc_msg-msgnr
+        WITH ls_bdc_msg-msgv1 ls_bdc_msg-msgv2 ls_bdc_msg-msgv3 ls_bdc_msg-msgv4
+        INTO lc_msg.
+
+* Adiciona LOG PRE
+      PERFORM zf_add_log_pre USING p_alv
+                                   'CRIACAO_FATURA'(019)
+                                   ls_bdc_msg-msgtyp
+                                   lc_msg.
+
+    ENDLOOP.
+
+  ENDIF.
+
+ENDFORM.
+
+*--------------------------------------------------------------------
+*      Form  zf_monta_shdb
+*--------------------------------------------------------------------
+*       Monta SHDP
+*----------------------------------------------------------------------
+*       --> P_INICIO - Indica se o mapeamento È referente a tela
+*       --> P_NOME   - Nome do mapeamento (tela, campo, sy-ucomm...)
+*       --> P_VALOR  - Valor do mapeamento de tela (campo ou sy-ucomm)
+*----------------------------------------------------------------------
+FORM zf_monta_shdb  USING  VALUE(p_inicio)                  "#EC *
+                           VALUE(p_nome)                    "#EC *
+                           VALUE(p_valor).                  "#EC *
+
+  DATA: ls_bdcdata   TYPE bdcdata.
+
+  CLEAR  ls_bdcdata.
+
+  IF p_inicio = abap_true.
+
+    MOVE: p_nome   TO ls_bdcdata-program,
+          p_valor  TO ls_bdcdata-dynpro,
+          p_inicio TO ls_bdcdata-dynbegin.
+
+  ELSE.
+
+    MOVE: p_nome   TO ls_bdcdata-fnam,
+          p_valor  TO ls_bdcdata-fval.
+
+  ENDIF.
+
+  APPEND ls_bdcdata TO gw_bdcdata.
+
+ENDFORM.                    " zf_monta_shdb

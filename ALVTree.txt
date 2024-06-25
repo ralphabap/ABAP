@@ -1,0 +1,620 @@
+*&---------------------------------------------------------------------*
+*& Report  Z_AMF_ALVTREE
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+report  z_amf_alvtree.
+
+include z_amf_alvtree_top.
+include z_amf_alvtree_definicao.
+include z_amf_alvtree_user_command_i02.
+include z_amf_alvtree_status_9000o02.
+include z_amf_alvtree_perform.
+include z_amf_alvtree_cria_alvo01.
+include z_amf_alvtree_importa_figuro01.
+include z_amf_alvtree_read_texto01.
+
+
+start-of-selection.
+* create the application object
+* this object is needed to handle the ABAP Objects Events of
+* Controls
+  create object g_application.
+
+  set screen 9000.
+
+
+
+  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  *&---------------------------------------------------------------------*
+*&  Include           Z_AMF_ALVTREE_TOP
+*&---------------------------------------------------------------------*
+
+
+
+CLASS andre_jacare DEFINITION DEFERRED.
+CLASS cl_gui_cfw DEFINITION LOAD.
+
+TYPES: node_table_type LIKE STANDARD TABLE OF mtreesnode
+         WITH DEFAULT KEY.
+* CAUTION: MTREESNODE is the name of the node structure which must
+* be defined by the programmer. DO NOT USE MTREESNODE!
+
+DATA: g_application TYPE REF TO andre_jacare,
+      g_custom_container TYPE REF TO cl_gui_custom_container,
+      g_tree TYPE REF TO cl_gui_simple_tree,
+      g_ok_code TYPE sy-ucomm,
+      gc_moraltela(30),
+      gi_saltela TYPE i,
+      gc_nome(30),
+      gc_nometela(30),
+      gc_nome_fig(20),
+      it_texto LIKE tline OCCURS 0,
+      it_line TYPE line OCCURS 0 WITH HEADER LINE,
+      r_container2      TYPE REF TO cl_gui_custom_container,
+      editor   TYPE REF TO cl_gui_textedit.
+
+data: begin of ti_dados occurs 0,
+        nome(70),
+        salario type i,
+        moral(70),
+      end of ti_dados.
+
+
+data: r_container_logo  TYPE REF TO cl_gui_custom_container,
+      r_picture         TYPE REF TO cl_gui_picture.
+
+* Fields on Dynpro 100
+DATA: gc_salario TYPE i,
+      gc_moral TYPE tv_nodekey.
+
+
+DEFINE handle_node_double_clic.
+
+  gc_salario = &1.
+  gc_moral = &2.
+  gc_nome = &3.
+
+END-OF-DEFINITION.
+
+DEFINE macro_nodekey.
+  clear node.
+  node-node_key = &1.
+  node-relatkey = &2.
+  node-relatship = cl_gui_simple_tree=>relat_last_child.
+  node-text = &3.
+  append node to node_table.
+END-OF-DEFINITION.
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*&---------------------------------------------------------------------*
+*&  Include           Z_AMF_ALVTREE_DEFINICAO
+*&---------------------------------------------------------------------*
+
+
+
+CLASS andre_jacare DEFINITION.
+
+  PUBLIC SECTION.
+    METHODS:
+      handle_node_double_click
+        FOR EVENT node_double_click
+        OF cl_gui_simple_tree
+        IMPORTING node_key,
+      andle_expand_no_children
+        FOR EVENT expand_no_children
+        OF cl_gui_simple_tree
+        IMPORTING node_key.
+
+ENDCLASS.                    "ANDRE_JACARE DEFINITION
+
+
+*----------------------------------------------------------------------*
+*       CLASS ANDRE_JACARE IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS andre_jacare IMPLEMENTATION.
+
+  METHOD  handle_node_double_click.
+*    " this method handles the node double click event of the tree
+*    " control instance
+
+*    " show the key of the double clicked node in a dynpro field
+
+gc_nome_fig = node_key+2.
+
+    IF node_key(1) = 'T'.
+      gi_saltela = 1000.
+      gc_moraltela = 'Baixíssima'.
+      gc_nometela = node_key+2.
+    ELSEIF node_key(1) = 'J'.
+      gi_saltela = 1500.
+      gc_moraltela = 'Baixa'.
+      gc_nometela = node_key+2.
+    ELSEIF node_key(1) = 'P'.
+      gi_saltela = 3000.
+      gc_moraltela = 'Média'.
+      gc_nometela = node_key+2.
+    ENDIF.
+
+    handle_node_double_clic:
+    gi_saltela gc_moraltela gc_nometela.
+
+  ENDMETHOD.                    "HANDLE_NODE_DOUBLE_CLICK
+
+  METHOD andle_expand_no_children.
+    " this method handles the expand no children event of the tree
+    " control instance
+
+    DATA: node_table TYPE node_table_type,
+          node TYPE mtreesnode.
+
+    " show the key of the double clicked node in a dynpro field
+
+    IF node_key = 'Trainee'.
+* add two nodes to the tree control (the children of 'Trainee')
+
+* Node with key 'André'
+      macro_nodekey:
+        'T_ANDRE' 'Trainee' 'André'.
+
+* Node with key 'Eduardo'
+      macro_nodekey:
+        'T_EDUARDO' 'Trainee' 'Eduardo'.
+*      NODE-N_IMAGE = '@10@'.
+
+    ELSEIF node_key = 'Junior'.
+
+* Node with key 'Jorge'
+      macro_nodekey:
+            'J_JORGE' 'Junior'  'Jorge'.
+
+* Node with key 'Ademir'
+      macro_nodekey:
+            'J_ADEMIR' 'Junior'  'Ademir'.
+
+    ENDIF.
+
+    CALL METHOD g_tree->add_nodes
+      EXPORTING
+        table_structure_name           = 'MTREESNODE'
+        node_table                     = node_table
+      EXCEPTIONS
+        failed                         = 1
+        error_in_node_table            = 2
+        dp_error                       = 3
+        table_structure_name_not_found = 4
+        OTHERS                         = 5.
+    IF sy-subrc <> 0.
+      MESSAGE e208(00) WITH 'aaaa'.
+    ENDIF.
+
+  ENDMETHOD.                    "HANDLE_EXPAND_NO_CHILDREN
+
+ENDCLASS.                    "ANDRE_JACARE IMPLEMENTATION
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*----------------------------------------------------------------------*
+***INCLUDE Z_AMF_ALVTREE_USER_COMMAND_I02 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  USER_COMMAND_9000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE user_command_9000 INPUT.
+
+  DATA: return_code TYPE i.
+
+
+* CL_GUI_CFW=>DISPATCH must be called if events are registered
+* that trigger PAI
+* this method calls the event handler method of an event
+  CALL METHOD cl_gui_cfw=>dispatch
+    IMPORTING
+      return_code = return_code.
+  IF return_code <> cl_gui_cfw=>rc_noevent.
+    " a control event occured => exit PAI
+    CLEAR g_ok_code.
+    EXIT.
+  ENDIF.
+
+
+  CASE sy-ucomm.
+*    WHEN 'TEST'.
+*      CALL METHOD g_tree->expand_node
+*        EXPORTING
+*          node_key = 'André'.
+    WHEN 'BACK'. " Finish program
+      IF NOT g_custom_container IS INITIAL.
+        " destroy tree container (detroys contained tree control, too)
+        CALL METHOD g_custom_container->free
+          EXCEPTIONS
+            cntl_system_error = 1
+            cntl_error        = 2.
+        IF sy-subrc <> 0.
+          MESSAGE e208(00) WITH 'teste'.
+        ENDIF.
+        CLEAR g_custom_container.
+        CLEAR g_tree.
+      ENDIF.
+      LEAVE PROGRAM.
+  ENDCASE.
+
+  CLEAR g_ok_code.
+
+
+
+
+
+ENDMODULE.                 " USER_COMMAND_9000  INPUT
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*----------------------------------------------------------------------*
+***INCLUDE Z_AMF_ALVTREE_STATUS_9000O02 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  STATUS_9000  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module STATUS_9000 output.
+  SET PF-STATUS 'S9000'.
+
+endmodule.                 " STATUS_9000  OUTPUT
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*&---------------------------------------------------------------------*
+*&  Include           Z_AMF_ALVTREE_PERFORM
+*&---------------------------------------------------------------------*
+
+
+*&---------------------------------------------------------------------*
+*&      Form  CREATE_AND_INIT_TREE
+*&---------------------------------------------------------------------*
+
+FORM create_and_init_tree .
+
+  DATA: node_table TYPE node_table_type,
+         events TYPE cntl_simple_events,
+         event TYPE cntl_simple_event.
+
+* create a container for the tree control
+  CREATE OBJECT g_custom_container
+    EXPORTING
+      " the container is linked to the custom control with the
+      " name 'CONTAINER_JACARE' on the dynpro
+      container_name = 'CONTAINER_JACARE'
+    EXCEPTIONS
+      cntl_error = 1
+      cntl_system_error = 2
+      create_error = 3
+      lifetime_error = 4
+      lifetime_dynpro_dynpro_link = 5.
+  IF sy-subrc <> 0.
+    MESSAGE e208(00) WITH 'riwetjewiotrj'.
+  ENDIF.
+
+
+* create a tree control
+  CREATE OBJECT g_tree
+    EXPORTING
+      parent              = g_custom_container
+      " single node selection is used
+      node_selection_mode = cl_gui_simple_tree=>node_sel_mode_single
+    EXCEPTIONS
+      lifetime_error              = 1
+      cntl_system_error           = 2
+      create_error                = 3
+      failed                      = 4
+      illegal_node_selection_mode = 5.
+  IF sy-subrc <> 0.
+    MESSAGE e208(00) WITH 'fjdsfskdjh'.
+  ENDIF.
+
+* define the events which will be passed to the backend
+  " node double click
+  event-eventid = cl_gui_simple_tree=>eventid_node_double_click.
+  event-appl_event = 'X'. " process PAI if event occurs
+  APPEND event TO events.
+
+  " expand no children
+  event-eventid = cl_gui_simple_tree=>eventid_expand_no_children.
+  event-appl_event = 'X'.
+  APPEND event TO events.
+
+  CALL METHOD g_tree->set_registered_events
+    EXPORTING
+      events                    = events
+    EXCEPTIONS
+      cntl_error                = 1
+      cntl_system_error         = 2
+      illegal_event_combination = 3.
+  IF sy-subrc <> 0.
+    MESSAGE e208(00) WITH 'fjdsifjks'.
+  ENDIF.
+
+* assign event handlers in the application class to each desired event
+  SET HANDLER g_application->handle_node_double_click FOR g_tree.
+  SET HANDLER g_application->andle_expand_no_children FOR g_tree.
+
+
+* add some nodes to the tree control
+* NOTE: the tree control does not store data at the backend. If an
+* application wants to access tree data later, it must store the
+* tree data itself.
+
+  PERFORM build_node_table USING node_table.
+
+* node_table_structure_name     = 'MTREESNODE'
+*   A programmer using the tree control must create a structure in the
+*   dictionary. This structure must include the structure TREEV_NODE
+*   and must contain a character field with the name 'TEXT'.
+
+  CALL METHOD g_tree->add_nodes
+    EXPORTING
+      table_structure_name           = 'MTREESNODE'
+      node_table                     = node_table
+    EXCEPTIONS
+      failed                         = 1
+      error_in_node_table            = 2
+      dp_error                       = 3
+      table_structure_name_not_found = 4
+      OTHERS                         = 5.
+  IF sy-subrc <> 0.
+    MESSAGE e208(00) WITH ''.
+  ENDIF.
+
+ENDFORM.                    " CREATE_AND_INIT_TREE
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_NODE_TABLE
+*&---------------------------------------------------------------------*
+FORM build_node_table
+  USING
+    node_table TYPE node_table_type.
+
+  DATA: node LIKE mtreesnode.
+
+* Caution: The nodes are inserted into the tree according to the order
+* in which they occur in the table. In consequence, a node must not
+* occur in the node table before its parent node.
+
+* Node with key 'Newcom'
+  node-node_key = 'Newcom'.  " Key of the node
+  CLEAR node-relatkey.      " Special case: A root node has no parent
+  CLEAR node-relatship.     " node.
+
+  node-hidden = ' '.        " The node is visible,
+  node-disabled = ' '.      " selectable,
+  node-isfolder = 'X'.      " a folder.
+  CLEAR node-n_image.       " Folder-/ Leaf-Symbol in state "closed":
+  " use default.
+  CLEAR node-exp_image.     " Folder-/ Leaf-Symbol in state "open":
+  " use default
+  CLEAR node-expander.      " see below.
+  node-text = 'Newcom'.
+  APPEND node TO node_table.
+
+* Node with key 'Trainee'
+  node-node_key = 'Trainee'.
+  node-relatkey = 'Newcom'.
+  node-relatship = cl_gui_simple_tree=>relat_last_child.
+
+  node-hidden = ' '.
+  node-disabled = ' '.
+  node-isfolder = 'X'.
+  CLEAR node-n_image.
+  CLEAR node-exp_image.
+  node-expander = 'X'.
+
+  node-text = 'Trainee'.
+  APPEND node TO node_table.
+
+* Node with key 'Junior'
+  node-node_key = 'Junior'.
+  node-relatkey = 'Newcom'.
+  node-relatship = cl_gui_simple_tree=>relat_last_child.
+  node-hidden = ' '.
+  node-disabled = ' '.
+  node-isfolder = 'X'.
+  CLEAR node-n_image.
+  CLEAR node-exp_image.
+  node-expander = 'X'.
+
+  node-text = 'Junior'.
+  APPEND node TO node_table.
+
+
+
+ENDFORM.                    " BUILD_NODE_TABLE
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*----------------------------------------------------------------------*
+***INCLUDE Z_AMF_ALVTREE_CRIA_ALVO01 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  cria_alv  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE cria_alv OUTPUT.
+
+  IF g_tree IS INITIAL.
+    " The Tree Control has not been created yet.
+    " Create a Tree Control and insert nodes into it.
+    PERFORM create_and_init_tree.
+  ENDIF.
+
+  IF r_container_logo IS INITIAL.
+    CREATE OBJECT r_container_logo
+EXPORTING container_name = 'C_LOGO'.
+
+    CREATE OBJECT r_picture
+                  EXPORTING parent = r_container_logo.
+
+
+  CREATE OBJECT: r_container2
+         EXPORTING container_name = 'CONTAINER_2',
+                   editor
+         EXPORTING parent = r_container2.
+
+  ENDIF.
+
+ENDMODULE.                 " cria_alv  OUTPUT
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*----------------------------------------------------------------------*
+***INCLUDE Z_AMF_ALVTREE_IMPORTA_FIGURO01 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  importa_figura  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE importa_figura OUTPUT.
+
+  DATA: vl_return_code    LIKE w3param-ret_code,
+        vl_content_type   LIKE w3param-cont_type,
+        vl_content_length LIKE w3param-cont_len,
+        vl_pic_size TYPE i,
+        vl_url(132).
+
+  DATA: lt_query_table LIKE w3query OCCURS 1 WITH HEADER LINE,
+        lt_html_table  LIKE w3html OCCURS 1,
+        lt_pic_data    LIKE w3mime OCCURS 0,
+        gl_figura(30).
+
+
+  IF gc_nome_fig is not initial.
+    gl_figura = 'ZCS00000003'.
+
+
+  lt_query_table-name = '_OBJECT_ID'.
+  lt_query_table-value = gl_figura.
+
+  APPEND lt_query_table.
+
+  CALL FUNCTION 'WWW_GET_MIME_OBJECT'
+    TABLES
+      query_string        = lt_query_table
+      html                = lt_html_table
+      mime                = lt_pic_data
+    CHANGING
+      return_code         = vl_return_code
+      content_type        = vl_content_type
+      content_length      = vl_content_length
+    EXCEPTIONS
+      object_not_found    = 1
+      parameter_not_found = 2
+      OTHERS              = 3.
+
+  IF sy-subrc = 0.
+    vl_pic_size = vl_content_length.
+  ENDIF.
+
+  CALL FUNCTION 'DP_CREATE_URL'
+    EXPORTING
+      type     = 'image'
+      subtype  = cndp_sap_tab_unknown
+      size     = vl_pic_size
+      lifetime = cndp_lifetime_transaction
+    TABLES
+      data     = lt_pic_data
+    CHANGING
+      url      = vl_url
+    EXCEPTIONS
+      OTHERS   = 1.
+
+* load picture
+  CALL METHOD r_picture->load_picture_from_url
+    EXPORTING
+      url = vl_url.
+
+  CALL METHOD cl_gui_cfw=>flush
+    EXCEPTIONS
+      cntl_system_error = 1
+      cntl_error        = 2.
+  IF sy-subrc <> 0.
+  ENDIF.
+
+    ENDIF.
+
+
+ENDMODULE.                 " importa_figura  OUTPUT
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*----------------------------------------------------------------------*
+***INCLUDE Z_AMF_ALVTREE_READ_TEXTO01 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Module  read_text  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module read_text output.
+
+data: id_jacare(70).
+
+    call method: editor->set_readonly_mode,
+                 editor->set_statusbar_mode,
+                 editor->set_toolbar_mode.
+
+if not gc_nome_fig is initial.
+
+ concatenate 'Z' gc_nome_fig '_JACARE' into id_jacare.
+
+      CALL FUNCTION 'READ_TEXT'
+        EXPORTING
+          client                  = sy-mandt
+          id                      = 'LTXT'
+          language                = sy-langu
+          name                    = id_jacare
+          object                  = 'PMS'
+        TABLES
+          lines                   = it_texto
+        EXCEPTIONS
+          id                      = 1
+          language                = 2
+          name                    = 3
+          not_found               = 4
+          object                  = 5
+          reference_check         = 6
+          wrong_access_to_archive = 7
+          OTHERS                  = 8.
+
+
+        CLEAR: it_line,
+               it_line[].
+        LOOP AT it_texto INTO it_line.
+          APPEND it_line.
+        ENDLOOP.
+
+        CLEAR   it_texto.
+        REFRESH it_texto.
+
+**<< Enviando texto
+  CALL METHOD: editor->set_text_as_stream
+    EXPORTING
+      text = it_line[].
+
+
+.
+endif.
+
+
+endmodule.                 " read_text  OUTPUT
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -1,0 +1,17 @@
+POPUP_GET_VALUES
+
+
+
+      CALL FUNCTION 'POPUP_TO_GET_VALUE'                 
+        EXPORTING                                        
+          fieldname                 = 'VBELN'            
+          tabname                   = 'VBAK'             
+          titel                     = 'Proposta de Itens 
+          valuein                   = '50000002'         
+        IMPORTING                                        
+          answer                    = v_op_c             
+          valueout                  = vbak-vbeln         
+*     EXCEPTIONS                                         
+*       FIELDNAME_NOT_FOUND       = 1                    
+*       OTHERS                    = 2                    
+                .                                        

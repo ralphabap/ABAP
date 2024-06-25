@@ -1,0 +1,347 @@
+grupo de funções : XES30
+tela : 100
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*==============================================================================
+*|                   COMPANHIA ENERGÉTICA DE MINAS GERAIS
+*|
+*| Programa:   ZXES30TOP
+*| Autor:      E046527 - Marcos Antônio Coelho de Melo - NEWCOM
+*|
+*| Descrição:  ATCE024
+*|             Tabelas para criterios de marketing
+*|
+*| Especificação Funcional: ATCE024 ESF 05.01
+*| Especificação Técnica:   ATCE024 EST 05.01
+*| Autor Esp. Téc.:         Gustavo Gomes de Castro - NEWCOM
+*|
+*| Histórico do desenvolvimento:
+*|_____________________________________________________________________________
+*|Data       Ordem      Programador          Descrição
+*|_____________________________________________________________________________
+*|04/01/2007 DSCK901966 E046527 - Marcos     Criação do programa
+*|_____________________________________________________________________________
+*|XX/XX/XXXX XXXXXXXXXX XXXXXXXXXXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*|                                          
+*|                                           
+*|_____________________________________________________________________________
+*|XX/XX/XXXX XXXXXXXXXX XXXXXXXXXXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*|                                           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*|                                           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*|_____________________________________________________________________________
+*|XX/XX/XXXX XXXXXXXXXX XXXXXXXXXXXXXXXXX    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*|                                           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*|                                           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*==============================================================================
+
+
+* Variáveis de utilização em todo o grupo de função
+data: wc_mode       type regen-wmode,
+      wc_upd_online type regen-upd_online.
+
+
+* Variáveis globais para o desenvolvimento ATCE024
+tables: eanld, zver_gradep, zver_cusene, zver_opeman, zver_outsrv..
+
+data:
+   g_wmode  type i,
+   g_okcode type sy-ucomm.
+
+data: begin of ti_zver_gradep occurs 0.
+        include structure zver_gradep.
+data: end of ti_zver_gradep.
+
+data: begin of ti_zver_cusene occurs 0.
+        include structure zver_cusene.
+data: end of ti_zver_cusene.
+
+data: begin of ti_zver_opeman occurs 0.
+        include structure zver_opeman.
+data: end of ti_zver_opeman.
+
+data: begin of ti_zver_outsrv occurs 0.
+        include structure zver_outsrv.
+data: end of ti_zver_outsrv.
+
+data: begin of it_dynpread occurs 0.                        "#EC NEEDED
+        include structure dynpread.                         "#EC NEEDED
+data end of it_dynpread.                                    "#EC NEEDED
+
+data: it_return_tab    type ddshretval occurs 0 with header line.
+
+data: v_grau     type zver_gradep-zdesc_grau_depen,
+      v_custo    type zver_cusene-zdesc_custo_ener,
+      v_operacao type zver_opeman-zdesc_operac_man,
+      v_outros   type zver_outsrv-zdesc_outros_ser.
+
+field-symbols:
+  <fs_okcode>  type any.
+
+constants:
+  c_campo(30)  value '(SAPLES30)OK_CODE'.
+
+* Variáveis globais para o desenvolvimento FATE077
+include: zxes30top_fate077.
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+PROCESS BEFORE OUTPUT.
+*---------------------*
+  MODULE loop_screen_0100.
+
+
+PROCESS AFTER INPUT.
+*--------------------*
+  CHAIN.
+
+    FIELD:
+      eanld-zzcodgrupodepend,
+      eanld-zzcodcustenergia,
+      eanld-zzcodoperacmanut,
+      eanld-zzcodoutros_serv.
+    MODULE consiste_entrada.
+
+  ENDCHAIN.
+
+
+PROCESS ON VALUE-REQUEST.
+*------------------------*
+
+  FIELD:
+    eanld-zzcodgrupodepend MODULE montar_ajuda_zzcodgrupodepend,
+    eanld-zzcodcustenergia MODULE montar_ajuda_zzcodcustenergia,
+    eanld-zzcodoperacmanut MODULE montar_ajuda_zzcodoperacmanut,
+    eanld-zzcodoutros_serv MODULE montar_ajuda_zzcodoutros_serv.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+MODULE loop_screen_0100 OUTPUT.
+
+  IF sy-tcode = 'ES32' AND g_okcode IS INITIAL.
+    PERFORM des_habilita_campo_tela USING 0.
+  ENDIF.
+
+  IF g_wmode EQ 1.
+    IF g_okcode EQ 'SWTC'.
+      PERFORM des_habilita_campo_tela USING 1.
+    ELSE.
+      PERFORM des_habilita_campo_tela USING 0.
+    ENDIF.
+    IF g_okcode IS INITIAL.
+      PERFORM des_habilita_campo_tela USING 0.
+    ENDIF.
+  ENDIF.
+
+  IF g_wmode EQ 2.
+    IF g_okcode EQ 'SWTC'.
+      PERFORM des_habilita_campo_tela USING 0.
+    ELSE.
+      PERFORM des_habilita_campo_tela USING 1.
+    ENDIF.
+  ENDIF.
+
+ENDMODULE.                 " loop_screen_0100  OUTPUT
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*----------------------------------------------------------------------*
+***INCLUDE ZXES30I02 .
+*----------------------------------------------------------------------*
+
+
+*&---------------------------------------------------------------------*
+*&      Module  consiste_entrada  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+module consiste_entrada input.
+
+  if eanld-zzcodgrupodepend is not initial.
+
+    select single *
+     from zver_gradep
+     where zcodgrupodepend = eanld-zzcodgrupodepend.
+
+    if sy-subrc <> 0.
+      message e000(zcrm).
+    else.
+      v_grau = zver_gradep-zdesc_grau_depen.
+    endif.
+  endif.
+
+  if eanld-zzcodcustenergia is not initial.
+
+    select single *
+     from zver_cusene
+     where zcodcustenerg = eanld-zzcodcustenergia.
+
+    if sy-subrc <> 0.
+      message e001(zcrm).
+    else.
+      v_custo = zver_cusene-zdesc_custo_ener.
+    endif.
+  endif.
+
+  if eanld-zzcodoperacmanut is not initial.
+
+    select single *
+     from zver_opeman
+     where zcodoperacmanut = eanld-zzcodoperacmanut.
+
+    if sy-subrc <> 0.
+      message e002(zcrm).
+    else.
+      v_operacao = zver_opeman-zdesc_operac_man.
+    endif.
+
+  endif.
+
+  if eanld-zzcodoutros_serv is not initial.
+
+    select single *
+     from zver_outsrv
+     where zcodoutros_serv = eanld-zzcodoutros_serv.
+
+    if sy-subrc <> 0.
+      message e003(zcrm).
+    else.
+      v_outros = zver_outsrv-zdesc_outros_ser.
+    endif.
+  endif.
+
+endmodule.                 " consiste_entrada  INPUT
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+*----------------------------------------------------------------------*
+***INCLUDE ZXES30I03 .
+*----------------------------------------------------------------------*
+
+
+*&---------------------------------------------------------------------*
+*&      Module  montar_ajuda_ZZCODGRUPODEPEND  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE montar_ajuda_zzcodgrupodepend INPUT.
+
+  PERFORM f_ajuda_pesquisa TABLES   ti_zver_gradep
+                           USING    'ZCODGRUPODEPEND'
+                           CHANGING eanld-zzcodgrupodepend.
+
+ENDMODULE.                 " montar_ajuda_ZZCODGRUPODEPEND  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  montar_ajuda_zzcodcustenergia  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE montar_ajuda_zzcodcustenergia INPUT.
+
+  PERFORM f_ajuda_pesquisa TABLES   ti_zver_cusene
+                           USING    'ZCODCUSTENERG'
+                           CHANGING eanld-zzcodcustenergia.
+
+ENDMODULE.                 " montar_ajuda_zzcodcustenergia  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  montar_ajuda_zzcodoperacmanut  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE montar_ajuda_zzcodoperacmanut INPUT.
+
+  PERFORM f_ajuda_pesquisa TABLES   ti_zver_opeman
+                           USING    'ZCODOPERACMANUT'
+                           CHANGING eanld-zzcodoperacmanut.
+
+ENDMODULE.                 " montar_ajuda_zzcodoperacmanut  INPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  montar_ajuda_zzcodoutros_serv  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE montar_ajuda_zzcodoutros_serv INPUT.
+
+  PERFORM f_ajuda_pesquisa TABLES   ti_zver_outsrv
+                           USING    'ZCODOUTROS_SERV'
+                           CHANGING eanld-zzcodoutros_serv.
+
+ENDMODULE.                 " montar_ajuda_zzcodoutros_serv  INPUT
+
+
+*&---------------------------------------------------------------------*
+*&      Form  f_ajuda_pesquisa
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_TABELA   text
+*      -->P_CAMPO    text
+*      -->P_VALOR    text
+*----------------------------------------------------------------------*
+FORM f_ajuda_pesquisa TABLES p_tabela
+                             USING    p_campo    TYPE any
+                             CHANGING p_valor    TYPE any .
+
+  PERFORM math_code_select.
+
+  CLEAR: it_dynpread, it_dynpread[].
+
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'              "#EC *
+    EXPORTING
+      retfield        = p_campo
+      dynpprog        = sy-repid
+      dynpnr          = sy-dynnr
+      dynprofield     = p_campo
+      value_org       = 'S'
+    TABLES
+      value_tab       = p_tabela
+      return_tab      = it_return_tab
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+
+  IF sy-subrc = 0.
+    IF p_valor IS INITIAL.
+*        message w004(zcrm).
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " f_montar_ajuda_pesquisa
+
+
+*&---------------------------------------------------------------------*
+*&      form math_code_select
+*&---------------------------------------------------------------------*
+FORM math_code_select.
+
+  IF ti_zver_gradep IS INITIAL.
+    SELECT * FROM zver_gradep
+    INTO TABLE ti_zver_gradep.
+  ENDIF.
+
+  IF ti_zver_cusene IS INITIAL.
+    SELECT * FROM zver_cusene
+    INTO TABLE ti_zver_cusene.
+  ENDIF.
+
+  IF ti_zver_opeman IS INITIAL.
+    SELECT * FROM zver_opeman
+    INTO TABLE ti_zver_opeman.
+  ENDIF.
+
+  IF ti_zver_outsrv IS INITIAL.
+    SELECT * FROM zver_outsrv
+    INTO TABLE ti_zver_outsrv.
+  ENDIF.
+
+ENDFORM.                    "math_code_select
+
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -1,0 +1,75 @@
+**Exemplo cria LIST BOX em on line:
+
+*&---------------------------------------------------------------------*
+*&      Module  LISTBOX  OUTPUT
+*&---------------------------------------------------------------------*
+MODULE listbox OUTPUT.
+
+*Só entra quando a transação for execultada
+  IF cont NE '1'.
+
+    cont = 1.
+
+    TYPE-POOLS vrm.
+
+    DATA: name  TYPE vrm_id,
+          list  TYPE vrm_values,
+          value LIKE LINE OF list.
+
+
+    name = 'WA_ALUNO-NOME_CURSO'.
+
+    CLEAR   itab_aux.
+    REFRESH itab_aux.
+
+    itab_aux-nome_curso = 'Ciências da Computação'.
+    APPEND itab_aux.
+    itab_aux-nome_curso = 'Direito'.
+    APPEND itab_aux.
+    itab_aux-nome_curso = 'Jornalismo'.
+    APPEND itab_aux.
+
+
+    LOOP AT itab_aux.
+
+      value-key  = itab_aux-nome_curso.
+      value-text = itab_aux-nome_curso.
+
+      APPEND value TO list.
+
+      CALL FUNCTION 'VRM_SET_VALUES'
+           EXPORTING
+                id     = name
+                values = list.
+    ENDLOOP.
+  ENDIF.
+ENDMODULE.                 " LISTBOX  OUTPUT
+*************************************************************
+
+Exemplo em REPORT:
+
+REPORT ZLIST.
+
+TYPE-POOLS: VRM.
+
+DATA: NAME  TYPE VRM_ID,
+      LIST  TYPE VRM_VALUES,
+      VALUE LIKE LINE OF LIST.
+
+PARAMETERS: PS_PARM(10) AS LISTBOX VISIBLE LENGTH 10.
+
+AT SELECTION-SCREEN OUTPUT.
+
+NAME = 'PS_PARM'.
+VALUE-KEY = '1'.
+
+VALUE-TEXT = 'LINE 1'.
+APPEND VALUE TO LIST. VALUE-KEY = '2'.
+
+VALUE-TEXT = 'LINE 2'.
+APPEND VALUE TO LIST.
+
+CALL FUNCTION 'VRM_SET_VALUES' EXPORTING ID = NAME VALUES = LIST.
+
+START-OF-SELECTION.
+WRITE: / 'PARAMETER:', PS_PARM.

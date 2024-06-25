@@ -1,0 +1,1018 @@
+*-----------------------------------------------------------------------
+*WEG EQUIPAMENTOS ELÉTRICOS S.A.
+*Implementador: Procwork Informática Ltda.
+*
+*ID    Request      Data          Nome
+*ECS   EDOK907994   04/09/2007    Elierge Cássia C Silva
+*
+*Descrição:  - Transação: ZTPP045
+*            - Programa de ALV c/ Batch Input da MD61
+*-----------------------------------------------------------------------
+*Histórico de Alterações do Objeto
+*-----------------------------------------------------------------------
+*ID    Request      Data          Nome
+*
+*Descrição:
+*-----------------------------------------------------------------------
+************************************************************************
+REPORT  zpppr_028.
+
+*-----------------------------------------------------------------------
+* Declaração das tabelas standards
+
+TABLES: mard.    "Depósitos
+
+*-----------------------------------------------------------------------
+*Constantes
+
+CONSTANTS: c_31122999(8)      TYPE c              VALUE '29991231',          "Parametro do WHERE do SELECT da tab. pgmi
+           c_transacao(4)     TYPE c              VALUE 'MD61',              "Transação para Call Transaction
+           c_mode(1)          TYPE c              VALUE 'N',                 "Mode de execução para Call Transaction
+           c_update(1)        TYPE c              VALUE 'S',                 "Update para Call Transaction
+           c_x(1)             TYPE c              VALUE 'X',                 "Valor Fixo X
+           c_h(01)            TYPE c              VALUE 'H',                 "Valor Fixo H
+           c_carac3(02)       TYPE c              VALUE './',                "Caracter especial
+           c_carac4(01)       TYPE c              VALUE '.',                 "Caracter especial
+           c_carac5(01)       TYPE c              VALUE ':',                 "Caracter especial
+           c_s(01)            TYPE c              VALUE 'S',                 "Valor Fixo S
+           c_logo(09)         TYPE c              VALUE 'LOGO_WEG',          "Logotipo da Weg
+           c_saida(8)         TYPE c              VALUE 'T_SAIDA',           "Nome da Tabela de Saída
+           c_werks(6)         TYPE c              VALUE 'WERKS',             "Campo Centro para o FielCat
+           c_lgpro(8)         TYPE c              VALUE 'LGPRO',             "Campo Depósito para o FielCat
+           c_prgrp(16)        TYPE c              VALUE 'PRGRP',             "Campo Gr. Prod. para o FielCat
+           c_matnr(8)         TYPE c              VALUE 'MATNR',             "Campo Produto para o FielCat
+           c_maktx(9)         TYPE c              VALUE 'MAKTX',             "Campo Descrição para o FielCat
+           c_eisbe(20)        TYPE c              VALUE 'EISBE',             "Campo Estoque Segurança para o FielCat
+           c_est_fis(14)      TYPE c              VALUE 'EST_FIS',           "Campo Est. Fiísico para o FielCat
+           c_ord_prd(10)      TYPE c              VALUE 'ORD_PRD',           "Campo Ordens PRD para o FielCat
+           c_ped_ven(16)      TYPE c              VALUE 'PED_VEN',           "Campo Ped. Venda para o FielCat
+           c_prog_est_seg(14) TYPE c              VALUE 'PROG_EST_SEG',      "Campo Prog. Est. Seg. para o FielCat
+           c_dispo(9)         TYPE c              VALUE 'DISPO',             "Campo Plan. MRP para o FielCat
+           c_top(30)          TYPE c              VALUE 'ZF_TOP_OF_PAGE'.    "Servirá para o Cabeçalho
+
+*-----------------------------------------------------------------------
+* Type-Pools
+
+type-pools: slis,  "Tabela para utilização do ALV.
+            kkblo. "Tabela para utilização do ALV.
+
+*-----------------------------------------------------------------------
+* Tipos
+
+* Dados de centro para material
+TYPES: BEGIN OF y_marc,
+         matnr        TYPE marc-matnr,                              "Nº do material
+         werks        TYPE marc-werks,                              "Centro
+         lgpro        TYPE marc-lgpro,                              "Depósito de produção                                                                  "Campos da t_marc
+         eisbe        TYPE marc-eisbe,                              "Estoque de segurança
+         dispo        TYPE marc-dispo,                              "Planejador MRP
+       END OF y_marc,
+
+* Dados de depósito para material
+       BEGIN OF y_mard,
+         matnr        TYPE mard-matnr,                              "Nº do material
+         werks        TYPE mard-werks,                              "Centro
+         lgort        TYPE mard-lgort,                              "Depósito de produção                                                                  "Campos da t_marc
+         lfgja        TYPE mard-lfgja,                              "Exercício do período atual
+         lfmon        TYPE mard-lfmon,                              "Período Contábil
+         labst        TYPE mard-labst,                              "Estoque avaliado de utilização livre
+         insme        TYPE mard-insme,                              "Estoque em controle de qualidade
+       END OF y_mard,
+
+* Atribuição grupo de produtos / membro
+       BEGIN OF y_pgmi,
+         pgtyp        TYPE pgmi-pgtyp,                              "Ctg.de grupo de produtos
+         prgrp        TYPE pgmi-prgrp,                              "Nome do grupo de produtos
+         werks        TYPE pgmi-werks,                              "Centro
+         nrmit        TYPE pgmi-nrmit,                              "Nome do grupo de produtos
+       END OF y_pgmi,
+
+* Textos breves de material
+       BEGIN OF y_makt,
+        matnr          TYPE makt-matnr,                             "Nº do material
+        spras          TYPE makt-spras,                             "Código de idioma
+        maktx          TYPE makt-maktx,                             "Texto breve de material
+       END OF y_makt,
+
+       BEGIN OF y_s021,
+         werks TYPE s021-werks,
+         matnr TYPE s021-matnr,
+         aufnr TYPE s021-aufnr,
+         gstrp TYPE caufv-gstrp,
+         gltrp TYPE caufv-gltrp,
+         pgmng TYPE s021-pgmng,
+         wemng TYPE s021-wemng,
+       END OF y_s021,
+
+       BEGIN OF y_plaf,
+         matnr  TYPE plaf-matnr,
+         pwwrk  TYPE plaf-pwwrk,
+         gsmng  TYPE plaf-gsmng,
+         psttr  TYPE plaf-psttr,
+         pedtr  TYPE plaf-pedtr,
+       END OF y_plaf,
+
+       BEGIN OF y_vbap,
+         vbeln TYPE vbap-vbeln,
+         posnr TYPE vbap-posnr,
+         MATNR TYPE vbap-matnr,
+         VBTYP TYPE vbak-vbtyp,
+       END OF y_vbap,
+
+       BEGIN OF y_vbep,
+         vbeln TYPE vbep-vbeln,
+         posnr TYPE vbep-posnr,
+         etenr TYPE vbep-etenr,
+         wmeng TYPE vbep-wmeng,
+         mbdat TYPE vbep-mbdat,
+         lfsta TYPE vbup-lfsta,
+       END OF y_vbep,
+
+       BEGIN OF y_lips,
+         vgbel TYPE lips-vgbel,
+         vgpos TYPE lips-vgpos,
+         lgmng TYPE lips-lgmng,
+       END OF y_lips,
+
+* Campos de Saída
+       BEGIN OF y_saida,
+         werks        TYPE marc-werks,                              "Centro
+         lgpro        TYPE marc-lgpro,                              "Depósito de produção
+         prgrp        TYPE pgmi-prgrp,                              "Nome do grupo de produtos
+         matnr        TYPE marc-matnr,                              "Nº do material
+         maktx        TYPE makt-maktx,                              "Texto breve de material
+         eisbe        TYPE marc-eisbe,                              "Estoque de segurança
+         est_fis      TYPE mard-labst,                              "Estoque Físico
+         ord_prd      TYPE mard-labst,                              "Ordens PRD
+         ped_ven      TYPE mard-labst,                              "Pedidos de Venda
+         prog_est_seg TYPE mard-labst,                              "Prog. Est. Seg.
+         dispo        TYPE marc-dispo,                              "Plan. MRP
+       END OF y_saida.
+
+*-----------------------------------------------------------------------
+* Tabelas internas
+
+DATA: t_marc             TYPE TABLE OF y_marc,                      "Tab. Dados de centro para material
+      t_marc_aux         TYPE TABLE OF y_marc,                      "Tab. Dados de centro para material
+      t_mard             TYPE TABLE OF y_mard,                      "Tab. Dados de depósito para material
+      t_makt             TYPE TABLE OF y_makt,                      "Tab. Descrição do material
+      t_pgmi             TYPE TABLE OF y_pgmi,                      "Tab. Grupos de produtos / membro
+      t_s021             TYPE TABLE OF y_s021,                 "Tabela p/ Inner Join S021-PLAF
+      t_plaf             TYPE TABLE OF y_plaf,                 "Tabela Auxiliar S021-PLAF
+      t_s021_aux         TYPE TABLE OF y_s021,                 "Tabela p/ Inner Join S021-PLAF
+      t_plaf_aux         TYPE TABLE OF y_plaf,                 "Tabela Auxiliar S021-PLAF
+      t_vbap             TYPE TABLE OF y_vbap,
+      t_vbep_aux         TYPE TABLE OF y_vbep,
+      t_vbep             TYPE TABLE OF y_vbep,
+      t_vbep_fae         TYPE TABLE OF y_vbep,
+      t_vbep_mbdat       TYPE TABLE OF y_vbep,
+      t_lips_aux         TYPE TABLE OF y_lips,
+      t_lips             TYPE TABLE OF y_lips,
+      t_saida            TYPE TABLE OF y_saida,                     "Tabela de Saída ALV
+      t_bdcdata          TYPE STANDARD TABLE OF bdcdata,            "Tabela p/ Batch Input
+      t_mess             TYPE STANDARD TABLE OF bdcmsgcoll, "#EC NEEDED
+      t_fieldcat         TYPE TABLE OF slis_fieldcat_alv,           "Tabela de campos da fieldcat alv
+      t_top_of_page      TYPE TABLE OF slis_listheader,             "Tabela de campos da strutura alv
+
+*-----------------------------------------------------------------------
+* Variáveis
+      v_tipo_mrp                  TYPE dismm,                       "Tipo de MRP da ZTBPP_001
+      v_data_inicio_plan          TYPE sy-datum,                    "Armazena a Data de Início do Planejamento
+      v_data_fim_plan             TYPE sy-datum,                    "Armazena a Data de Final do Planejamento
+      v_data_nec_ind              TYPE sy-datum,                    "Armazena a Data de Necessidade
+      v_gsmng_tot                 TYPE s021-pgmng,                  "Calcular o total gsmng
+      v_pgmng_tot                 TYPE s021-pgmng,                  "Calcular o total pgmng
+      v_wemng_tot                 TYPE s021-pgmng,                  "Calcular o total wemng
+      v_vbep_wmeng_tot            TYPE vbep-wmeng,                  "Calcular o total wemng da tab. vbep
+      v_lips_lgmng_tot            TYPE vbep-wmeng,                  "Calcular o total wemng da tab.
+      v_tabix                     TYPE sy-tabix,                    "Armazena o sy-tabix p/ Loop Index
+      v_eisbe(13)                 TYPE c,                           "Armazena o valor eisbe p/ call trans.
+      v_data_bi(10)               TYPE c,                           "Armazena o valor data nec. p/ call trans.
+      v_ano(4)                    TYPE c,                           "Armazena o parameter p_ano p/ usar em funções
+      v_per(3)                    TYPE n,                           "Armazena o parameter p_per p/ usar em funções
+      v_vbeln_posnr_ETENR(20)     TYPE c,                           "Resultado da concatenação
+      v_vbeln_posnr_ETENR_aux(20) TYPE c,                           "Resultado da concatenação
+      v_acumula                   TYPE menge13,                     "Resultado acumulado
+      v_vgbel_vgpos(16)           TYPE c,                           "Resultado da concatenação
+      v_vgbel_vgpos_aux(16)       TYPE c,                           "Resultado da concatenação
+      v_acumula_aux               TYPE menge13,                     "Resultado acumulado
+
+*-----------------------------------------------------------------------
+* Workareas
+      wa_marc             TYPE y_marc,                              "Workarea da tabela t_marc
+      wa_pgmi             TYPE y_pgmi,                              "Workarea da tabela t_pgmi
+      wa_makt             TYPE y_makt,                              "Workarea da tabela t_makt
+      wa_mard             TYPE y_mard,                              "Workarea da tabela t_mard
+      wa_s021             TYPE y_s021,                              "Workarea da tabela t_s021
+      wa_plaf             TYPE y_plaf,                              "Workarea da tabela t_plaf
+      wa_vbap             TYPE y_vbap,
+      wa_vbep             TYPE y_vbep,
+      wa_lips             TYPE y_lips,
+      wa_vbep_fi          TYPE y_vbep,                              "WorkÁrea dos campos da vbep
+      wa_lips_fi          TYPE y_lips,                              "WorkÁrea dos campos da vbep
+      wa_saida            TYPE y_saida,                             "Workarea da tabela t_saida
+      wa_bdcdata          TYPE bdcdata,                             "Workarea da tabela t_bdcdata
+      wa_fieldcat         TYPE slis_fieldcat_alv,                   "Workarea da tabela t_fieldcat
+      wa_layout           TYPE slis_layout_alv,                     "Workarea da tabela t_layout
+      wa_top_of_page      TYPE slis_listheader.                     "Workarea da tabela t_top_of_page
+
+*-----------------------------------------------------------------------
+* Tela de seleção
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+
+PARAMETERS: p_werks TYPE t001w-werks OBLIGATORY,                 "Centro
+            p_per   TYPE zdepp_periodo_planejamento OBLIGATORY,  "Periodo Planejamento
+            p_ano   TYPE zdepp_ano_planejamento OBLIGATORY.      "Ano Planejamento
+
+SELECT-OPTIONS: s_depo FOR mard-lgort.                           "Depósito
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+START-OF-SELECTION.
+
+* Seleciona os dados
+  PERFORM zf_seleciona_dados.
+
+* Monta a tabela de exibição do ALV
+  PERFORM zf_processa_dados.
+
+END-OF-SELECTION.
+
+* Monta layout do relatório
+  PERFORM zf_monta_layout.
+
+* Monta fieldcat do ALV
+  PERFORM zf_monta_fieldcat.
+
+* Exibe o relatório
+  PERFORM zf_mostra_alv.
+
+* Header do relatório
+  PERFORM zf_top_of_page.
+
+* Limpa variáveis e tabelas internas
+  PERFORM zf_limpar_variaveis_e_tabelas.
+
+*----------------------------------------------------------------------*
+*   Form  zf_seleciona_dados
+*----------------------------------------------------------------------*
+*   Seleção de Dados
+*----------------------------------------------------------------------*
+FORM zf_seleciona_dados .
+
+  Clear: v_tipo_mrp.
+
+* Seleciona o tipo de MRP de acordo com o centro
+  SELECT SINGLE cd_tipo_mrp_mps
+  FROM ztbpp_001
+  INTO (v_tipo_mrp)
+  WHERE cd_centro = p_werks.
+
+  if sy-subrc <> 0.
+    Clear: v_tipo_mrp.
+  endif.
+
+* Seleciona dados da tab. MARC de acordo com centro ou depósito
+  SELECT matnr werks lgpro eisbe dispo
+  FROM marc
+  INTO TABLE t_marc
+  WHERE werks  = p_werks
+    AND lgpro  IN s_depo
+    AND dismm  = v_tipo_mrp
+    AND ( matnr  = '000000000000008902'
+     OR   matnr  = '000000000000006168' ).
+
+  IF sy-subrc EQ 0.
+
+*Deleta dados duplicados para select for all entries
+    t_marc_aux[] = t_marc[].
+    Sort t_marc_aux by matnr werks lgpro.
+    DELETE ADJACENT DUPLICATES FROM t_marc_aux COMPARING matnr werks lgpro.
+
+* Seleciona dados da tab. MARD de acordo com as entradas da tab. MARC
+    SELECT matnr werks lgort lfgja lfmon labst insme
+    FROM mard
+    INTO TABLE t_mard
+    FOR ALL ENTRIES IN t_marc_aux
+    WHERE matnr = t_marc_aux-matnr
+      AND werks = t_marc_aux-werks
+      AND lgort = t_marc_aux-lgpro.
+
+* Verifica se não encontrou resultado
+    IF sy-subrc <> 0.
+      refresh t_mard.
+    Endif.
+
+*Deleta dados duplicados para select for all entries
+    t_marc_aux[] = t_marc[].
+    Sort t_marc_aux by matnr.
+    DELETE ADJACENT DUPLICATES FROM t_marc_aux COMPARING matnr.
+
+* Seleciona VBAP x VBAK - Dados da ordem
+    SELECT  vbap~vbeln
+            vbap~posnr
+            vbap~matnr
+            vbak~vbtyp
+      INTO TABLE t_vbap
+      FROM vbap INNER JOIN vbak
+        ON vbap~vbeln = vbak~vbeln
+      FOR ALL entries IN t_marc_aux
+      WHERE vbap~matnr = t_marc_aux-matnr
+        AND vbak~vbtyp = 'C'.
+
+    if sy-subrc is initial.
+
+* Itens de remessa da ordem
+      SELECT  vbep~vbeln
+              vbep~posnr
+              vbep~etenr
+              vbep~wmeng
+              vbep~mbdat
+              vbup~lfsta
+        INTO TABLE t_vbep_aux
+        FROM vbep INNER JOIN vbup
+          ON vbep~vbeln = vbup~vbeln
+         AND vbep~posnr = vbup~posnr
+        FOR ALL entries IN t_vbap
+       WHERE vbep~vbeln = t_vbap-vbeln
+         AND vbep~posnr = t_vbap-posnr
+         AND vbup~lfsta <> 'C'.
+
+      if sy-subrc is initial.
+
+        refresh t_vbep_fae.
+        t_vbep_fae[] = t_vbep_aux[].
+        SORT t_vbep_fae BY vbeln posnr.
+        DELETE ADJACENT DUPLICATES FROM t_vbep_fae COMPARING vbeln posnr.
+
+* Itens dos documentos de entrega.
+        SELECT  vgbel
+                vgpos
+                lgmng
+          FROM lips
+          INTO TABLE t_lips_aux
+          FOR ALL ENTRIES IN t_vbep_fae
+          WHERE vgbel = t_vbep_fae-vbeln
+            AND vgpos = t_vbep_fae-posnr.
+
+        if sy-subrc <> 0.
+          refresh t_lips_aux.
+        endif.
+
+      endif.
+
+    endif.
+
+*Somatória dos itens do documento de remessa
+    refresh t_vbep.
+    LOOP AT t_vbep_aux INTO wa_vbep.
+
+      CONCATENATE wa_vbep-vbeln
+                  wa_vbep-posnr
+                  wa_vbep-etenr
+                  INTO v_vbeln_posnr_etenr.
+
+      AT FIRST.
+        v_vbeln_posnr_etenr_aux =  v_vbeln_posnr_etenr.
+      ENDAT.
+
+      IF v_vbeln_posnr_etenr_aux NE v_vbeln_posnr_etenr.
+
+        wa_vbep_fi-wmeng = v_acumula.
+        APPEND wa_vbep_fi TO t_vbep.
+
+        CLEAR: wa_vbep_fi, v_acumula.
+        v_vbeln_posnr_etenr_aux =  v_vbeln_posnr_etenr.
+
+      ENDIF.
+      v_acumula = v_acumula + wa_vbep-wmeng.
+      wa_vbep_fi-vbeln = wa_vbep-vbeln.
+      wa_vbep_fi-posnr = wa_vbep-posnr.
+      wa_vbep_fi-etenr = wa_vbep-etenr.
+      wa_vbep_fi-mbdat = wa_vbep-mbdat.
+
+      AT LAST.
+        wa_vbep_fi-wmeng = v_acumula.
+        APPEND wa_vbep_fi TO t_vbep.
+
+        CLEAR: wa_vbep_fi, v_acumula.
+      ENDAT.
+
+    ENDLOOP.
+
+*Somatória dos itens do documento de entrega
+    refresh t_lips.
+    LOOP AT t_lips_aux INTO wa_lips.
+
+      CONCATENATE wa_lips-vgbel wa_lips-vgpos INTO v_vgbel_vgpos.
+
+      AT FIRST.
+        v_vgbel_vgpos_aux =  v_vgbel_vgpos.
+      ENDAT.
+
+      IF v_vgbel_vgpos_aux NE v_vgbel_vgpos.
+
+        wa_lips_fi-lgmng = v_acumula_aux.
+        APPEND wa_lips_fi TO t_lips.
+
+        CLEAR: wa_lips_fi, v_acumula_aux.
+        v_vgbel_vgpos_aux =  v_vgbel_vgpos.
+
+      ENDIF.
+      v_acumula_aux = v_acumula_aux + wa_lips-lgmng.
+      wa_lips_fi-vgbel = wa_lips-vgbel.
+      wa_lips_fi-vgpos = wa_lips-vgpos.
+
+      AT LAST.
+        wa_lips_fi-lgmng = v_acumula_aux.
+        APPEND wa_lips_fi TO t_lips.
+
+        CLEAR: wa_lips_fi, v_acumula_aux.
+      ENDAT.
+
+    ENDLOOP.
+
+*Deleta dados duplicados para select for all entries
+    refresh t_marc_aux.
+    t_marc_aux[] = t_marc[].
+    Sort t_marc_aux by matnr werks.
+    DELETE ADJACENT DUPLICATES FROM t_marc_aux COMPARING matnr werks.
+
+* Seleciona dados da tab. PGMI de acordo com as entradas da tab. MARC
+    SELECT pgtyp prgrp werks nrmit
+    FROM pgmi
+    INTO TABLE t_pgmi
+    FOR ALL ENTRIES IN t_marc_aux
+    WHERE nrmit = t_marc_aux-matnr
+      AND werks = t_marc_aux-werks
+      AND datum = c_31122999
+      AND pgtyp  = space.
+
+* Verifica se não encontrou resultado
+    IF sy-subrc <> 0.
+      refresh t_pgmi.
+    Endif.
+
+*Deleta dados duplicados para select for all entries
+    refresh t_marc_aux.
+    t_marc_aux[] = t_marc[].
+    Sort t_marc_aux by matnr werks.
+    DELETE ADJACENT DUPLICATES FROM t_marc_aux COMPARING matnr werks.
+
+* SIP: dados do item da ordem para o material
+    SELECT  s021~werks
+            s021~matnr
+            s021~aufnr
+            caufv~gstrp
+            caufv~gltrp
+            s021~pgmng
+            s021~wemng
+        FROM s021 INNER JOIN caufv
+          ON s021~aufnr = caufv~aufnr
+        INTO TABLE t_s021
+        FOR ALL ENTRIES IN t_marc_aux
+        WHERE s021~ssour = space
+          AND s021~vrsio = '000'
+          AND s021~matnr = t_marc_aux-matnr
+          AND s021~werks = t_marc_aux-werks.
+
+    if sy-subrc <> 0.
+      refresh t_s021.
+    endif.
+
+* Ordem planejada
+    SELECT  matnr
+            pwwrk
+            gsmng
+            psttr
+            pedtr
+      FROM plaf
+      INTO TABLE t_plaf
+      FOR ALL ENTRIES IN t_marc_aux
+      WHERE matnr = t_marc_aux-matnr
+        AND pwwrk = t_marc_aux-werks.
+
+    if sy-subrc <> 0.
+      refresh t_plaf.
+    endif.
+
+*Deleta dados duplicados para select for all entries
+    refresh t_marc_aux.
+    t_marc_aux[] = t_marc[].
+    Sort t_marc_aux by matnr .
+    DELETE ADJACENT DUPLICATES FROM t_marc_aux COMPARING matnr.
+
+* Seleciona descrição do material
+    SELECT matnr spras maktx
+    FROM makt
+    INTO TABLE t_makt
+    FOR ALL ENTRIES IN t_marc_aux
+    WHERE matnr = t_marc_aux-matnr
+      AND spras = sy-langu.
+
+* Verifica se não encontrou resultado
+    IF sy-subrc <> 0.
+      refresh t_makt.
+    Endif.
+
+  else.
+* Exibe Mensagem "Dados Inválidos"
+    MESSAGE s004(zlpp01).
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+
+ENDFORM.                    " zf_seleciona_dados
+*----------------------------------------------------------------------*
+*  Form  zf_processa_dados
+*----------------------------------------------------------------------*
+*  Processa Dados
+*----------------------------------------------------------------------*
+FORM zf_processa_dados .
+
+  SORT: t_marc            BY lgpro matnr,
+        t_pgmi            By nrmit werks,
+        t_makt            by matnr,
+        t_mard            by matnr werks lgort,
+        t_s021            BY matnr werks,
+        t_plaf            BY matnr pwwrk,
+        t_vbep            BY vbeln posnr,
+        t_lips            BY vgbel vgpos,
+        t_vbap            BY matnr.
+
+* Limpa variáveis
+  clear: v_ano, v_per.
+
+* Atribui os dados do Parameter p/  variáveis p/ funções
+  v_ano = p_ano.
+  v_per = p_per.
+
+  LOOP AT t_marc INTO wa_marc.
+
+* Limpa variáveis e work area
+    clear:  wa_saida,
+            v_data_fim_plan,
+            v_data_nec_ind,
+            v_pgmng_tot,
+            v_wemng_tot,
+            v_gsmng_tot,
+            v_vbep_wmeng_tot,
+            v_lips_lgmng_tot.
+
+* Função p/ calcular data início de planejamento
+    CALL FUNCTION 'ZFPP_GETFIRSTDAY'
+      EXPORTING
+        i_centro    = wa_marc-werks
+        i_deposito  = wa_marc-lgpro
+        i_periodo   = v_per
+        i_ano       = v_ano
+      IMPORTING
+        e_first_day = v_data_inicio_plan.
+
+* Função p/ calcular data final de planejamento
+    CALL FUNCTION 'ZFPP_GETLASTDAY'
+      EXPORTING
+        i_centro   = wa_marc-werks
+        i_deposito = wa_marc-lgpro
+        i_periodo  = v_per
+        i_ano      = v_ano
+      IMPORTING
+        e_last_day = v_data_fim_plan.
+
+* Função p/ calcular data nec de planejamento
+    CALL FUNCTION 'ZFPP_GETLASTWORKDAY'
+      EXPORTING
+        i_centro       = wa_marc-werks
+        i_deposito     = wa_marc-lgpro
+        i_periodo      = v_per
+        i_ano          = v_ano
+      IMPORTING
+        e_last_workday = v_data_nec_ind.
+
+* Atribui valores p/ wa de saida.
+    wa_saida-werks = wa_marc-werks.
+    wa_saida-lgpro = wa_marc-lgpro.
+    wa_saida-matnr = wa_marc-matnr.
+    wa_saida-eisbe = wa_marc-eisbe.
+    wa_saida-dispo = wa_marc-dispo.
+
+* Lê tabela para atribuir nome do grupo de produtos
+    clear: wa_pgmi.
+    READ TABLE t_pgmi INTO wa_pgmi WITH KEY nrmit = wa_marc-matnr
+                                            werks = wa_marc-werks
+                                            BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_saida-prgrp = wa_pgmi-prgrp.
+    ENDIF.
+
+* Lê tab. MAKT para atribuir a descrição ao material
+    clear: wa_makt.
+    READ TABLE t_makt  INTO wa_makt WITH KEY matnr = wa_marc-matnr
+                                             BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_saida-maktx = wa_makt-maktx.
+    ENDIF.
+
+* Lê tabela de depósito para cálcular estoque físico
+    clear wa_mard.
+    READ TABLE t_mard  INTO wa_mard WITH KEY matnr = wa_marc-matnr
+                                             werks = wa_marc-werks
+                                             lgort = wa_marc-lgpro
+                                             BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      wa_saida-est_fis = wa_mard-labst + wa_mard-insme.
+    ENDIF.
+
+* Apaga dados da tab aux de acordo com a condição
+    refresh t_s021_aux.
+    t_s021_aux[] = t_s021[].
+    DELETE t_s021_aux WHERE ( gstrp < v_data_inicio_plan )
+                         OR ( gltrp > v_data_fim_plan    ) .
+
+    refresh t_plaf_aux.
+    t_plaf_aux[] = t_plaf.
+    DELETE t_plaf_aux WHERE ( psttr < v_data_inicio_plan )
+                         OR ( PEDTR > v_data_fim_plan    ) .
+
+* Loop p/ somar total qtdd planejada
+    CLEAR wa_s021.
+    READ TABLE t_s021_aux INTO wa_s021 WITH KEY matnr = wa_marc-matnr
+                                            werks = wa_marc-werks BINARY SEARCH.
+    if sy-subrc is initial.
+      clear v_tabix.
+      v_tabix = sy-tabix.
+
+      LOOP AT t_s021_aux INTO wa_s021 FROM v_tabix.
+
+        IF  wa_s021-werks <> wa_marc-werks OR
+            wa_s021-matnr <> wa_marc-matnr.
+          exit.
+        endif.
+
+        v_pgmng_tot = v_pgmng_tot + wa_s021-pgmng.
+        v_wemng_tot = v_wemng_tot + wa_s021-wemng.
+
+      ENDLOOP.
+
+    endif.
+
+    clear wa_plaf.
+    READ TABLE t_plaf_aux INTO wa_plaf WITH KEY matnr = wa_marc-matnr
+                                            pwwrk = wa_marc-werks BINARY SEARCH.
+    if sy-subrc is initial.
+
+      clear v_tabix.
+      v_tabix = sy-tabix.
+
+      LOOP AT t_plaf_aux INTO wa_plaf FROM v_tabix.
+
+        IF  wa_plaf-matnr <> wa_marc-matnr OR
+            wa_plaf-pwwrk <> wa_marc-werks.
+          exit.
+        endif.
+
+        v_gsmng_tot = v_gsmng_tot + wa_plaf-gsmng.
+
+      ENDLOOP.
+
+    endif.
+
+* Calcula valor da Ordem PRD
+    wa_saida-ord_prd = ( v_gsmng_tot + ( v_pgmng_tot - v_wemng_tot ) ).
+
+* Apaga valores de acordo com a condição
+    refresh t_vbep_mbdat.
+    t_vbep_mbdat[] = t_vbep.
+    DELETE t_vbep_mbdat WHERE ( mbdat < v_data_inicio_plan )
+                           OR ( mbdat > v_data_fim_plan    ) .
+
+
+    CLEAR wa_vbap.
+    READ TABLE t_vbap INTO wa_vbap WITH KEY matnr = wa_marc-matnr.
+
+    if sy-subrc is initial.
+
+      clear v_tabix.
+      v_tabix = sy-tabix.
+
+* Somatória da quantidade do pedido / entrega / remessa.
+      LOOP AT t_vbap INTO wa_vbap FROM v_tabix.
+
+        IF wa_vbap-matnr <> wa_marc-matnr.
+          exit.
+        endif.
+
+        CLEAR wa_vbep.
+        READ TABLE t_vbep_mbdat INTO wa_vbep WITH KEY
+                                             vbeln = wa_vbap-vbeln
+                                             posnr = wa_vbap-posnr BINARY SEARCH.
+
+        CLEAR wa_lips.
+        READ TABLE t_lips INTO wa_lips WITH KEY
+                                       vgbel = wa_vbap-vbeln
+                                       vgpos = wa_vbap-posnr BINARY SEARCH.
+
+        v_vbep_wmeng_tot = v_vbep_wmeng_tot + wa_vbep-wmeng.
+        v_lips_lgmng_tot = v_lips_lgmng_tot + wa_lips-lgmng.
+
+      endloop.
+
+    endif.
+
+* Calcular pedidos
+    wa_saida-ped_ven      = v_vbep_wmeng_tot - v_lips_lgmng_tot.
+
+* Calcular Prog. Estoque Seg.
+    wa_saida-prog_est_seg = wa_saida-eisbe - ( wa_saida-est_fis + wa_saida-ord_prd ) + wa_saida-ped_ven.
+
+* Verifica se retornou valor para gerar relatório.
+    IF wa_saida-prog_est_seg > 0.
+      PERFORM zf_batch_input.
+      APPEND wa_saida TO t_saida.
+    ELSE.
+      CONTINUE.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    " zf_processa_dados
+
+*----------------------------------------------------------------------*
+* Form  zf_batch_input
+*----------------------------------------------------------------------*
+* Mapear a Transação
+*----------------------------------------------------------------------*
+
+FORM zf_batch_input .
+  v_eisbe = wa_saida-eisbe.
+  WRITE v_data_nec_ind TO v_data_bi USING EDIT MASK '__.__.____'.
+
+  PERFORM zdympro USING:
+        'X' 'SAPMM60X'        '0100',
+        ' ' 'BDC_OKCODE'      '/EBDPT',
+        ' ' 'BDC_CURSOR'      'RM60X-ENTLU'.
+
+  PERFORM zdympro USING:
+        'X' 'SAPMM60X'        '0127',
+        ' ' 'BDC_CURSOR'      'T459U-BEDAE',
+        ' ' 'BDC_OKCODE'      '=WEIT',
+        ' ' 'T459U-BEDAE'     'LSF'.
+
+  PERFORM zdympro USING:
+        'X' 'SAPMM60X'        '0100',
+        ' ' 'BDC_CURSOR'      'RM60X-ENTLU',
+        ' ' 'BDC_OKCODE'      '/00',
+        ' ' 'AM60X-MATNR'     wa_marc-matnr,
+        ' ' 'AM60X-WERKS'     wa_marc-werks,
+        ' ' 'RM60X-VERSB'     'ZA',
+        ' ' 'RM60X-DATVE'     v_data_bi,
+        ' ' 'RM60X-DATBE'     v_data_bi,
+        ' ' 'RM60X-ENTLU'     'T'.
+
+  PERFORM zdympro USING:
+        'X' 'SAPLM60E'        '0200',
+        ' ' 'BDC_OKCODE'      '=SICH',
+        ' ' 'BDC_CURSOR'      'RM60X-PLN01(01)',
+        ' ' 'RM60X-PLN01(01)' v_eisbe.
+
+  CALL TRANSACTION c_transacao USING t_bdcdata MODE c_mode UPDATE c_update
+    MESSAGES INTO t_mess.
+
+  refresh: t_bdcdata.
+
+  CLEAR: v_data_bi,
+         v_eisbe.
+
+ENDFORM.                    " zf_batch_input
+
+*----------------------------------------------------------------------*
+* Form  zdympro
+*----------------------------------------------------------------------*
+* Rotina para incluir dados na BDCDATA
+*----------------------------------------------------------------------*
+*      -->P_DYNBEGIN          Numéro de Tela
+*      -->P_FNAM              Nome
+*      -->P_FVAL              Valor
+*----------------------------------------------------------------------*
+FORM zdympro USING p_dynbegin type C
+                   p_fnam     Type C
+                   p_fval     Type C.
+
+  CLEAR:wa_bdcdata.
+*  Se tiver número de tela atribui os outros valores para programa
+  IF p_dynbegin = 'X'.
+    MOVE p_fnam TO wa_bdcdata-program.
+    MOVE p_fval TO wa_bdcdata-dynpro.
+    MOVE 'X' TO wa_bdcdata-dynbegin.
+    APPEND wa_bdcdata TO t_bdcdata.
+*  Senão atribui os valores para campo.
+  ELSE.
+    MOVE p_fnam TO wa_bdcdata-fnam.
+    MOVE p_fval TO wa_bdcdata-fval.
+    APPEND wa_bdcdata TO t_bdcdata.
+
+  ENDIF.
+
+  Clear: wa_bdcdata.
+
+ENDFORM.                    " zdympro
+
+*----------------------------------------------------------------------*
+* Form zf_monta_layout
+*----------------------------------------------------------------------*
+* Rotina para montar o Layout de saida.
+*----------------------------------------------------------------------*
+FORM zf_monta_layout.
+
+*Imprimir linha clara e escura alternadamente
+  wa_layout-zebra             = c_x.
+
+*Abre a lista com as colunas do tamanho necessário para mostragem
+  wa_layout-colwidth_optimize = c_x.
+
+ENDFORM.                    " zf_monta_layout
+
+*----------------------------------------------------------------------*
+* Form zf_monta_fieldcat
+*---------------------------------------------------------------------*
+* Rotina para Montar a Tabela Fieldcat.
+*----------------------------------------------------------------------*
+FORM zf_monta_fieldcat.
+
+* Colocando os campos que serão exibidos no ALV.
+  PERFORM zf_fieldcat USING:
+                            c_saida c_werks        text-003,
+                            c_saida c_lgpro        text-004,
+                            c_saida c_prgrp        text-005,
+                            c_saida c_matnr        text-006,
+                            c_saida c_maktx        text-007,
+                            c_saida c_eisbe        text-008,
+                            c_saida c_est_fis      text-009,
+                            c_saida c_ord_prd      text-010,
+                            c_saida c_ped_ven      text-011,
+                            c_saida c_prog_est_seg text-012,
+                            c_saida c_dispo        text-013.
+
+ENDFORM.                    " zf_monta_fieldcat
+
+*----------------------------------------------------------------------*
+* Form zf_fieldcat
+*----------------------------------------------------------------------*
+*      --> P_TABELA: Parametro com o nome da tabela.
+*      --> P_CAMPO:  Parametro com o nome do campo.
+*      --> P_TEXTO:  Parametro com o nome do texto.
+*----------------------------------------------------------------------*
+FORM zf_fieldcat USING p_tabela    TYPE any
+                       p_campo     TYPE any
+                       p_texto     TYPE any.
+
+* Move registros para Catálogo do ALV
+  wa_fieldcat-tabname        = p_tabela.
+  wa_fieldcat-fieldname      = p_campo.
+  wa_fieldcat-reptext_ddic   = p_texto.
+
+
+* Insere registro na tabela de Saída do Relatório
+  APPEND wa_fieldcat TO t_fieldcat.
+  CLEAR  wa_fieldcat.
+
+ENDFORM.                    " zf_fieldcat
+
+*----------------------------------------------------------------------*
+* Form  zf_mostra_alv
+*----------------------------------------------------------------------*
+* Rotina para mostrar o relatório no formato ALV
+*----------------------------------------------------------------------*
+FORM zf_mostra_alv.
+
+  DATA: vl_repid TYPE sy-repid. "Nome do Programa
+
+* Atribui valor sy-repid para variável.
+  vl_repid = sy-repid.
+
+* Organiza tabela de saída pelo centro e grupo de produtos.
+  SORT t_saida BY werks lgpro.
+
+* Função para mostrar dados no ALV.
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      I_CALLBACK_PROGRAM     = vl_repid
+      i_callback_top_of_page = c_top
+      IS_LAYOUT              = wa_layout
+      IT_FIELDCAT            = t_fieldcat
+    TABLES
+      t_outtab               = t_saida
+    EXCEPTIONS
+      PROGRAM_ERROR          = 1
+      OTHERS                 = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+    WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+ENDFORM.                    " zf_mostra_alv
+
+
+*----------------------------------------------------------------------*
+* Form zf_top_of_page
+*----------------------------------------------------------------------*
+* Rotina para montar o cabeçalho.
+*----------------------------------------------------------------------*
+FORM zf_top_of_page .
+
+  DATA: vl_datum_1(10)  TYPE c,  "Data do Processamento
+        vl_hora(10)     TYPE c.  "Hora do Sistema
+
+  REFRESH t_top_of_page.
+
+* Descrição do Relatório
+  wa_top_of_page-typ = c_h.
+  wa_top_of_page-info = text-014.
+  APPEND wa_top_of_page TO t_top_of_page.
+  CLEAR  wa_top_of_page.
+
+* Data
+* Convertendo a Data
+  vl_datum_1 = sy-datum.
+
+  CONCATENATE: vl_datum_1+6(02)
+               vl_datum_1+4(02)
+               vl_datum_1(04)
+               INTO vl_datum_1 SEPARATED BY c_carac4.
+
+* Hora
+* Convertendo a Hora
+  vl_hora = sy-uzeit.
+
+  CONCATENATE: vl_hora(02)
+               vl_hora+2(02)
+               vl_hora+4(02)
+               INTO vl_hora SEPARATED BY c_carac5.
+
+* Transformando '.' por '/'.
+  TRANSLATE: vl_datum_1 USING c_carac3.
+
+* Data do Processamento
+  wa_top_of_page-typ = c_s.
+  CONCATENATE text-015 vl_datum_1 INTO wa_top_of_page-info SEPARATED BY space.
+  APPEND wa_top_of_page TO t_top_of_page.
+  CLEAR  wa_top_of_page.
+
+* Hora do Processamento
+  wa_top_of_page-typ = c_s.
+  CONCATENATE text-016 vl_hora INTO wa_top_of_page-info SEPARATED BY space.
+  APPEND wa_top_of_page TO t_top_of_page.
+  CLEAR  wa_top_of_page.
+
+* Logotipo
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = t_top_of_page
+      i_logo             = c_logo.
+
+ENDFORM.                    " zf_top_of_page
+
+
+*----------------------------------------------------------------------*
+*  Form  ZF_LIMPAR_VARIAVEIS_E_TABELAS
+*----------------------------------------------------------------------*
+*  Inicializa variáveis e tabelas
+*----------------------------------------------------------------------*
+FORM zf_limpar_variaveis_e_tabelas.
+
+  REFRESH: t_marc,
+           t_mard,
+           t_makt,
+           t_pgmi,
+           t_s021,
+           t_s021_aux,
+           t_plaf,
+           t_plaf_aux,
+           t_lips,
+           t_vbep,
+           t_lips_aux,
+           t_vbep_aux,
+           t_saida,
+           t_bdcdata,
+           t_mess,
+           t_fieldcat,
+           t_top_of_page.
+
+  CLEAR:   wa_layout,
+           v_tipo_mrp,
+           v_data_inicio_plan,
+           v_data_fim_plan,
+           v_data_nec_ind,
+           v_gsmng_tot,
+           v_pgmng_tot,
+           v_wemng_tot,
+           v_vbep_wmeng_tot,
+           v_lips_lgmng_tot,
+           v_tabix,
+           v_eisbe,
+           v_data_bi,
+           v_ano,
+           v_per.
+
+
+ENDFORM.                    " ZF_LIMPAR_VARIAVEIS_E_TABELAS

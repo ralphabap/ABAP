@@ -1,0 +1,206 @@
+REPORT zfip_boleto_itau .
+************************************************************************
+***   NOVABASE                                                       ***
+***   Programa : ZFIP_BOLETO_ITAU                                    ***
+***   Área     : FI                                                  ***
+***   Autor    : Ronaldo da Silva Conde                              ***
+***   Data     : 27/11/2000                                          ***
+***   Objetivo :                                                     ***
+***   Programa auxiliar para impressão Boleto ITAU                  ***
+************************************************************************
+
+INCLUDE zfii_boleto.
+
+*&---------------------------------------------------------------------*
+*&      Form  z_formata_codbarra
+*&---------------------------------------------------------------------*
+* Cria o codigo de Barra formato do ITAU
+*----------------------------------------------------------------------*
+FORM z_formata_codbarra TABLES in_tab STRUCTURE itcsy
+                              out_tab STRUCTURE itcsy.
+  DATA :
+         lc_codbardig(47) TYPE c, " Codigo de barra digitavel Standard
+         ln_valor(14)     TYPE n, " Valor com zeros a esquerda
+         lc_valor(14)     TYPE c, " Valor
+         lc_dv            TYPE c, " DV do codigo de Barra
+         lc_codbarra(44)  TYPE c, " Codigo de Barra
+         lc_vecto(10)     TYPE c, " Data de Vecto 99.99.9999
+         ld_vecto         LIKE regud-ausft. " Vecto do Boleto
+
+* Importando dados do SapScript
+  LOOP AT in_tab.
+    CASE in_tab-name.
+      WHEN 'REGUD-TEXT8'.
+        lc_codbardig = in_tab-value(47).
+      WHEN 'REGUD-AUSFT'.
+        lc_vecto = in_tab-value.
+      WHEN OTHERS.
+    ENDCASE.
+  ENDLOOP.
+
+* Verificando se nao existe nenhum caracter nao numerico
+  lc_valor = lc_codbardig+33(14).
+  PERFORM z_convert_to_number CHANGING lc_valor.
+* Colocando Zeros a esquerda do valor
+  ln_valor = lc_valor.
+  lc_valor = ln_valor.
+
+  CONCATENATE lc_vecto+6(4)
+              lc_vecto+3(2)
+              lc_vecto+0(2)
+         INTO ld_vecto.
+  PERFORM z_calcular_novovalor USING ld_vecto
+                                     lc_valor
+                            CHANGING lc_valor.
+
+* Cria DV do codigo de Barra
+  CONCATENATE
+              lc_codbardig+0(4)  " Codigo do Banco + Moeda
+              lc_valor           " Valor com 14 posiçoes (zeros a esq)
+              lc_codbardig+4(3)  " Carteira
+              lc_codbardig+7(2) lc_codbardig+10(6) " Nosso Numero
+              lc_codbardig+16(1) " Mod10(Ag/Conta/Carteira/Nosso Numero)
+              lc_codbardig+17(3) lc_codbardig+21(1)" Agencia
+              lc_codbardig+22(5) " Conta
+              lc_codbardig+27(1) " Mod10(Ag/Conta)
+              '000'
+         INTO lc_codbarra.
+
+  PERFORM z_calcular_modulo11 USING lc_codbarra
+                                    space
+                                    space
+                                    space
+                           CHANGING lc_dv.
+
+* Compoem Codigo de Barra
+  CONCATENATE
+              lc_codbardig+0(4)  " Codigo do Banco + Moeda
+              lc_dv              " Mod11(Banco/Moeda)
+              lc_valor           " Valor com 14 posiçoes (zeros a esq)
+              lc_codbardig+4(3)  " Carteira
+              lc_codbardig+7(2) lc_codbardig+10(6) " Nosso Numero
+              lc_codbardig+16(1) " Mod10(Ag/Conta/Carteira/Nosso Numero)
+              lc_codbardig+17(3) lc_codbardig+21(1)" Agencia
+              lc_codbardig+22(5) " Conta
+              lc_codbardig+27(1) " Mod10(Ag/Conta)
+              '000'
+         INTO lc_codbarra.
+
+* Exportando dados para o SapScript
+  LOOP AT out_tab.
+    CASE out_tab-name.
+      WHEN 'COD_BARRA'.
+        out_tab-value = lc_codbarra.
+      WHEN 'DV_CODBARRA'.
+        out_tab-value = lc_dv.
+      WHEN 'VLR_VECTO'.
+        out_tab-value = lc_valor.
+      WHEN OTHERS.
+    ENDCASE.
+    MODIFY out_tab.
+  ENDLOOP.
+
+ENDFORM. " z_formata_codbarra
+
+*&---------------------------------------------------------------------*
+*&      Form  z_formata_agencia
+*&---------------------------------------------------------------------*
+* Formata a agencia com 4 digitos
+*----------------------------------------------------------------------*
+FORM z_formata_agencia TABLES in_tab STRUCTURE itcsy
+                             out_tab STRUCTURE itcsy.
+  DATA :
+         ln_ag(04) TYPE n.
+
+* Importando dados do SapScript
+  LOOP AT in_tab.
+    CASE in_tab-name.
+      WHEN 'REGUH-UBNKL'.
+*           LN_AG = IN_TAB-VALUE+4(3).
+        ln_ag = in_tab-value+4(4).
+      WHEN OTHERS.
+    ENDCASE.
+  ENDLOOP.
+
+* Exportando dados para o SapScript
+  LOOP AT out_tab.
+    CASE out_tab-name.
+      WHEN 'Z_AGENCIA'.
+        out_tab-value = ln_ag.
+      WHEN OTHERS.
+    ENDCASE.
+    MODIFY out_tab.
+  ENDLOOP.
+
+ENDFORM.      " z_formata_agencia
+
+*---------------------------------------------------------------------*
+*       FORM z_endereco                                               *
+*---------------------------------------------------------------------*
+*       Pega o endereço completo (rua)
+*---------------------------------------------------------------------*
+FORM z_endereco TABLES in_tab  STRUCTURE itcsy
+                       out_tab STRUCTURE itcsy.
+
+  DATA: lv_kunnr   TYPE kna1-kunnr,
+        lv_adrnr   TYPE kna1-adrnr,
+        lv_street  TYPE adrc-street,
+        lv_numero  TYPE adrc-house_num1,
+        lv_rua(60) TYPE c.
+
+* Importando dados do SapScript
+  READ TABLE in_tab INDEX 1.
+
+  lv_kunnr = in_tab-value.
+
+  UNPACK lv_kunnr TO lv_kunnr.
+
+  SELECT SINGLE adrnr
+  INTO lv_adrnr
+  FROM kna1
+  WHERE kunnr EQ lv_kunnr.
+
+  IF sy-subrc EQ 0.
+
+    SELECT SINGLE street house_num1
+    INTO (lv_street, lv_numero)
+    FROM adrc
+    WHERE addrnumber EQ lv_adrnr.
+
+  ENDIF.
+
+* Exportando dados para o SapScript
+  READ TABLE out_tab INDEX 1.
+
+  out_tab-value = lv_street.
+
+  MODIFY out_tab INDEX 1.
+
+  READ TABLE out_tab INDEX 2.
+
+  out_tab-value = lv_numero.
+
+  MODIFY out_tab INDEX 2.
+
+ENDFORM.
+
+
+
+
+
+
+
+
+* >>> Alteração texto vencimento - Sonda Procwork - 16/12/2010 - Início
+*---------------------------------------------------------------------*
+*       FORM z_endereco                                               *
+*---------------------------------------------------------------------*
+*       Pega o endereço completo (rua)
+*---------------------------------------------------------------------*
+FORM z_texto_vencimento TABLES in_tab  STRUCTURE itcsy
+                               out_tab STRUCTURE itcsy.
+
+
+
+ENDFORM.
+* <<< Alteração texto vencimento - Sonda Procwork - 16/12/2010 - Fim

@@ -1,0 +1,12 @@
+Transações de Performance e Análise
+SM66 - Monitora processos
+SE30 - Trace
+ST05 - 
+ST04 - 
+SM66 - 
+SM51 - 
+Sm12 - 
+SM59 - Criaçã
+
+
+TSTCP - Tabela para encontrar transacoes. vai pela SE16 e coloca o nome da tabela entre * no campo parametros

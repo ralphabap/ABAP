@@ -1,0 +1,308 @@
+*---------------------------------------------------------------------------
+* Programa : ZPFIR_056
+* Cliente  : Gafisa
+* Módulo   : FI
+* Transação:
+* Descrição: Relatório para modificar a tabela de unidades da Aprop. Imob.
+* Autor: Ralph Nova          Data: 05/09/2008
+*---------------------------------------------------------------------------
+* Histórico de Alterações:
+*---------------------------------------------------------------------------
+* Data       |Change #   |Autor         |Alteração
+*---------------------------------------------------------------------------
+* 05/09/2008 |           |Ralph Nova    |Desenvolvimento Inicial
+*---------------------------------------------------------------------------
+REPORT  zpfir_056 NO STANDARD PAGE HEADING
+                  LINE-SIZE 216.
+
+*-------------------------------------------------------------------------
+*	Definição de Tabelas
+*-------------------------------------------------------------------------
+TABLES:
+  ztbfi_unidade,
+  bkpf,
+  bseg.
+
+*-------------------------------------------------------------------------
+*	Definição de Constantes
+*-------------------------------------------------------------------------
+CONSTANTS:
+  cc_top_of_page(11)         TYPE c  VALUE 'TOP_OF_PAGE'    ,  "Constante p/ evento do ALV
+  cc_zf_top_of_page(14)      TYPE c  VALUE 'ZF_TOP_OF_PAGE' ,  "Constante p/ evento do ALV
+  cc_user_command(12)        TYPE c  VALUE 'USER_COMMAND',     "Constante p/ evento do ALV
+  cc_zf_user_command(15)     TYPE c  VALUE 'ZF_USER_COMMAND'.  "Constante p/ evento do ALV
+
+*-------------------------------------------------------------------------
+*	Definição de Tipos
+*-------------------------------------------------------------------------
+TYPE-POOLS:   slis.
+
+*-----------------------------------------------------------------------
+* Definição de Classes
+*-----------------------------------------------------------------------
+***  Classe que Recupera valor digitado
+DATA: cl_grid     TYPE REF TO cl_gui_alv_grid.
+
+*-------------------------------------------------------------------------
+*	Definição de Tabelas Internas
+*-------------------------------------------------------------------------
+DATA: gw_unidade  TYPE  STANDARD TABLE OF ztbfi_unidade.
+
+***Tabelas internas para ALV
+DATA: gw_fieldcat         TYPE slis_t_fieldcat_alv                  ,
+      gw_sort             TYPE TABLE OF slis_sortinfo_alv           ,
+      gw_events           TYPE slis_t_event                         .
+
+*-------------------------------------------------------------------------
+*	Definição de Estruturas
+*-------------------------------------------------------------------------
+***Estruturas para Header Line
+DATA: gs_variant     LIKE disvariant            ,
+      gs_events      TYPE LINE OF slis_t_event  ,
+      gs_sort        LIKE LINE OF gw_sort       ,
+      gs_fieldcat    TYPE slis_fieldcat_alv     .
+
+*-------------------------------------------------------------------------
+*	Definição da Tela de Seleções
+*-------------------------------------------------------------------------
+SELECT-OPTIONS: so_bukrs    FOR  bkpf-bukrs           ,       "Empresa
+                so_gsber    FOR  bseg-gsber           ,       "Divisão
+                so_unid     FOR  ztbfi_unidade-unidade.       "Unidade
+PARAMETERS:     pn_gjahr    TYPE bkpf-gjahr OBLIGATORY.       "Exercício
+SELECT-OPTIONS: so_monat    FOR  bkpf-monat           .       "Período
+
+*-------------------------------------------------------------------------
+*	Evento: Start-of-Selection
+*-------------------------------------------------------------------------
+START-OF-SELECTION.
+
+* Busca os dados da tabela para montar o relatório
+  PERFORM zf_busca_dados.
+
+* Monta o relatório
+  PERFORM zf_monta_relatorio.
+
+* Exibe o relatório
+  PERFORM zf_exibe_relatorio.
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_BUSCA_DADOS
+* Descrição: Carrega tabela interna para exibição do relatório
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_busca_dados.
+
+* Busca dados da tabela de lançamentos realizados
+  SELECT *
+    INTO TABLE gw_unidade
+      FROM ztbfi_unidade
+        WHERE empresa   IN so_bukrs AND
+              divisao   IN so_gsber AND
+              exercicio EQ pn_gjahr AND
+              periodo   IN so_monat AND
+              unidade   IN so_unid.
+
+  IF sy-subrc <> 0.
+    MESSAGE i000(zlfi001) WITH text-001 DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+ENDFORM.                    " ZF_BUSCA_DADOS
+
+*-------------------------------------------------------------------------
+* Form: ZF_MONTA_RELATORIO
+* Descrição: Monta estrutura do relatório
+*            Grava Layout, Ordenação e eventos do relatório
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_monta_relatorio .
+
+* Cria Estrutura do relatório
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name       = 'ZSTFI_UNIDADE'
+    CHANGING
+      ct_fieldcat            = gw_fieldcat
+    EXCEPTIONS
+      inconsistent_interface = 1
+      program_error          = 2
+      OTHERS                 = 3.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  LOOP AT gw_fieldcat INTO gs_fieldcat.
+
+    IF gs_fieldcat-fieldname = 'VENDA_ACUM'     OR
+       gs_fieldcat-fieldname = 'VENDA_MES'      OR
+       gs_fieldcat-fieldname = 'REC_ACUM_PRINC' OR
+       gs_fieldcat-fieldname = 'REC_MES_PRINC'.
+
+      gs_fieldcat-edit = 'X'.
+
+      MODIFY gw_fieldcat FROM gs_fieldcat.
+
+    ENDIF.
+
+  ENDLOOP.
+
+* Grava eventos para o ALV
+  gs_events-name = cc_top_of_page.
+  gs_events-form = cc_zf_top_of_page.
+  APPEND gs_events TO gw_events.
+
+  gs_events-name = cc_user_command.
+  gs_events-form = cc_zf_user_command.
+  APPEND gs_events TO gw_events.
+
+* Ordena Colunas do ALV
+  gs_sort-spos      = 1.
+  gs_sort-fieldname = 'EMPRESA'.
+  APPEND gs_sort TO gw_sort.
+
+  gs_sort-spos      = 2.
+  gs_sort-fieldname = 'DIVISAO'.
+  APPEND gs_sort TO gw_sort.
+
+  gs_sort-spos      = 3.
+  gs_sort-fieldname = 'EXERCICIO'.
+  APPEND gs_sort TO gw_sort.
+
+  gs_sort-spos      = 4.
+  gs_sort-fieldname = 'PERIODO'.
+  APPEND gs_sort TO gw_sort.
+
+  gs_sort-spos      = 5.
+  gs_sort-fieldname = 'UNIDADE'.
+  APPEND gs_sort TO gw_sort.
+
+ENDFORM.                    " ZF_MONTA_RELATORIO
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_EXIBE_RELATORIO
+* Descrição: Exibe relatório com os lançamentos realizados de acordo com
+*            os critérios de seleção informados
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_exibe_relatorio .
+
+  DATA: lc_repid TYPE sy-repid.
+
+  IF NOT gw_unidade[] IS INITIAL.
+
+    MOVE: sy-repid TO lc_repid.
+
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program       = lc_repid
+        i_callback_pf_status_set = 'ZF_SET_PF_STATUS'
+*        i_callback_user_command  = 'ZF_USER_COMM'
+*      is_layout                = gs_layout
+        it_events                = gw_events
+        it_fieldcat              = gw_fieldcat
+        it_sort                  = gw_sort
+        is_variant               = gs_variant
+      TABLES
+        t_outtab                 = gw_unidade
+      EXCEPTIONS
+        program_error            = 1
+        OTHERS                   = 2.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " ZF_EXIBE_RELATORIO
+
+*-------------------------------------------------------------------------
+* Form: ZF_SET_PF_STATUS
+* Descrição: Carrega barra de botões
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_set_pf_status                                       "#EC CALLED
+                USING rt_extab TYPE slis_t_extab.           "#EC NEEDED
+
+  SET PF-STATUS 'ZSTANDARD_FULLSCREEN'.
+
+ENDFORM.                    "zf_set_pf_status
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_TOP_OF_PAGE
+* Descrição: Cabeçalho do relatório
+*-------------------------------------------------------------------------
+FORM zf_top_of_page.                                        "#EC CALLED
+
+* Variáveis para o cabeçalho do ALV
+  DATA: lw_header TYPE slis_t_listheader,
+        ls_header TYPE slis_listheader.
+
+* Nome do report
+  ls_header-typ  = 'H'.
+  ls_header-info = text-002.      "Título do Relatório
+  APPEND ls_header TO lw_header.
+  CLEAR ls_header.
+
+* Usuário
+  ls_header-typ  = 'S'.
+  ls_header-key = text-003. "Usuário
+  ls_header-info = sy-uname.
+  APPEND ls_header TO lw_header.
+  CLEAR ls_header.
+
+* Data do processamento
+  ls_header-typ  = 'S'.
+  ls_header-key = text-004. "Data do processamento
+  WRITE sy-datum TO ls_header-info.
+  APPEND ls_header TO lw_header.
+  CLEAR ls_header.
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = lw_header
+      i_logo             = 'ZLOGO_GAFISA'.
+
+ENDFORM.                    " zf_top_of_page
+
+*-------------------------------------------------------------------------
+* Form: ZF_USER_COMMAND
+* Descrição: Ações do usuário
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_user_command USING ucomm    LIKE sy-ucomm           "#EC CALLED
+                           selfield TYPE slis_selfield.     "#EC NEEDED
+
+  IF ucomm     EQ '&DATA_SAVE'.
+
+    selfield-refresh = 'X'.
+
+*** Chama função para recuperar classe com o grid
+    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      IMPORTING
+        e_grid = cl_grid.
+*** Classe para recuperar o valor digitado.
+    CALL METHOD cl_grid->check_changed_data.
+
+    MODIFY ztbfi_unidade FROM TABLE gw_unidade.
+    IF sy-subrc IS INITIAL.
+      COMMIT WORK.
+      MESSAGE s000(zlfi001) WITH text-005.
+    ELSE.
+      ROLLBACK WORK.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    "zf_user_command

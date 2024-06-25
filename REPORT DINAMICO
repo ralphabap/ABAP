@@ -1,0 +1,162 @@
+*&---------------------------------------------------------------------*
+*& Report  ZTESTE_DOUGLAS
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  zteste_douglas.
+
+TABLES : mara ,
+         t001 ,
+         t001w .
+
+CONSTANTS : c_yes TYPE c VALUE '1' ,
+            c_no TYPE c VALUE '0' .
+
+TYPE-POOLS : vrm.
+
+DATA: param TYPE vrm_id,
+       gw_values     TYPE vrm_values,
+       gs_value LIKE LINE OF gw_values.
+
+PARAMETERS : p_opt1 TYPE c RADIOBUTTON GROUP radi USER-COMMAND op1
+             DEFAULT 'X' ,
+
+             p_opt2 TYPE c RADIOBUTTON GROUP radi ,
+
+             p_opt3 TYPE c RADIOBUTTON GROUP radi .
+
+
+
+SELECT-OPTIONS : s_mara FOR mara-matnr MODIF ID op1 , "Material
+                 s_bukrs FOR t001-bukrs MODIF ID op2 , "Company Code
+
+                 s_werks FOR t001w-werks MODIF ID op3 . "Plant
+
+PARAMETERS: p_name(10) AS LISTBOX VISIBLE LENGTH 10.
+
+INITIALIZATION.
+
+  PERFORM muda_tela.
+  PERFORM insere_dropdown.
+
+AT SELECTION-SCREEN OUTPUT .
+
+  PERFORM muda_tela.
+  PERFORM insere_dropdown.
+*&---------------------------------------------------------------------*
+*&      Form  MUDA_TELA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM muda_tela .
+
+  LOOP AT SCREEN .
+
+    IF screen-group1 = 'OP1' .
+      IF p_opt1 = 'X' .
+        screen-invisible = c_no .
+        screen-active = c_yes .
+      ELSE.
+        screen-invisible = c_yes .
+        screen-active = c_no .
+      ENDIF.
+      MODIFY SCREEN .
+    ENDIF.
+
+    IF screen-group1 = 'OP2' .
+      IF p_opt2 = 'X' .
+        screen-invisible = c_no .
+        screen-active = c_yes .
+      ELSE.
+        screen-invisible = c_yes .
+        screen-active = c_no .
+      ENDIF.
+      MODIFY SCREEN .
+    ENDIF.
+
+    IF screen-group1 = 'OP3' .
+      IF p_opt3 = 'X' .
+        screen-invisible = c_no .
+        screen-active = c_yes .
+      ELSE.
+        screen-invisible = c_yes .
+        screen-active = c_no .
+      ENDIF.
+      MODIFY SCREEN .
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    " MUDA_TELA
+*&---------------------------------------------------------------------*
+*&      Form  INSERE_DROPDOWN
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM insere_dropdown .
+
+  REFRESH: gw_values.
+
+  IF p_opt1 = 'X' .
+
+    param = 'P_NAME'.
+    gs_value-key = '1'.
+    gs_value-text = 'material1'.
+    APPEND gs_value TO gw_values.
+    CLEAR gs_value.
+
+    gs_value-key = '2'.
+    gs_value-text = 'material2'.
+    APPEND gs_value TO gw_values.
+
+    CALL FUNCTION 'VRM_SET_VALUES'
+      EXPORTING
+        id     = param
+        values = gw_values.
+
+  ENDIF.
+
+  IF p_opt2 = 'X' .
+    param = 'P_NAME'.
+    gs_value-key = '1'.
+    gs_value-text = 'empresa1'.
+    APPEND gs_value TO gw_values.
+    CLEAR gs_value.
+
+    gs_value-key = '2'.
+    gs_value-text = 'empresa2'.
+    APPEND gs_value TO gw_values.
+
+    CALL FUNCTION 'VRM_SET_VALUES'
+      EXPORTING
+        id     = param
+        values = gw_values.
+  ENDIF.
+
+  IF p_opt3 = 'X' .
+
+    param = 'P_NAME'.
+    gs_value-key = '1'.
+    gs_value-text = 'centro1'.
+    APPEND gs_value TO gw_values.
+    CLEAR gs_value.
+
+    gs_value-key = '2'.
+    gs_value-text = 'centro2'.
+    APPEND gs_value TO gw_values.
+
+    CALL FUNCTION 'VRM_SET_VALUES'
+      EXPORTING
+        id     = param
+        values = gw_values.
+  ENDIF.
+ENDFORM.                    " INSERE_DROPDOWN

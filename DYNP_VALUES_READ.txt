@@ -1,0 +1,45 @@
+************************************************************************************************************
+*definições para pegar o valor do centro digitado na tela
+  DATA: tl_dynpfields   TYPE TABLE OF dynpread,
+        wa_dynpfields   TYPE dynpread,
+        vl_line(02)     TYPE n,
+        vl_centro_click TYPE ztbpp_007-cd_centro.
+
+
+*************************************************************************************************************
+* Processamento
+
+*Pega a linha que o usuário está clicando
+  GET CURSOR LINE vl_line.
+
+*Monta campo centro
+  REFRESH tl_dynpfields.
+  CLEAR wa_dynpfields.
+  CONCATENATE 'ZTBPP_007-CD_CENTRO('
+              vl_line
+              ')'
+          INTO wa_dynpfields-fieldname.
+  APPEND wa_dynpfields TO tl_dynpfields.
+
+*Função para pegar o valor do campo centro que o usuário digitou
+*na tela
+  CALL FUNCTION 'DYNP_VALUES_READ'
+    EXPORTING
+      dyname     = sy-repid
+      dynumb     = '9001'
+    TABLES
+      dynpfields = tl_dynpfields.
+
+  IF sy-subrc = 0.
+
+    CLEAR wa_dynpfields.
+    READ TABLE tl_dynpfields INDEX 1 INTO wa_dynpfields.
+
+    IF sy-subrc IS INITIAL.
+
+      CLEAR vl_centro_click.
+      vl_centro_click = wa_dynpfields-fieldvalue.
+
+    ENDIF.
+
+  ENDIF.

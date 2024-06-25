@@ -1,0 +1,3792 @@
+*-----------------------------------------------------------------------
+* Programa : ZPLOANSR_016
+* Cliente  : GAFISA
+* Módulo   : LOANS
+* Transação:
+* Descrição: Ajustes Contábeis
+* Autor    : Rodrigo Bettencourt    Data: 12/05/2008
+*-----------------------------------------------------------------------
+* Histórico de alterações :
+*-----------------------------------------------------------------------
+* Data      | Change # | Autor             | Alteração
+*-----------------------------------------------------------------------
+* 10/05/2008|DEVK906050|Rodrigo Bettencourt| Desenvolvimento Inicial
+* 30/01/2009                                 Correções
+*-----------------------------------------------------------------------
+REPORT  zploansr_016.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Tabelas
+*-------------------------------------------------------------------------
+TABLES: ztbloans_sdloans,
+        vdarl,
+        t001,
+        bseg.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Grupo de Tipos
+*-------------------------------------------------------------------------
+TYPE-POOLS:   slis.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Classe
+*-------------------------------------------------------------------------
+DATA cl_alv TYPE REF TO cl_gui_alv_grid.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Constantes
+*-------------------------------------------------------------------------
+CONSTANTS:
+  cc_i(1)       TYPE  c            VALUE 'I',
+  cc_p(1)       TYPE  c            VALUE 'P',
+  cc_x(1)       TYPE  c            VALUE 'X',
+  cc_eq(2)      TYPE  c            VALUE 'EQ',
+  cc_brl(3)     TYPE  c            VALUE 'BRL',
+  cc_vigente(7) TYPE  c            VALUE 'VIGENTE',
+  cc_fb01       LIKE  sy-tcode     VALUE 'FB01',
+  cc_fb08       LIKE  sy-tcode     VALUE 'FB08',
+  cc_f04        LIKE  sy-tcode     VALUE 'F-04',
+  cn_01(2)      TYPE  n            VALUE '01',
+  cn_02(2)      TYPE  n            VALUE '02',
+  cn_03(2)      TYPE  n            VALUE '03',
+  cn_04(2)      TYPE  n            VALUE '04',
+  cn_05(2)      TYPE  n            VALUE '05',
+*** Início da alteração - Gabriel H. Monteiro - 16/12/2008
+  cn_10(2)      TYPE  n            VALUE '10',
+  cc_mov_001    TYPE sbewart       VALUE '0001',
+  cc_mov_009    TYPE sbewart       VALUE '0009',
+*** Fim da alteração    - Gabriel H. Monteiro - 16/12/2008
+  cc_anwnd      TYPE ikofi-anwnd   VALUE '0101',
+  cc_eigr2      TYPE ikofi-eigr2   VALUE '1',
+  cc_user_command(30)    TYPE c    VALUE 'USER_COMMAND',        "Nome do evento do ALV
+  cc_zf_user_command(30) TYPE c    VALUE 'ZF_USER_COMMAND'.     "Nome do Form p/ evento do ALV
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Tipos
+*-------------------------------------------------------------------------
+TYPES:
+
+BEGIN OF processo1_type,
+  bukrs          TYPE ztbloans_sdloans-empresa,
+  gsber          TYPE ztbloans_sdloans-divisao,
+  ag_ordem_venda TYPE ztbloans_sdloans-ag_ordem_venda,
+  rrefkont       TYPE vdarl-rrefkont,
+  bhwhr          TYPE vdbepp-bhwhr,
+END OF processo1_type.
+
+
+TYPES: BEGIN OF logtela_type.
+        INCLUDE STRUCTURE zstloans_log_tela.
+TYPES: clrtab TYPE slis_t_specialcol_alv.
+TYPES: END OF logtela_type.
+
+TYPES: BEGIN OF vdbepp_rat_type.
+        INCLUDE STRUCTURE vdbepp.
+TYPES: n_reg(3) TYPE n.
+TYPES: END OF vdbepp_rat_type.
+
+TYPES:
+BEGIN OF vdbeki_pi_type,
+  mandt          TYPE vdbeki-mandt,
+  bukrs          TYPE vdbeki-bukrs,
+  rbelkpfd       TYPE vdbeki-rbelkpfd,
+  sanlf          TYPE vdbeki-sanlf,
+  ranl           TYPE vdbeki-ranl,
+  sbewart        TYPE vdbepi-sbewart,
+  dbestand       TYPE vdbepi-dbestand,
+END OF vdbeki_pi_type.
+
+TYPES: BEGIN OF log_estorno_type.
+        INCLUDE STRUCTURE ztbloans_log_aj.
+TYPES: box(1) TYPE c.
+TYPES: END OF log_estorno_type.
+
+
+** 27/1/09
+TYPES: BEGIN OF vdbekipi_type.
+        INCLUDE STRUCTURE vdbepi.
+TYPES: ranl LIKE vdbeki-ranl,
+       dbldat LIKE vdbeki-dbldat,
+       dbudat LIKE vdbeki-dbudat,
+       sstorno LIKE vdbeki-sstorno,
+       rzebel LIKE vdbeki-rzebel,
+       rvzblg LIKE vdbeki-rvzblg.
+TYPES: END OF vdbekipi_type.
+
+
+
+
+
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Tabelas Internas
+*-------------------------------------------------------------------------
+DATA: gw_paramet       TYPE TABLE OF ztbloans_paramet,
+      gw_log_aj        TYPE TABLE OF ztbloans_log_aj,
+      gw_log_estorno   TYPE TABLE OF log_estorno_type,
+      gw_log_tela      TYPE TABLE OF logtela_type,  "zstloans_log_tela,
+      gw_log_p1        TYPE TABLE OF ztbloans_log_aj,
+      gw_log_p2        TYPE TABLE OF ztbloans_log_aj,
+      gw_log_p2_rat    TYPE TABLE OF ztbloans_log_aj,
+      gw_logp2_aux     TYPE TABLE OF ztbloans_log_aj,
+      gw_log_rat       TYPE TABLE OF ztbloans_log_aj,
+      gw_log_p3        TYPE TABLE OF ztbloans_log_aj,
+      gw_log_p4        TYPE TABLE OF ztbloans_log_aj,
+      gw_log_p5        TYPE TABLE OF ztbloans_log_aj,
+*** Início da alteração - Gabriel H. Monteiro - 16/12/2008
+      gw_log_p10       TYPE TABLE OF ztbloans_log_aj,
+*** Fim da alteração    - Gabriel H. Monteiro - 16/12/2008
+      gw_logp5_contab1 TYPE TABLE OF ztbloans_log_aj,
+      gw_logp5_contab2 TYPE TABLE OF ztbloans_log_aj,
+      gw_log_aux       TYPE TABLE OF ztbloans_log_aj,
+      gw_sdloans       TYPE TABLE OF ztbloans_sdloans,
+      gw_sdloans_aux   TYPE TABLE OF ztbloans_sdloans,
+*** Início da alteração - Gabriel H. Monteiro - 16/12/2008
+      gw_zvenda        TYPE TABLE OF ztbloans_venda,
+*** Fim da alteração    - Gabriel H. Monteiro - 16/12/2008
+      gw_vdarl         TYPE TABLE OF vdarl,
+      gw_vdbepp        TYPE TABLE OF vdbepp,
+      gw_vdbepp_aux    TYPE TABLE OF vdbepp,
+      gw_vdbepp_rat    TYPE TABLE OF vdbepp_rat_type,
+      gw_vdbeki        TYPE TABLE OF vdbeki,
+      gw_vdbeki_vm     TYPE TABLE OF vdbeki,
+      gw_vdbeki_aux    TYPE TABLE OF vdbeki,
+*** Início da alteração - Gabriel H. Monteiro - 17/12/2008
+      gw_vdbeki_aux2   TYPE TABLE OF vdbeki,
+      gw_vdbepi_aux2   TYPE TABLE OF vdbepi,
+*** Fim da alteração    - Gabriel H. Monteiro - 17/12/2008
+      gw_vdbepi        TYPE TABLE OF vdbepi,
+      gw_vdbepi_aux    TYPE TABLE OF vdbepi,
+      gw_vdkoref       TYPE TABLE OF vdkoref,
+      gw_tzb0t         TYPE TABLE OF tzb0t,
+*** Início da alteração - Gabriel H. Monteiro - 25/03/2009
+      gw_enq           TYPE TABLE OF seqg3,
+*** Fim da alteração    - Gabriel H. Monteiro - 25/03/2009
+      gw_processo1     TYPE TABLE OF processo1_type,
+      gw_vdbeki_pi     TYPE TABLE OF vdbeki_pi_type,
+** 27/1/09
+      gw_vdbekipi      TYPE TABLE OF vdbekipi_type.
+
+
+
+***Tabela de Batch Input.
+DATA: gw_bdc TYPE STANDARD TABLE OF bdcdata.
+
+***Tabela de retorno do Batch Input
+DATA: gw_msgbatch TYPE STANDARD TABLE OF bdcmsgcoll.
+
+***Tabelas internas para ALV
+DATA: gw_fieldcat         TYPE slis_t_fieldcat_alv,
+      gw_sort             TYPE TABLE OF slis_sortinfo_alv,
+      gw_events           TYPE slis_t_event.
+
+*-------------------------------------------------------------------------
+*	Definicao de Estruturas
+*-------------------------------------------------------------------------
+DATA:  gs_paramet       TYPE ztbloans_paramet,
+       gs_sdloans_aux   TYPE ztbloans_sdloans,
+       gs_sdloans       TYPE ztbloans_sdloans,
+*** Início da alteração - Gabriel H. Monteiro - 16/12/2008
+       gs_zvenda        TYPE ztbloans_venda,
+*** Fim da alteração    - Gabriel H. Monteiro - 16/12/2008
+       gs_log_aj        TYPE ztbloans_log_aj,
+       gs_log_estorno   TYPE log_estorno_type,
+       gs_log_tela      TYPE logtela_type,  "zstloans_log_tela,
+       gs_log_p1        TYPE ztbloans_log_aj,
+       gs_log_p2        TYPE ztbloans_log_aj,
+       gs_logp2_aux     TYPE ztbloans_log_aj,
+       gs_log_rat       TYPE ztbloans_log_aj,
+       gs_log_p3        TYPE ztbloans_log_aj,
+       gs_log_p4        TYPE ztbloans_log_aj,
+       gs_log_p10       TYPE ztbloans_log_aj,
+       gs_logp5_contab1 TYPE ztbloans_log_aj,
+       gs_logp5_contab2 TYPE ztbloans_log_aj,
+       gs_log_aux       TYPE ztbloans_log_aj,
+       gs_vdarl         TYPE vdarl,
+       gs_vdbepp_aux    TYPE vdbepp,
+       gs_vdbepp_rat    TYPE vdbepp_rat_type,
+       gs_vdbeki        TYPE vdbeki,
+       gs_vdbeki_aux    TYPE vdbeki,
+*** Início da alteração - Gabriel H. Monteiro - 17/12/2008
+       gs_vdbeki_aux2   TYPE vdbeki,
+       gs_vdbekipi      TYPE vdbekipi_type,
+*** Fim da alteração    - Gabriel H. Monteiro - 17/12/2008
+       gs_vdbepi        TYPE vdbepi,
+       gs_vdbepi_aux    TYPE vdbepi,
+       gs_tzb0t         TYPE tzb0t,
+*** Início da alteração - Gabriel H. Monteiro - 25/03/2009
+       gs_enq           TYPE seqg3,
+*** Fim da alteração    - Gabriel H. Monteiro - 25/03/2009
+       gs_processo1     TYPE processo1_type,
+       gs_vdbeki_pi     TYPE vdbeki_pi_type,
+
+*      Estrutura de retorno da Função ACCOUNT_DETERMINATION
+       gs_ikofi       TYPE ikofi,
+
+*     Header Line para Batch Input
+      gs_bdc             TYPE bdcdata,
+      gs_msgbatch        TYPE bdcmsgcoll,
+
+*     Header Line para alv
+      gs_layout        TYPE slis_layout_alv,
+      gs_events        TYPE LINE OF slis_t_event,
+      gs_sort          LIKE LINE OF gw_sort.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Intervalos
+*-------------------------------------------------------------------------
+DATA: r_sbewart  TYPE RANGE OF ztbloans_paramet-sbewart,
+      rs_sbewart LIKE LINE OF r_sbewart.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Variaveis
+*-------------------------------------------------------------------------
+DATA: gc_komo1           LIKE ikofi-komo1,
+      gc_eigr1           LIKE ikofi-eigr1,
+*** Início da alteração - Gabriel H. Monteiro - 25/03/2009
+      gc_repid           TYPE trdir-name,
+*** Fim da alteração    - Gabriel H. Monteiro - 25/03/2009
+      gc_okcode(3)       TYPE c.
+
+
+*-------------------------------------------------------------------------
+*	Definicão da Tela de Selecão
+*-------------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-tb1.
+SELECT-OPTIONS:
+   so_data FOR sy-datum DEFAULT sy-datum OBLIGATORY    "Data Processamento
+                        NO-EXTENSION NO INTERVALS,
+   so_bukrs FOR ztbloans_sdloans-empresa OBLIGATORY.   "Empresa
+
+SELECTION-SCREEN SKIP.
+
+SELECT-OPTIONS:
+   so_div   FOR bseg-gsber                     ,         "Divisão
+   so_torre FOR ztbloans_sdloans-torre         MATCHCODE OBJECT hhb_sgenr,         "Torre/Bloco
+   so_unid  FOR ztbloans_sdloans-apartamento   ,         "Unidade
+   so_ov    FOR ztbloans_sdloans-ag_ordem_venda,         "Projeto Financeiro
+   so_ranl  FOR vdarl-ranl                     .         "contrato
+
+SELECTION-SCREEN SKIP.
+
+PARAMETERS
+   pc_storn AS CHECKBOX USER-COMMAND chk.   "Estornar
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-tb2.
+PARAMETERS  pc_teste AS CHECKBOX DEFAULT 'X'.   "Execução em Teste
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-tb3.
+PARAMETERS: pc_proc1 AS CHECKBOX USER-COMMAND chk,   "Execução unitária do processo 1
+            pc_proc2 AS CHECKBOX USER-COMMAND chk.   "Execução unitária do processo 2
+SELECTION-SCREEN END OF BLOCK b3.
+
+*-------------------------------------------------------------------------
+*	Evento: Initialization
+*-------------------------------------------------------------------------
+*** Início da alteração - Gabriel H. Monteiro - 25/03/2009
+*** Inclusão da criação e verificação do objeto de bloqueio
+INITIALIZATION.
+  REFRESH gw_enq[].
+
+*** Chama a função para verificar se a transação já possui objeto de bloqueio
+  CALL FUNCTION 'ENQUEUE_READ'
+    EXPORTING
+      garg                  = 'ZPLOANSR_016'
+      guname                = space
+    TABLES
+      enq                   = gw_enq
+    EXCEPTIONS
+      communication_failure = 1
+      system_failure        = 2
+      OTHERS                = 3.
+  IF sy-subrc IS INITIAL AND NOT gw_enq[] IS INITIAL.
+
+*** Se já possuir objeto de bloqueio, informa que a transação está bloqueada pelo usuário X
+    CLEAR gs_enq.
+    READ TABLE gw_enq INTO gs_enq INDEX 1.
+    CHECK sy-subrc IS INITIAL.
+
+    MESSAGE s208(00) DISPLAY LIKE 'E' WITH 'Transação bloqueada pelo usuário ' gs_enq-guname.
+    LEAVE PROGRAM.
+
+  ELSE.
+
+*** Caso contrário cria o objeto de bloqueio
+    gc_repid = sy-repid.
+
+    CALL FUNCTION 'ENQUEUE_ESRDIRE'
+      EXPORTING
+        mode_trdir     = 'X'
+        name           = gc_repid
+        _scope         = '1'
+      EXCEPTIONS
+        foreign_lock   = 1
+        system_failure = 2
+        OTHERS         = 3.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+  ENDIF.
+*** Fim da alteração    - Gabriel H. Monteiro - 25/03/2009
+
+*-------------------------------------------------------------------------
+*	Evento: Selection-screen
+*-------------------------------------------------------------------------
+AT SELECTION-SCREEN OUTPUT.
+
+  IF pc_storn EQ 'X'.
+    CLEAR: pc_proc1,
+           pc_proc2.
+  ELSE.
+    IF pc_proc2 EQ 'X'.
+      pc_proc1 = 'X'.
+    ENDIF.
+  ENDIF.
+
+
+*-------------------------------------------------------------------------
+*	Evento: Start-of-Selection
+*-------------------------------------------------------------------------
+START-OF-SELECTION.
+
+*** Verifica autorização do usuário p/ empresa e divisão
+  PERFORM zf_checa_autorizacao.
+
+
+  IF pc_storn IS INITIAL.
+*   Busca dados das tabelas transparentes
+    PERFORM zf_buscar_dados.
+*   Processo 1
+    PERFORM zf_compensar_juros.
+*   Processo 2
+    PERFORM zf_lancar_juros.
+    IF pc_proc1 IS INITIAL.
+*     Processo 3
+      PERFORM zf_limpar_transitoria.
+*     Processo 4
+      PERFORM zf_espelhamento_conta_ref .
+*     Processo 5
+      PERFORM zf_limpar_conta_juros1.
+      PERFORM zf_limpar_conta_juros2.
+*** Início da alteração - Gabriel H. Monteiro - 16/12/2008
+*     Processo 10
+      PERFORM zf_variacao_monetaria_venda.
+*** Fim da alteração    - Gabriel H. Monteiro - 16/12/2008
+    ENDIF.
+
+    PERFORM zf_gravar_log_ok.
+*   Exibe log de erros
+    PERFORM zf_exibir_log_erro.
+  ELSE.
+*   Estorno dos lançamentos
+    PERFORM zf_estornar_lanctos.
+  ENDIF.
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_BUSCAR_DADOS
+*---------------------------------------------------------------------*
+*       Busca dados das tabelas transparentes
+*----------------------------------------------------------------------*
+FORM zf_buscar_dados .
+  DATA: ln_subrc TYPE sy-subrc,
+        lc_taxa  LIKE vdbepi-kurs2.
+
+***Busca dados da tabela de parametros dos processos de Ajuste Contábil
+  SELECT *
+    INTO TABLE gw_paramet
+      FROM ztbloans_paramet CLIENT SPECIFIED
+        WHERE mandt = sy-mandt.
+  IF sy-subrc EQ 0.
+    SORT gw_paramet BY processo prioridade.
+*   READ TABLE gw_paramet TRANSPORTING NO FIELDS WITH KEY processo = cn_01.
+*   ln_subrc = ln_subrc + sy-subrc.
+    READ TABLE gw_paramet TRANSPORTING NO FIELDS WITH KEY processo = cn_02.
+    ln_subrc = ln_subrc + sy-subrc.
+    READ TABLE gw_paramet TRANSPORTING NO FIELDS WITH KEY processo = cn_03.
+    ln_subrc = ln_subrc + sy-subrc.
+    READ TABLE gw_paramet TRANSPORTING NO FIELDS WITH KEY processo = cn_04.
+    ln_subrc = ln_subrc + sy-subrc.
+    READ TABLE gw_paramet TRANSPORTING NO FIELDS WITH KEY processo = cn_05.
+    ln_subrc = ln_subrc + sy-subrc.
+*** Início da alteração - Gabriel H. Monteiro - 16/12/2008
+    READ TABLE gw_paramet TRANSPORTING NO FIELDS WITH KEY processo = cn_10.
+    ln_subrc = ln_subrc + sy-subrc.
+*** Fim da alteração    - Gabriel H. Monteiro - 16/12/2008
+  ENDIF.
+  IF ln_subrc NE 0 OR sy-subrc NE 0.
+    MESSAGE s016(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+
+***Busca dados da tabela de interface SD-LOANS
+  SELECT *
+    INTO TABLE gw_sdloans
+      FROM ztbloans_sdloans
+        WHERE empresa        IN so_bukrs
+        AND   divisao        IN so_div
+        AND   torre          IN so_torre
+        AND   unidade        IN so_unid
+        AND   ag_ordem_venda IN so_ov
+        AND   contrato_serie IN so_ranl
+*Inicio alt. Julio Vieira 19/03/2009
+*        AND   situacao       EQ cc_vigente.
+        AND   situacao       IN  ('VIGENTE', 'QUITADO').
+*Fim    alt. Julio Vieira 19/03/2009
+  IF sy-subrc EQ 0.
+    SORT gw_sdloans BY empresa contrato_serie.
+  ELSE.
+    SELECT *
+      INTO TABLE gw_vdkoref
+        FROM vdkoref
+          WHERE ( dbudat <= so_data-low AND
+                  dbudat <> space )
+            AND bukrs IN so_bukrs
+            AND ranl IN so_ranl
+            AND refkontn <> 'FINANC'.
+    IF sy-subrc = 0.
+      SELECT *
+         APPENDING TABLE gw_sdloans
+         FROM ztbloans_sdloans
+         FOR ALL ENTRIES IN gw_vdkoref
+           WHERE empresa = gw_vdkoref-bukrs
+           AND   contrato_serie = gw_vdkoref-ranl.
+
+      SORT gw_sdloans BY empresa contrato_serie.
+    ELSE.
+      MESSAGE s002(zlloans001) DISPLAY LIKE 'E'.
+      STOP.
+    ENDIF.
+  ENDIF.
+
+  gw_sdloans_aux[] = gw_sdloans[].
+  DELETE ADJACENT DUPLICATES FROM gw_sdloans_aux COMPARING empresa contrato_serie.
+
+***Busca dados da tabela de log dos processos de Ajustes Contábeis
+*  Carrega uma tabela interna para cada um dos processos
+  SELECT *
+    INTO TABLE gw_log_aj
+      FROM ztbloans_log_aj
+        FOR ALL ENTRIES IN gw_sdloans_aux
+        WHERE processo EQ '1'
+        AND   bukrs    =  gw_sdloans_aux-empresa
+        AND   belnr_e  EQ space.
+
+  IF sy-subrc EQ 0.
+    gw_log_p1[] = gw_log_aj[].
+    CLEAR gw_log_aj[].
+  ENDIF.
+
+  SELECT *
+    INTO TABLE gw_log_aj
+      FROM ztbloans_log_aj
+        FOR ALL ENTRIES IN gw_sdloans_aux
+        WHERE processo IN ('02', '03', '04', '05', '10')
+        AND   bukrs    =  gw_sdloans_aux-empresa
+        AND   ranl     =  gw_sdloans_aux-contrato_serie
+        AND   belnr_e  EQ space.
+
+  IF sy-subrc EQ 0.
+    gw_log_p2[] = gw_log_aj[].
+    DELETE gw_log_p2 WHERE processo <> cn_02.
+
+    gw_log_rat[] = gw_log_p2[].
+
+    gw_log_p3[]     = gw_log_aj[].
+    DELETE gw_log_p3 WHERE processo <> cn_03.
+
+    gw_log_p4[] = gw_log_aj[].
+    DELETE gw_log_p4 WHERE processo <> cn_04.
+
+    gw_log_p5[] = gw_log_aj[].
+    DELETE gw_log_p5 WHERE processo <> cn_05.
+
+    gw_log_aux[] = gw_log_aj[].
+    DELETE gw_log_aux WHERE processo <> cn_02
+                      AND   processo <> cn_03.
+
+*** Início da alteração - Gabriel H. Monteiro - 16/12/2008
+    gw_log_p10[] = gw_log_aj[].
+    DELETE gw_log_p10 WHERE processo <> cn_10.
+*** Fim da alteração    - Gabriel H. Monteiro - 16/12/2008
+
+    FREE gw_log_aj.
+  ENDIF.
+
+
+***Busca dados da tabela de Empréstimos
+  SELECT *
+    INTO TABLE gw_vdarl
+      FROM vdarl
+        FOR ALL ENTRIES IN gw_sdloans_aux
+        WHERE bukrs = gw_sdloans_aux-empresa
+        AND   ranl  = gw_sdloans_aux-contrato_serie.
+  IF sy-subrc EQ 0.
+    SORT gw_vdarl BY bukrs ranl.
+  ELSE.
+    MESSAGE s002(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+***Busca dados da tabela de movimentos planejados
+  SELECT *
+    INTO TABLE gw_vdbepp
+      FROM vdbepp
+        FOR ALL ENTRIES IN gw_sdloans_aux
+        WHERE bukrs  = gw_sdloans_aux-empresa
+        AND   ranl   = gw_sdloans_aux-contrato_serie.
+  IF sy-subrc EQ 0.
+    SORT gw_vdbepp BY sbewart.
+  ENDIF.
+
+
+***Busca dados da tabela de movimentos lançados (cabeçalho)
+  SELECT *
+    INTO TABLE gw_vdbeki
+      FROM vdbeki
+        FOR ALL ENTRIES IN gw_sdloans_aux
+        WHERE bukrs  =  gw_sdloans_aux-empresa
+        AND   ranl   =  gw_sdloans_aux-contrato_serie.
+** 27/1/09 Movimentos lançados no futuro
+**      AND   dbudat <= so_data-low.
+*** Início da alteração - Gabriel H. Monteiro - 17/12/2008
+*** Como precisa de uma tabela com todos os registros, optou-se pela seleção
+** sem os campos comentados e depois deletar onde não tiver nos parametros
+*        AND   rstblg =  space
+*        AND   rvzblg <> space.
+*** Fim da alteração    - Gabriel H. Monteiro - 17/12/2008
+  IF sy-subrc EQ 0.
+    SORT gw_vdbeki BY bukrs rbelkpfd.
+*** Início da alteração - Gabriel H. Monteiro - 17/12/2008
+    MOVE gw_vdbeki[] TO gw_vdbeki_aux2[].
+
+    SORT gw_vdbeki_aux2 BY bukrs ranl.
+
+    DELETE gw_vdbeki WHERE sstorno <> space.
+    DELETE gw_vdbeki WHERE dbudat > so_data-low.
+    DELETE gw_vdbeki WHERE rvzblg EQ space
+                        OR rstblg NE space.
+*                         ( rstblg NE space OR
+*                           rvzblg EQ space ).
+*** Fim da alteração    - Gabriel H. Monteiro - 17/12/2008
+    MOVE gw_vdbeki[] TO gw_vdbeki_pi[].
+
+  ENDIF.
+
+
+***Busca dados da tabela de movimentos lançados (itens)
+  IF gw_vdbeki IS NOT INITIAL.
+    SELECT *
+      INTO TABLE gw_vdbepi
+        FROM vdbepi
+          FOR ALL ENTRIES IN gw_vdbeki
+          WHERE bukrs    = gw_vdbeki-bukrs
+          AND   rbelkpfd = gw_vdbeki-rbelkpfd.
+    IF sy-subrc EQ 0.
+      SORT: gw_vdbepi BY bukrs rbelkpfd dfaell,
+            gw_vdbeki BY bukrs ranl rbelkpfd.
+
+      LOOP AT gw_vdbeki_pi INTO gs_vdbeki_pi.
+        CLEAR: gs_vdbeki_pi-sbewart, gs_vdbeki_pi-dbestand.
+
+        LOOP AT gw_vdbepi INTO gs_vdbepi
+                          WHERE bukrs    = gs_vdbeki_pi-bukrs
+                            AND rbelkpfd = gs_vdbeki_pi-rbelkpfd
+                            AND ( sbewart = '3225'
+                             OR sbewart = '3235' ).
+          gs_vdbeki_pi-sbewart  = gs_vdbepi-sbewart.
+          gs_vdbeki_pi-dbestand = gs_vdbepi-dbestand.
+          MODIFY gw_vdbeki_pi FROM gs_vdbeki_pi.
+        ENDLOOP.
+
+        IF sy-subrc <> 0.
+          MODIFY gw_vdbeki_pi FROM gs_vdbeki_pi
+                 TRANSPORTING sbewart dbestand.
+        ENDIF.
+        CLEAR gs_vdbepi.
+      ENDLOOP.
+
+
+* 08/12/2008
+* Adiciona fluxos não contabilizados de variação monetária originados de carga
+
+***Busca dados da tabela de movimentos lançados (cabeçalho)
+      SELECT *
+        INTO TABLE gw_vdbeki_vm
+          FROM vdbeki
+            FOR ALL ENTRIES IN gw_vdbeki_pi
+            WHERE bukrs  =  gw_vdbeki_pi-bukrs
+            AND   ranl   =  gw_vdbeki_pi-ranl
+            AND   dbudat <= so_data-low
+            AND   rstblg =  space
+            AND   rvzblg =  space.
+
+      IF sy-subrc EQ 0.
+        SORT gw_vdbeki_vm BY bukrs rbelkpfd.
+        SELECT *
+          APPENDING TABLE gw_vdbepi
+            FROM vdbepi
+              FOR ALL ENTRIES IN gw_vdbeki_vm
+              WHERE bukrs    = gw_vdbeki_vm-bukrs
+              AND   rbelkpfd = gw_vdbeki_vm-rbelkpfd
+              AND   sbewziti = 'XE'.
+        IF sy-subrc EQ 0.
+          LOOP AT gw_vdbeki_vm INTO gs_vdbeki.
+            READ TABLE gw_vdbepi WITH KEY bukrs = gs_vdbeki-bukrs
+                                          rbelkpfd = gs_vdbeki-rbelkpfd
+                       TRANSPORTING NO FIELDS.
+            IF sy-subrc = 0.
+              APPEND gs_vdbeki TO gw_vdbeki .
+            ENDIF.
+          ENDLOOP.
+          SORT: gw_vdbepi BY bukrs rbelkpfd dfaell,
+                gw_vdbeki BY bukrs ranl rbelkpfd.
+        ENDIF.
+      ENDIF.
+
+* 08/12/2008
+
+*** Início da alteração - Gabriel H. Monteiro - 16/12/2008
+*** Seleciona as taxas de venda dos contratos
+      SELECT *
+        FROM ztbloans_venda
+        INTO TABLE gw_zvenda
+        FOR ALL ENTRIES IN gw_vdbeki
+        WHERE empresa  EQ gw_vdbeki-bukrs
+          AND contrato EQ gw_vdbeki-ranl.
+*** Fim da alteração    - Gabriel H. Monteiro - 16/12/2008
+
+    ENDIF.
+  ENDIF.
+
+*** Início da alteração - Gabriel H. Monteiro - 17/12/2008
+  IF NOT gw_vdbeki_aux2[] IS INITIAL.
+    SELECT *
+      INTO TABLE gw_vdbepi_aux2
+        FROM vdbepi
+          FOR ALL ENTRIES IN gw_vdbeki_aux2
+          WHERE bukrs    = gw_vdbeki_aux2-bukrs
+          AND   rbelkpfd = gw_vdbeki_aux2-rbelkpfd.
+    IF sy-subrc EQ 0.
+      SORT: gw_vdbepi_aux2 BY bukrs rbelkpfd dfaell.
+
+    ENDIF.
+  ENDIF.
+*** Fim da alteração    - Gabriel H. Monteiro - 17/12/2008
+
+* Busca descrição dos tipos de movimento
+  SELECT *
+    INTO TABLE gw_tzb0t
+      FROM tzb0t
+        FOR ALL ENTRIES IN gw_paramet
+        WHERE sspras  = cc_p
+        AND   rantyp  = cn_01
+        AND   sbewart = gw_paramet-movimento.
+  IF sy-subrc EQ 0.
+    SORT gw_tzb0t BY sbewart.
+  ENDIF.
+
+
+
+** Ajuste na taxa de lançamento do juros contratados
+*  27/01/2009
+
+  LOOP AT gw_vdbeki_aux2 INTO gs_vdbeki_aux2.
+    CLEAR gs_vdbepi.
+    LOOP AT gw_vdbepi_aux2 INTO gs_vdbepi WHERE bukrs = gs_vdbeki_aux2-bukrs
+                                            AND rbelkpfd = gs_vdbeki_aux2-rbelkpfd.
+
+      MOVE-CORRESPONDING gs_vdbeki_aux2 TO gs_vdbekipi.
+      MOVE-CORRESPONDING gs_vdbepi      TO gs_vdbekipi.
+      APPEND gs_vdbekipi TO gw_vdbekipi.
+    ENDLOOP.
+
+  ENDLOOP.
+
+
+  LOOP AT gw_vdbepp INTO gs_vdbepp_aux.
+    READ TABLE gw_vdbekipi INTO gs_vdbekipi WITH KEY bukrs = gs_vdbepp_aux-bukrs
+                                                     ranl  = gs_vdbepp_aux-ranl
+                                                     sbewart = cc_mov_001.
+
+    IF sy-subrc = 0 AND NOT gs_vdbekipi-kurs2 IS INITIAL.
+      lc_taxa = gs_vdbekipi-kurs2.
+
+    ELSE.
+      READ TABLE gw_vdbekipi INTO gs_vdbekipi WITH KEY bukrs = gs_vdbepp_aux-bukrs
+                                                       ranl  = gs_vdbepp_aux-ranl
+                                                       sbewart = cc_mov_009.
+
+      IF sy-subrc = 0 AND NOT gs_vdbekipi-kurs2 IS INITIAL.
+        lc_taxa = gs_vdbekipi-kurs2.
+
+      ENDIF.
+    ENDIF.
+
+    IF gs_vdbepp_aux-snwhr <> cc_brl.
+      gs_vdbepp_aux-bhwhr = gs_vdbepp_aux-bnwhr * lc_taxa / 1000.
+      MODIFY gw_vdbepp FROM gs_vdbepp_aux.
+    ENDIF.
+
+  ENDLOOP.
+  CLEAR: gs_vdbepp_aux, gs_vdbepi.
+
+** 27/01/2009 - fim da alteração
+
+
+  IF pc_teste IS INITIAL.
+    gc_okcode = '=BU'.
+  ELSE.
+    gc_okcode = '=BS'.
+  ENDIF.
+
+ENDFORM.                    " ZF_BUSCAR_DADOS
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_COMPENSAR_JUROS
+*---------------------------------------------------------------------*
+*      Processo n° 1
+*      Compensação do Juros contratados em reais lançado por SD
+*---------------------------------------------------------------------*
+FORM zf_compensar_juros .
+  DATA: lc_montante(13) TYPE c,
+        lc_data(10)  TYPE c,
+        lc_movimento TYPE ztbloans_paramet-movimento.
+
+
+* Lê parametros do processo 1
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_01.
+  IF sy-subrc NE 0.
+    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+  LOOP AT gw_paramet INTO gs_paramet FROM sy-tabix.
+    IF gs_paramet-processo <> cn_01.
+      EXIT.
+    ENDIF.
+    rs_sbewart-sign   = cc_i.
+    rs_sbewart-option = cc_eq.
+    rs_sbewart-low    = gs_paramet-sbewart.
+    APPEND rs_sbewart TO r_sbewart.
+    IF lc_movimento IS NOT INITIAL AND lc_movimento <> gs_paramet-movimento.
+      MESSAGE e022(zlloans001) DISPLAY LIKE 'E'.
+      STOP.
+    ELSE.
+      lc_movimento = gs_paramet-movimento.
+    ENDIF.
+  ENDLOOP.
+
+* Le descricao do tipo de movimento
+  CLEAR gs_tzb0t.
+  READ TABLE gw_tzb0t INTO gs_tzb0t WITH KEY sbewart = lc_movimento.
+
+* Filtra itens planejados com tipo de movimento conforme parametros do processo 1
+  gw_vdbepp_aux[] = gw_vdbepp[].
+  DELETE gw_vdbepp_aux WHERE NOT sbewart IN r_sbewart.
+  SORT gw_vdbepp_aux BY bukrs ranl.
+
+
+  IF sy-subrc EQ 0.
+*   Exclui todos os contratos de um projeto financeiro que apresenta registros na tabela de log
+    gw_sdloans_aux[] = gw_sdloans[].
+    SORT gw_sdloans_aux BY empresa ag_ordem_venda contrato_serie.
+    DELETE ADJACENT DUPLICATES FROM gw_sdloans_aux COMPARING empresa ag_ordem_venda contrato_serie.
+    LOOP AT gw_log_p1 INTO gs_log_p1.
+      DELETE gw_sdloans_aux WHERE ag_ordem_venda = gs_log_p1-rklammer.
+    ENDLOOP.
+  ENDIF.
+
+  SORT: gw_sdloans_aux BY ag_ordem_venda empresa contrato_serie,
+        gw_vdbepp_aux  BY bukrs ranl dfaell .
+
+* Acumula valor por projeto financeiro
+  LOOP AT gw_sdloans_aux INTO gs_sdloans_aux.
+
+    CHECK gs_sdloans_aux-contrato_serie(1) CO '0123456789' AND
+          gs_sdloans_aux-contrato_origem IS INITIAL.
+
+    CHECK gs_sdloans_aux-ag_ordem_venda(1) CO '0123456789'.
+
+    AT NEW ag_ordem_venda.
+      CLEAR gs_processo1.
+      gs_processo1-bukrs          = gs_sdloans_aux-empresa.
+      gs_processo1-ag_ordem_venda = gs_sdloans_aux-ag_ordem_venda.
+    ENDAT.
+
+    READ TABLE gw_vdbepp_aux INTO gs_vdbepp_aux WITH KEY bukrs = gs_sdloans_aux-empresa
+                                                         ranl  = gs_sdloans_aux-contrato_serie.
+    IF sy-subrc NE 0.
+      CONTINUE.
+    ENDIF.
+
+
+    LOOP AT gw_vdbepp_aux INTO gs_vdbepp_aux FROM sy-tabix.
+      IF gs_vdbepp_aux-bukrs NE gs_sdloans_aux-empresa OR
+         gs_vdbepp_aux-ranl  NE gs_sdloans_aux-contrato_serie.
+        EXIT.
+      ENDIF.
+
+      CHECK gs_vdbepp_aux-dguel_kk <= so_data.
+
+      AT NEW ranl.
+        READ TABLE gw_vdarl INTO gs_vdarl WITH KEY bukrs = gs_sdloans_aux-empresa
+                                                   ranl  = gs_sdloans_aux-contrato_serie.
+        gs_processo1-gsber = gs_vdarl-gsber.
+        gs_processo1-rrefkont = gs_vdarl-rrefkont.
+      ENDAT.
+
+      gs_processo1-bhwhr = gs_vdbepp_aux-bhwhr.
+
+      COLLECT gs_processo1 INTO gw_processo1.
+
+    ENDLOOP.
+  ENDLOOP.
+
+  DELETE gw_processo1 WHERE bhwhr IS INITIAL.
+
+  SORT gw_processo1 BY bukrs ag_ordem_venda.
+  LOOP AT gw_processo1 INTO gs_processo1.
+
+    CLEAR: gs_ikofi, gc_komo1, gc_eigr1.
+    MOVE: gs_processo1-rrefkont TO gc_komo1,
+          lc_movimento          TO gc_eigr1.
+    CALL FUNCTION 'ACCOUNT_DETERMINATION'
+      EXPORTING
+        i_anwnd = cc_anwnd
+        i_eigr1 = gc_eigr1
+        i_eigr2 = cc_eigr2
+        i_eigr3 = space
+        i_eigr4 = space
+        i_komo1 = gc_komo1
+        i_komo2 = space
+        i_ktopl = gs_paramet-ktopl
+        i_sakin = space
+      IMPORTING
+        e_ikofi = gs_ikofi.
+
+    CLEAR: lc_data, lc_montante.
+    CONCATENATE so_data-low+6(2)
+                so_data-low+4(2)
+                so_data-low(4)
+           INTO lc_data
+           SEPARATED BY '.'.
+    WRITE gs_processo1-bhwhr CURRENCY cc_brl TO lc_montante.
+
+***Mapeamento da transação FB01
+    PERFORM zf_gravar_bdc USING:
+
+    'SAPMF05A'    '0100'                       'X',
+    'BDC_OKCODE'    '/00'                        '',
+    'BKPF-BLDAT'    lc_data                      '',
+    'BKPF-BLART'    gs_ikofi-attr1               '',
+    'BKPF-BUKRS'    gs_processo1-bukrs           '',
+    'BKPF-BUDAT'    lc_data                      '',
+    'BKPF-MONAT'    lc_data+3(2)                 '',
+    'BKPF-WAERS'    cc_brl                       '',
+    'FS006-DOCID'	  '*'                          '',
+    'RF05A-NEWBS'	  gs_ikofi-bsch1               '',
+    'RF05A-NEWKO'	  gs_ikofi-sakn1               '',
+
+    'SAPMF05A'    '0300'                       'X',
+    'BDC_OKCODE'    '/00'                        '',
+    'BSEG-WRBTR'    lc_montante                  '',
+    'BSEG-VALUT'    lc_data                      '',
+    'BSEG-ZUONR'    gs_processo1-ag_ordem_venda  '',
+    'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+    'RF05A-NEWBS'	  gs_ikofi-bsch2               '',
+    'RF05A-NEWKO'	  gs_ikofi-sakn2               '',
+    'DKACB-FMORE'	  'X'                          '',
+
+    'SAPLKACB'    '0002'                       'X',
+    'BDC_OKCODE'    '=ENTE'                      '',
+    'COBL-GSBER'    gs_processo1-gsber           '',
+
+    'SAPMF05A'    '0300'                       'X',
+    'BDC_OKCODE'    gc_okcode                    '',
+    'BSEG-WRBTR'    lc_montante                  '',
+    'BSEG-VALUT'    lc_data                      '',
+    'BSEG-ZUONR'    gs_processo1-ag_ordem_venda  '',
+    'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+    'DKACB-FMORE'	  'X'                          '',
+
+    'SAPLKACB'    '0002'                       'X',
+    'BDC_OKCODE'    '=ENTE'                      '',
+    'COBL-GSBER'    gs_processo1-gsber           ''.
+
+
+***Efetuar lançamento na transação FB01
+    PERFORM zf_executar_bdc USING cc_fb01.
+
+
+***Ler mensagem de retorno. Se houver docto.contábil criado, então grava dados na tabela de log
+    CLEAR gs_msgbatch.
+    READ TABLE gw_msgbatch INTO gs_msgbatch WITH KEY msgtyp  = 'S'
+                                                     msgspra = 'P'
+                                                     msgid   = 'F5'
+                                                     msgnr   = '312'.
+    IF NOT gs_msgbatch-msgv1 IS INITIAL.
+      CLEAR gs_log_aj.
+      gs_log_aj-mandt      =  sy-mandt.
+      gs_log_aj-processo   =  cn_01.
+      gs_log_aj-data       =  so_data-low.
+      gs_log_aj-bukrs      =  gs_processo1-bukrs.
+      gs_log_aj-rklammer   =  gs_processo1-ag_ordem_venda.
+      gs_log_aj-belnr      =  gs_msgbatch-msgv1.
+      gs_log_aj-gjahr      =  so_data-low(4).
+      gs_log_aj-sbewart    =  lc_movimento.
+      gs_log_aj-moeda_int  =  cc_brl.
+      gs_log_aj-bhwhr      =  gs_processo1-bhwhr.
+*** MNCOSTA - 15.10.2008
+      gs_log_aj-movimento = lc_movimento.
+*** MNCOSTA - 15.10.2008
+      APPEND gs_log_aj TO gw_log_aj.
+      MODIFY ztbloans_log_aj FROM gs_log_aj.
+
+      CLEAR gs_log_tela.
+      MOVE-CORRESPONDING gs_log_aj TO gs_log_tela.
+      gs_log_tela-saknr_d    =  gs_ikofi-sakn1.
+      gs_log_tela-saknr_c    =  gs_ikofi-sakn2.
+      APPEND gs_log_tela TO gw_log_tela.
+    ELSE.
+      CLEAR gs_log_tela.
+      gs_log_tela-processo   =  cn_01.
+      gs_log_tela-data       =  so_data-low.
+      gs_log_tela-bukrs      =  gs_processo1-bukrs.
+      gs_log_tela-rklammer   =  gs_processo1-ag_ordem_venda.
+      gs_log_tela-gjahr      =  so_data-low(4).
+      gs_log_tela-sbewart    =  lc_movimento.
+      gs_log_tela-moeda_int  =  cc_brl.
+      gs_log_tela-bhwhr      =  gs_processo1-bhwhr.
+      gs_log_tela-saknr_d    =  gs_ikofi-sakn1.
+      gs_log_tela-saknr_c    =  gs_ikofi-sakn2.
+      LOOP AT gw_msgbatch INTO gs_msgbatch.
+        MESSAGE ID gs_msgbatch-msgid TYPE gs_msgbatch-msgtyp
+            NUMBER gs_msgbatch-msgnr
+              WITH gs_msgbatch-msgv1 gs_msgbatch-msgv2
+                   gs_msgbatch-msgv3 gs_msgbatch-msgv4
+              INTO gs_log_tela-obs.
+        APPEND gs_log_tela TO gw_log_tela.
+      ENDLOOP.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    " ZF_COMPENSAR_JUROS
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_LANCAR_JUROS
+*---------------------------------------------------------------------*
+*      Processo n° 2
+*      Lançamento do Juros contratados em índice
+*---------------------------------------------------------------------*
+FORM zf_lancar_juros.
+  DATA: ln_tabix            TYPE sy-tabix,
+*        ln_tbx_vdbepp       TYPE sy-tabix,
+        lc_sbewart_rat      TYPE vdbepp-sbewart,
+        lc_alterado(1)      TYPE c,
+        lc_bukrs            TYPE vdbepp-bukrs,
+        lc_ranl             TYPE vdbepp-ranl,
+        lc_rrefkont         TYPE vdarl-rrefkont,
+        lc_tabix            TYPE sy-tabix.
+
+  DATA: lw_log_est          TYPE TABLE OF ztbloans_log_aj.
+
+* Lê parametros do processo 2
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_02.
+  IF sy-subrc NE 0.
+    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+  CLEAR r_sbewart.
+  LOOP AT gw_paramet INTO gs_paramet FROM sy-tabix.
+    IF gs_paramet-processo <> cn_02.
+      EXIT.
+    ENDIF.
+    IF gs_paramet-chk_rateio EQ cc_x.
+      lc_sbewart_rat = gs_paramet-sbewart.
+    ENDIF.
+    rs_sbewart-sign   = cc_i.
+    rs_sbewart-option = cc_eq.
+    rs_sbewart-low    = gs_paramet-sbewart.
+    APPEND rs_sbewart TO r_sbewart.
+  ENDLOOP.
+
+
+* Filtra "Itens Planejados" por tipo de movimento conforme parametros do processo 2
+  gw_vdbepp_aux[] = gw_vdbepp[].
+  DELETE gw_vdbepp_aux WHERE NOT sbewart IN r_sbewart.
+  SORT gw_vdbepp_aux BY bukrs ranl dfaell .
+
+* Carrega tabela interna apenas com os registros com movimento de Juros Incorridos (Movimento marcado como Rateio na tabela de parametros)
+*  gw_log_p2_rat[] = gw_log_p2[].
+  gw_vdbepp_rat[] = gw_vdbepp_aux[].
+  DELETE gw_vdbepp_rat WHERE sbewart NE lc_sbewart_rat.
+*  DELETE gw_log_p2_rat WHERE sbewart NE lc_sbewart_rat.
+* Exclui das tabelas internas os registros com movimento de Juros Incorridos (Movimento marcado como Rateio na tabela de parametros)
+*  DELETE gw_log_p2     WHERE sbewart EQ lc_sbewart_rat.
+  DELETE gw_vdbepp_aux WHERE sbewart EQ lc_sbewart_rat.
+
+
+* Verifica o n° de registros para fazer o rateio do movimento de Juros Incorridos
+  SORT: gw_vdbepp_rat BY bukrs ranl,
+        gw_vdbepp_aux BY bukrs ranl.
+
+  LOOP AT gw_vdbepp_rat INTO gs_vdbepp_rat.
+    ln_tabix = sy-tabix.
+    READ TABLE gw_vdbepp_aux INTO gs_vdbepp_aux WITH KEY bukrs = gs_vdbepp_rat-bukrs
+                                                         ranl  = gs_vdbepp_rat-ranl.
+    LOOP AT gw_vdbepp_aux INTO gs_vdbepp_aux FROM sy-tabix.
+      IF gs_vdbepp_rat-bukrs NE gs_vdbepp_aux-bukrs OR
+         gs_vdbepp_rat-ranl  NE gs_vdbepp_aux-ranl.
+        EXIT.
+      ENDIF.
+      gs_vdbepp_rat-n_reg = gs_vdbepp_rat-n_reg + 1.
+      AT END OF ranl.
+        MODIFY gw_vdbepp_rat FROM gs_vdbepp_rat INDEX ln_tabix.
+      ENDAT.
+    ENDLOOP.
+  ENDLOOP.
+
+
+* Lê dados de processamentos anteriores
+  SORT: gw_log_p2     BY bukrs ranl dtrans ttrans ntrans,
+        gw_vdbepp_aux BY bukrs ranl dtrans ttrans ntrans.
+  LOOP AT gw_log_p2 INTO gs_log_p2.
+    AT NEW ranl.
+      CLEAR: lc_alterado, lc_bukrs, lc_ranl, lc_rrefkont.
+      lc_bukrs = gs_log_p2-bukrs.
+      lc_ranl  = gs_log_p2-ranl.
+
+      CLEAR lc_rrefkont.
+      SELECT SINGLE rrefkont
+        INTO lc_rrefkont
+          FROM vdarl
+            WHERE bukrs = gs_log_p2-bukrs
+              AND ranl  = gs_log_p2-ranl.
+    ENDAT.
+
+*   Verifica se a referencia do contrato mudou para DISTRATO/RENEG/VIRADA
+    IF lc_rrefkont <> 'DISTRATO' AND
+       lc_rrefkont <> 'RENEG'    AND
+       lc_rrefkont <> 'VIRADA'   .
+
+      CLEAR lc_rrefkont.
+
+*   Verifica se houve mudança de valor entre o registro de log e o registro atual
+      READ TABLE gw_vdbepp_aux INTO gs_vdbepp_aux WITH KEY bukrs  = gs_log_p2-bukrs
+                                                           ranl   = gs_log_p2-ranl
+                                                           dtrans = gs_log_p2-dtrans
+                                                           ttrans = gs_log_p2-ttrans
+                                                           ntrans = gs_log_p2-ntrans.
+      IF  sy-subrc EQ 0 .
+        IF gs_vdbepp_aux-bnwhr NE gs_log_p2-bnwhr.
+** Checa se é movimento de rateio
+          IF gs_log_p2-sbewart NE lc_sbewart_rat.
+** 27/1/09
+            lc_alterado = 'X'.
+            APPEND gs_log_p2     TO lw_log_est.      " Grava log que deve ser estornado
+
+          ENDIF.
+
+        ENDIF.
+
+
+      ELSE.
+*   Verifica se houve contabilização do registro da tabela de log
+        READ TABLE gw_vdbekipi INTO gs_vdbekipi
+                                                WITH KEY bukrs    = gs_log_p2-bukrs
+                                                         ranl     = gs_log_p2-ranl
+                                                         dtrans   = gs_log_p2-dtrans
+                                                         ttrans   = gs_log_p2-ttrans
+                                                         ntrans   = gs_log_p2-ntrans
+                                                         sstorno  = space.
+
+** 27/1/09
+        IF sy-subrc NE 0.
+          APPEND gs_log_p2     TO lw_log_est.      " Grava log que deve ser estornado
+          lc_alterado = 'X'.
+
+
+        ENDIF.
+      ENDIF.
+    ENDIF.
+
+
+    AT END OF ranl.
+
+*     SE o contrato tem itens planejados e não foi alterado ou não tem itens planejados mas tem parcelas contabilizadas
+*     ENTÃO não há necessidade de efetuar estorno ou lançamentos para esse contrato
+      LOOP AT gw_vdbepp_aux INTO gs_vdbepp_aux
+                           WHERE bukrs = lc_bukrs
+                             AND   ranl  = lc_ranl.
+        lc_tabix = sy-tabix.
+        READ TABLE gw_log_p2 INTO gs_log_p2
+                             WITH KEY bukrs = lc_bukrs
+                                      ranl  = lc_ranl
+                                      dtrans   = gs_vdbepp_aux-dtrans
+                                      ttrans   = gs_vdbepp_aux-ttrans
+                                      ntrans   = gs_vdbepp_aux-ntrans.
+        IF sy-subrc = 0.
+** não é possível comparar qdo tiver rateio
+*       AND ( gs_vdbepp_aux-bnwhr EQ gs_log_p2-bnwhr ).
+          DELETE gw_vdbepp_aux INDEX lc_tabix.
+        ENDIF.
+      ENDLOOP.
+
+      LOOP AT gw_vdbepp_rat INTO gs_vdbepp_rat
+                            WHERE bukrs = lc_bukrs
+                            AND   ranl  = lc_ranl.
+        lc_tabix = sy-tabix.
+        READ TABLE gw_log_p2 INTO gs_log_p2
+                             WITH KEY bukrs = lc_bukrs
+                                      ranl  = lc_ranl
+                                      dtrans   = gs_vdbepp_rat-dtrans
+                                      ttrans   = gs_vdbepp_rat-ttrans
+                                      ntrans   = gs_vdbepp_rat-ntrans.
+        IF sy-subrc = 0 AND
+          ( gs_vdbepp_aux-bnwhr EQ gs_log_p2-bnwhr ).
+          DELETE gw_vdbepp_rat INDEX lc_tabix.
+        ENDIF.
+
+      ENDLOOP.
+
+
+*     SE o contrato não tem itens planejados e não tem parcelas contabilizadas ou
+*     o contrato teve itens planejados alterados ou
+*     o contrato mudou para DISTRATO, RENEG ou VIRADA
+*     ENTÃO os registros de log devem ser estornados
+      IF lc_rrefkont IS NOT INITIAL.
+
+
+*       Estorna registros de Juros Nominal
+        gw_logp2_aux[] = gw_log_p2[].
+        DELETE gw_logp2_aux WHERE bukrs <> gs_log_p2-bukrs
+                            AND   ranl  <> gs_log_p2-ranl.
+        LOOP AT gw_logp2_aux INTO gs_logp2_aux.
+
+          READ TABLE gw_vdbekipi INTO gs_vdbekipi
+                                                  WITH KEY bukrs    = gs_logp2_aux-bukrs
+                                                           ranl     = gs_logp2_aux-ranl
+                                                           dtrans   = gs_logp2_aux-dtrans
+                                                           ttrans   = gs_logp2_aux-ttrans
+                                                           ntrans   = gs_logp2_aux-ntrans
+                                                           sstorno  = space.
+
+
+          IF gs_vdbekipi-rvzblg  <> space .
+
+            READ TABLE gw_vdbekipi INTO gs_vdbekipi WITH KEY bukrs    = gs_logp2_aux-bukrs
+                                                             ranl     = gs_logp2_aux-ranl
+                                                             rzebel   = gs_logp2_aux-rbelkpfd
+                                                             sbewziti = 'SVER'.
+            IF sy-subrc <> 0.
+              CONTINUE.
+            ELSE.
+              READ TABLE gw_vdbekipi INTO gs_vdbekipi WITH KEY bukrs    = gs_vdbeki-bukrs
+                                                               ranl     = gs_vdbeki-ranl
+                                                               rzebel   = gs_vdbeki-rbelkpfd
+                                                               sbewziti = 'VERZ'.
+              IF sy-subrc <> 0.
+                CONTINUE.
+              ENDIF.
+            ENDIF.
+
+          ENDIF.
+
+          PERFORM zf_estornar USING gs_logp2_aux-belnr
+                                    gs_logp2_aux-bukrs
+                                    gs_logp2_aux-gjahr
+                           CHANGING gs_logp2_aux-belnr_e.
+          IF gs_logp2_aux-belnr_e IS NOT INITIAL.
+            gs_logp2_aux-data_e = so_data-low.
+            APPEND gs_logp2_aux TO gw_log_aj.
+            MODIFY ztbloans_log_aj FROM gs_logp2_aux.
+          ELSE.
+
+          ENDIF.
+        ENDLOOP.
+
+*       Estorna registros de rateio do Juros Incorrido
+*        CLEAR gw_logp2_aux[].
+*        gw_logp2_aux[] = gw_log_p2_rat[].
+*        DELETE gw_logp2_aux WHERE bukrs <> gs_log_p2-bukrs
+*                            AND   ranl  <> gs_log_p2-ranl.
+*        LOOP AT gw_logp2_aux INTO gs_logp2_aux.
+*
+*          READ TABLE gw_vdbekipi INTO gs_vdbekipi
+*                                                  WITH KEY bukrs    = gs_logp2_aux-bukrs
+*                                                           ranl     = gs_logp2_aux-ranl
+**                                                           rbelkpfd = gs_logp2_aux-rbelkpfd
+*                                                           dtrans   = gs_logp2_aux-dtrans
+*                                                           ttrans   = gs_logp2_aux-ttrans
+*                                                           ntrans   = gs_logp2_aux-ntrans.
+*
+*          CHECK sy-subrc <> 0.
+*          PERFORM zf_estornar USING gs_logp2_aux-belnr
+*                                    gs_logp2_aux-bukrs
+*                                    gs_logp2_aux-gjahr
+*                           CHANGING gs_logp2_aux-belnr_e.
+*          IF NOT gs_logp2_aux-belnr_e IS INITIAL.
+*            gs_logp2_aux-data_e = so_data-low.
+*            APPEND gs_logp2_aux TO gw_log_aj.
+*            MODIFY ztbloans_log_aj FROM gs_logp2_aux.
+*          ENDIF.
+*        ENDLOOP.
+
+*       Exclui contratos das tabelas de log
+        DELETE gw_log_p2 WHERE bukrs = lc_bukrs
+                         AND   ranl  = lc_ranl.
+        DELETE gw_log_p2_rat WHERE bukrs = lc_bukrs
+                             AND   ranl  = lc_ranl.
+        IF lc_alterado = space.
+          DELETE gw_vdbepp_aux WHERE bukrs = lc_bukrs
+                               AND   ranl  = lc_ranl.
+          DELETE gw_vdbepp_rat WHERE bukrs = lc_bukrs
+                               AND   ranl  = lc_ranl.
+        ENDIF.
+      ENDIF.
+
+
+
+*     SE o contrato tem itens planejados e houve alteração de valores
+*     ENTÃO os registros de log devem ser estornados, rateados e lançados novamente
+*     Obs.:Nesse ponto do programa os estornos já foram realizados na condição acima
+
+**26/1/09 inicio
+**    IF ( lc_planejado = 'X' AND lc_alterado = 'X' AND lc_contabilizado = space ).
+**      PERFORM zf_ratear_lancar USING lc_bukrs
+**                                     lc_ranl.
+**      DELETE gw_vdbepp_aux WHERE bukrs = lc_bukrs
+**                           AND   ranl  = lc_ranl.
+**      DELETE gw_vdbepp_rat WHERE bukrs = lc_bukrs
+**                           AND   ranl  = lc_ranl.
+**    ENDIF.
+**26/1/09 fim
+
+    ENDAT.
+  ENDLOOP.
+
+
+  IF NOT lw_log_est[] IS INITIAL.
+    gw_log_p2[] = lw_log_est[].
+
+*   Estorna registros de Juros Nominal
+    gw_logp2_aux[] = gw_log_p2[].
+    LOOP AT gw_logp2_aux INTO gs_logp2_aux.
+      PERFORM zf_estornar USING gs_logp2_aux-belnr
+                                gs_logp2_aux-bukrs
+                                gs_logp2_aux-gjahr
+                       CHANGING gs_logp2_aux-belnr_e.
+      IF gs_logp2_aux-belnr_e IS NOT INITIAL.
+        gs_logp2_aux-data_e = so_data-low.
+        APPEND gs_logp2_aux TO gw_log_aj.
+        MODIFY ztbloans_log_aj FROM gs_logp2_aux.
+
+
+      ENDIF.
+
+
+    ENDLOOP.
+
+  ENDIF.
+
+
+* Os registros que restaram na itab gw_vdbepp_aux são registros novos
+* e todos sem excessão são rateados e lançados
+  DATA: lw_vdbepp_aux  TYPE TABLE OF vdbepp,
+        ls_vdbepp_aux  TYPE vdbepp.
+
+  lw_vdbepp_aux[] = gw_vdbepp_aux[].
+  SORT lw_vdbepp_aux BY bukrs ranl.
+  DELETE ADJACENT DUPLICATES FROM lw_vdbepp_aux COMPARING bukrs ranl.
+
+  CLEAR ls_vdbepp_aux.
+  LOOP AT lw_vdbepp_aux INTO ls_vdbepp_aux.
+
+    CHECK ls_vdbepp_aux-dguel_kk <= so_data.
+
+    PERFORM zf_ratear_lancar USING ls_vdbepp_aux-bukrs
+                                   ls_vdbepp_aux-ranl.
+    DELETE gw_vdbepp_aux WHERE bukrs = ls_vdbepp_aux-bukrs
+                         AND   ranl  = ls_vdbepp_aux-ranl.
+    DELETE gw_vdbepp_rat WHERE bukrs = ls_vdbepp_aux-bukrs
+                         AND   ranl  = ls_vdbepp_aux-ranl.
+
+  ENDLOOP.
+
+ENDFORM.                    " ZF_LANCAR_JUROS
+
+**---------------------------------------------------------------------*
+**      Form  ZF_LANCAR_JUROS
+**---------------------------------------------------------------------*
+**      Processo n° 2
+**      Lançamento do Juros contratados em índice
+**---------------------------------------------------------------------*
+*FORM zf_lancar_juros.
+*  DATA: ln_tabix            TYPE sy-tabix,
+**        ln_tbx_vdbepp       TYPE sy-tabix,
+*        lc_sbewart_rat      TYPE vdbepp-sbewart,
+*        lc_planejado(1)     TYPE c,
+*        lc_alterado(1)      TYPE c,
+*        lc_contabilizado(1) TYPE c,
+*        lc_bukrs            TYPE vdbepp-bukrs,
+*        lc_ranl             TYPE vdbepp-ranl,
+*        lc_rrefkont         TYPE vdarl-rrefkont,
+*        lc_tabix            TYPE sy-tabix.
+*
+*  DATA: lw_vdbeki_est       TYPE TABLE OF vdbeki,
+*        ls_vdbeki_est       TYPE vdbeki,
+*        lw_vdbepi_est       TYPE TABLE OF vdbepi,
+*        ls_vdbepi_est       TYPE vdbepi,
+*        lw_log_est          TYPE TABLE OF ztbloans_log_aj,
+*        ls_log_est          TYPE ztbloans_log_aj.
+*
+** Lê parametros do processo 2
+*  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_02.
+*  IF sy-subrc NE 0.
+*    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+*    STOP.
+*  ENDIF.
+*  CLEAR r_sbewart.
+*  LOOP AT gw_paramet INTO gs_paramet FROM sy-tabix.
+*    IF gs_paramet-processo <> cn_02.
+*      EXIT.
+*    ENDIF.
+*    IF gs_paramet-chk_rateio EQ cc_x.
+*      lc_sbewart_rat = gs_paramet-sbewart.
+*    ENDIF.
+*    rs_sbewart-sign   = cc_i.
+*    rs_sbewart-option = cc_eq.
+*    rs_sbewart-low    = gs_paramet-sbewart.
+*    APPEND rs_sbewart TO r_sbewart.
+*  ENDLOOP.
+*
+*
+** Filtra "Itens Planejados" por tipo de movimento conforme parametros do processo 2
+*  gw_vdbepp_aux[] = gw_vdbepp[].
+*  DELETE gw_vdbepp_aux WHERE NOT sbewart IN r_sbewart.
+*  SORT gw_vdbepp_aux BY bukrs ranl dfaell .
+*
+** Carrega tabela interna apenas com os registros com movimento de Juros Incorridos (Movimento marcado como Rateio na tabela de parametros)
+*  gw_log_p2_rat[] = gw_log_p2[].
+*  gw_vdbepp_rat[] = gw_vdbepp_aux[].
+*  DELETE gw_vdbepp_rat WHERE sbewart NE lc_sbewart_rat.
+*  DELETE gw_log_p2_rat WHERE sbewart NE lc_sbewart_rat.
+** Exclui das tabelas internas os registros com movimento de Juros Incorridos (Movimento marcado como Rateio na tabela de parametros)
+*  DELETE gw_log_p2     WHERE sbewart EQ lc_sbewart_rat.
+*  DELETE gw_vdbepp_aux WHERE sbewart EQ lc_sbewart_rat.
+*
+*
+** Verifica o n° de registros para fazer o rateio do movimento de Juros Incorridos
+*  SORT: gw_vdbepp_rat BY bukrs ranl,
+*        gw_vdbepp_aux BY bukrs ranl.
+*
+*  LOOP AT gw_vdbepp_rat INTO gs_vdbepp_rat.
+*    ln_tabix = sy-tabix.
+*    READ TABLE gw_vdbepp_aux INTO gs_vdbepp_aux WITH KEY bukrs = gs_vdbepp_rat-bukrs
+*                                                         ranl  = gs_vdbepp_rat-ranl.
+*    LOOP AT gw_vdbepp_aux INTO gs_vdbepp_aux FROM sy-tabix.
+*      IF gs_vdbepp_rat-bukrs NE gs_vdbepp_aux-bukrs OR
+*         gs_vdbepp_rat-ranl  NE gs_vdbepp_aux-ranl.
+*        EXIT.
+*      ENDIF.
+*      gs_vdbepp_rat-n_reg = gs_vdbepp_rat-n_reg + 1.
+*      AT END OF ranl.
+*        MODIFY gw_vdbepp_rat FROM gs_vdbepp_rat INDEX ln_tabix.
+*      ENDAT.
+*    ENDLOOP.
+*  ENDLOOP.
+*
+*
+** Lê dados de processamentos anteriores
+*  SORT: gw_log_p2     BY bukrs ranl dtrans ttrans ntrans,
+*        gw_vdbepp_aux BY bukrs ranl dtrans ttrans ntrans.
+*  LOOP AT gw_log_p2 INTO gs_log_p2.
+*    AT NEW ranl.
+*      CLEAR: lc_planejado, lc_alterado, lc_contabilizado, lc_bukrs, lc_ranl, lc_rrefkont.
+*      lc_bukrs = gs_log_p2-bukrs.
+*      lc_ranl  = gs_log_p2-ranl.
+*
+*      CLEAR lc_rrefkont.
+*      SELECT SINGLE rrefkont
+*        INTO lc_rrefkont
+*          FROM vdarl
+*            WHERE bukrs = gs_log_p2-bukrs
+*              AND ranl  = gs_log_p2-ranl.
+*    ENDAT.
+*
+**   Verifica se a referencia do contrato mudou para DISTRATO/RENEG/VIRADA
+*    IF lc_rrefkont <> 'DISTRATO' AND
+*       lc_rrefkont <> 'RENEG'    AND
+*       lc_rrefkont <> 'VIRADA'   .
+*
+*      CLEAR lc_rrefkont.
+*
+**   Verifica se houve mudança de valor entre o registro de log e o registro atual
+*      READ TABLE gw_vdbepp_aux INTO gs_vdbepp_aux WITH KEY bukrs  = gs_log_p2-bukrs
+*                                                           ranl   = gs_log_p2-ranl
+*                                                           dtrans = gs_log_p2-dtrans
+*                                                           ttrans = gs_log_p2-ttrans
+*                                                           ntrans = gs_log_p2-ntrans.
+*      IF  sy-subrc EQ 0 .
+*        IF gs_vdbepp_aux-bnwhr NE gs_log_p2-bnwhr.
+*          lc_alterado = 'X'.
+*        ENDIF.
+*        lc_planejado = 'X'.
+*      ENDIF.
+*
+**   Verifica se houve contabilização do registro da tabela de log
+*      READ TABLE gw_vdbeki INTO gs_vdbeki WITH KEY bukrs = gs_log_p2-bukrs
+*                                                   ranl  = gs_log_p2-ranl.
+*      IF sy-subrc EQ 0.
+*        LOOP AT gw_vdbeki INTO gs_vdbeki FROM sy-tabix.
+*          IF gs_vdbeki-bukrs NE gs_log_p2-bukrs OR
+*             gs_vdbeki-ranl  NE gs_log_p2-ranl  .
+*            EXIT.
+*          ENDIF.
+*          CLEAR ls_vdbepi_est.
+*          READ TABLE gw_vdbepi INTO ls_vdbepi_est WITH KEY bukrs    = gs_vdbeki-bukrs
+*                                                           rbelkpfd = gs_vdbeki-rbelkpfd
+*                                                           dtrans   = gs_log_p2-dtrans
+*                                                           ttrans   = gs_log_p2-ttrans
+*                                                           ntrans   = gs_log_p2-ntrans.
+*          IF sy-subrc EQ 0 AND gs_vdbeki-sstorno IS INITIAL.
+*            lc_contabilizado = 'X'.
+*          ELSEIF ( gs_vdbeki-sstorno = cn_2 AND ls_vdbepi_est IS NOT INITIAL )
+*              OR sy-subrc NE 0.
+*            APPEND ls_vdbepi_est TO lw_vdbepi_est.   " Grava cabeçalho do item estornado
+*            APPEND gs_vdbeki     TO lw_vdbeki_est.   " Grava Item estornado
+*            APPEND gs_log_p2     TO lw_log_est.      " Grava log que deve ser estornado
+*            lc_alterado = 'X'.
+*            lc_planejado = 'X'.
+*            clear lc_contabilizado.
+*          ENDIF.
+*        ENDLOOP.
+*
+*
+*
+*      ENDIF.
+*    ENDIF.
+*
+*
+*    AT END OF ranl.
+*
+**     SE o contrato tem itens planejados e não foi alterado ou não tem itens planejados mas tem parcelas contabilizadas
+**     ENTÃO não há necessidade de efetuar estorno ou lançamentos para esse contrato
+*      IF ( lc_contabilizado = 'X' ) OR
+*         ( lc_planejado = 'X' AND lc_alterado = space ).
+*
+*        LOOP AT gw_vdbepp_aux INTO gs_vdbepp_aux
+*                             WHERE bukrs = lc_bukrs
+*                               AND   ranl  = lc_ranl.
+*          lc_tabix = sy-tabix.
+*          READ TABLE gw_log_p2 INTO gs_log_p2
+*                               WITH KEY bukrs = lc_bukrs
+*                                        ranl  = lc_ranl
+*                                        dtrans   = gs_vdbepp_aux-dtrans
+*                                        ttrans   = gs_vdbepp_aux-ttrans
+*                                        ntrans   = gs_vdbepp_aux-ntrans.
+*          IF sy-subrc = 0.
+*            DELETE gw_vdbepp_aux INDEX lc_tabix.
+*          ENDIF.
+*        ENDLOOP.
+*
+*        LOOP AT gw_vdbepp_rat INTO gs_vdbepp_rat
+*                              WHERE bukrs = lc_bukrs
+*                              AND   ranl  = lc_ranl.
+*          lc_tabix = sy-tabix.
+*          READ TABLE gw_log_p2 INTO gs_log_p2
+*                               WITH KEY bukrs = lc_bukrs
+*                                        ranl  = lc_ranl
+*                                        dtrans   = gs_vdbepp_rat-dtrans
+*                                        ttrans   = gs_vdbepp_rat-ttrans
+*                                        ntrans   = gs_vdbepp_rat-ntrans.
+*          IF sy-subrc = 0.
+*            DELETE gw_vdbepp_rat INDEX lc_tabix.
+*          ENDIF.
+*
+*        ENDLOOP.
+*
+*        DELETE gw_log_p2 WHERE bukrs = lc_bukrs
+*                         AND   ranl  = lc_ranl.
+*        DELETE gw_log_p2_rat WHERE bukrs = lc_bukrs
+*                             AND   ranl  = lc_ranl.
+*      ENDIF.
+*
+**     SE o contrato não tem itens planejados e não tem parcelas contabilizadas ou
+**     o contrato teve itens planejados alterados ou
+**     o contrato mudou para DISTRATO, RENEG ou VIRADA
+**     ENTÃO os registros de log devem ser estornados
+*      IF
+**      ( lc_planejado = space AND lc_alterado = space AND lc_contabilizado = space ) OR
+*         ( lc_planejado = 'X' AND lc_alterado = 'X' AND lc_contabilizado = space ) OR
+*         lc_rrefkont IS NOT INITIAL.
+*
+*
+**       Estorna registros de Juros Nominal
+*        gw_logp2_aux[] = gw_log_p2[].
+*        DELETE gw_logp2_aux WHERE bukrs <> gs_log_p2-bukrs
+*                            AND   ranl  <> gs_log_p2-ranl.
+*        LOOP AT gw_logp2_aux INTO gs_logp2_aux.
+*          PERFORM zf_estornar USING gs_logp2_aux-belnr
+*                                    gs_logp2_aux-bukrs
+*                                    gs_logp2_aux-gjahr
+*                           CHANGING gs_logp2_aux-belnr_e.
+*          IF gs_logp2_aux-belnr_e IS NOT INITIAL.
+*            gs_logp2_aux-data_e = so_data-low.
+*            APPEND gs_logp2_aux TO gw_log_aj.
+*            MODIFY ztbloans_log_aj FROM gs_logp2_aux.
+*          ENDIF.
+*        ENDLOOP.
+*
+**       Estorna registros de rateio do Juros Incorrido
+*        CLEAR gw_logp2_aux[].
+*        gw_logp2_aux[] = gw_log_p2_rat[].
+*        DELETE gw_logp2_aux WHERE bukrs <> gs_log_p2-bukrs
+*                            AND   ranl  <> gs_log_p2-ranl.
+*        LOOP AT gw_logp2_aux INTO gs_logp2_aux.
+*
+*
+*** 22/01/2009
+*** Alteração: checar se a fatura foi contabilizada para não ser estornada com a alteração de referência contábil
+*          BREAK-POINT.
+***   Verifica se houve contabilização do registro da tabela de log
+**          IF lc_rrefkont IS NOT INITIAL.
+**            LOOP AT gw_vdbeki INTO gs_vdbeki WHERE bukrs = gs_log_p2-bukrs
+**                                               AND ranl  = gs_log_p2-ranl.
+**              CLEAR ls_vdbepi_est.
+**              READ TABLE gw_vdbepi INTO ls_vdbepi_est WITH KEY bukrs    = gs_vdbeki-bukrs
+**                                                               rbelkpfd = gs_vdbeki-rbelkpfd
+**                                                               dtrans   = gs_logp2_aux-dtrans
+**                                                               ttrans   = gs_logp2_aux-ttrans
+**                                                               ntrans   = gs_logp2_aux-ntrans.
+**              IF sy-subrc EQ 0 AND gs_vdbeki-sstorno IS INITIAL
+**                 AND ( NOT gs_vdbeki-rvzblg IS INITIAL ).
+**                CONTINUE.
+**              ENDIF.
+**            ENDLOOP.
+**          ENDIF.
+******IF gs_vdbeki-sstorno = cn_2 AND ls_vdbepi_est IS NOT INITIAL.
+*** Fim da Alteração
+*** 22/01/2009
+*
+*
+*
+*
+*
+*          PERFORM zf_estornar USING gs_logp2_aux-belnr
+*                                    gs_logp2_aux-bukrs
+*                                    gs_logp2_aux-gjahr
+*                           CHANGING gs_logp2_aux-belnr_e.
+*          IF NOT gs_logp2_aux-belnr_e IS INITIAL.
+*            gs_logp2_aux-data_e = so_data-low.
+*            APPEND gs_logp2_aux TO gw_log_aj.
+*            MODIFY ztbloans_log_aj FROM gs_logp2_aux.
+*          ENDIF.
+*        ENDLOOP.
+*
+**       Exclui contratos das tabelas de log
+*        DELETE gw_log_p2 WHERE bukrs = lc_bukrs
+*                         AND   ranl  = lc_ranl.
+*        DELETE gw_log_p2_rat WHERE bukrs = lc_bukrs
+*                             AND   ranl  = lc_ranl.
+*        IF lc_alterado = space.
+*          DELETE gw_vdbepp_aux WHERE bukrs = lc_bukrs
+*                               AND   ranl  = lc_ranl.
+*          DELETE gw_vdbepp_rat WHERE bukrs = lc_bukrs
+*                               AND   ranl  = lc_ranl.
+*        ENDIF.
+*      ENDIF.
+*
+*
+*
+**     SE o contrato tem itens planejados e houve alteração de valores
+**     ENTÃO os registros de log devem ser estornados, rateados e lançados novamente
+**     Obs.:Nesse ponto do programa os estornos já foram realizados na condição acima
+*      IF ( lc_planejado = 'X' AND lc_alterado = 'X' AND lc_contabilizado = space ).
+*        PERFORM zf_ratear_lancar USING lc_bukrs
+*                                       lc_ranl.
+*        DELETE gw_vdbepp_aux WHERE bukrs = lc_bukrs
+*                             AND   ranl  = lc_ranl.
+*        DELETE gw_vdbepp_rat WHERE bukrs = lc_bukrs
+*                             AND   ranl  = lc_ranl.
+*      ENDIF.
+*    ENDAT.
+*  ENDLOOP.
+*
+*
+*  IF NOT lw_log_est[] IS INITIAL.
+*    gw_log_p2[] = lw_log_est[].
+*
+**   Estorna registros de Juros Nominal
+*    gw_logp2_aux[] = gw_log_p2[].
+*    LOOP AT gw_logp2_aux INTO gs_logp2_aux.
+*      PERFORM zf_estornar USING gs_logp2_aux-belnr
+*                                gs_logp2_aux-bukrs
+*                                gs_logp2_aux-gjahr
+*                       CHANGING gs_logp2_aux-belnr_e.
+*      IF gs_logp2_aux-belnr_e IS NOT INITIAL.
+*        gs_logp2_aux-data_e = so_data-low.
+*        APPEND gs_logp2_aux TO gw_log_aj.
+*        MODIFY ztbloans_log_aj FROM gs_logp2_aux.
+*      ENDIF.
+*
+*
+*    ENDLOOP.
+*
+*  ENDIF.
+*
+*
+** Os registros que restaram na itab gw_vdbepp_aux são registros novos
+** e todos sem excessão são rateados e lançados
+*  DATA: lw_vdbepp_aux  TYPE TABLE OF vdbepp,
+*        ls_vdbepp_aux  TYPE vdbepp.
+*
+*  lw_vdbepp_aux[] = gw_vdbepp_aux[].
+*  SORT lw_vdbepp_aux BY bukrs ranl.
+*  DELETE ADJACENT DUPLICATES FROM lw_vdbepp_aux COMPARING bukrs ranl.
+*
+*  CLEAR ls_vdbepp_aux.
+*  LOOP AT lw_vdbepp_aux INTO ls_vdbepp_aux.
+*
+*    PERFORM zf_ratear_lancar USING ls_vdbepp_aux-bukrs
+*                                   ls_vdbepp_aux-ranl.
+*    DELETE gw_vdbepp_aux WHERE bukrs = ls_vdbepp_aux-bukrs
+*                         AND   ranl  = ls_vdbepp_aux-ranl.
+*    DELETE gw_vdbepp_rat WHERE bukrs = ls_vdbepp_aux-bukrs
+*                         AND   ranl  = ls_vdbepp_aux-ranl.
+*
+*  ENDLOOP.
+*
+*ENDFORM.                    " ZF_LANCAR_JUROS
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_LIMPAR_TRANSITORIA
+*---------------------------------------------------------------------*
+*      Processo n° 3
+*      Lança contra-partida para zerar conta transitória
+*      (Conta neutralizadora de clientes no recebimento)
+*---------------------------------------------------------------------*
+FORM zf_limpar_transitoria .
+  DATA:  lc_sbewart_rat TYPE vdbepp-sbewart.
+
+*  gw_log_p2[] = gw_log_aj[].
+*  DELETE gw_log_p2 WHERE processo <> cn_02.
+
+
+* Carrega tabela interna com rateio lançado no processo 2
+  CLEAR gs_paramet.
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo   = cn_02
+                                                 chk_rateio = cc_x.
+  DELETE gw_log_rat WHERE sbewart NE gs_paramet-sbewart.
+
+  SORT gw_log_aj BY processo sbewart.
+  READ TABLE gw_log_aj INTO gs_log_aj WITH KEY processo = cn_02
+                                               sbewart  = gs_paramet-sbewart.
+  LOOP AT gw_log_aj INTO gs_log_aj FROM sy-tabix.
+    IF gs_log_aj-processo NE cn_02 OR
+       gs_log_aj-sbewart  NE gs_paramet-sbewart.
+      EXIT.
+    ENDIF.
+*   Delete lançamentos estornados nesse processamento e
+*   Inclui itens criados nesse processamento
+    IF gs_log_aj-belnr_e IS NOT INITIAL.
+      DELETE gw_log_rat WHERE processo = gs_log_aj-processo
+                        AND   bukrs    = gs_log_aj-bukrs
+                        AND   ranl     = gs_log_aj-ranl
+                        AND   belnr    = gs_log_aj-belnr.
+    ELSE.
+      APPEND gs_log_aj TO gw_log_rat.
+    ENDIF.
+  ENDLOOP.
+
+* Lê parametros do processo 3
+  CLEAR gs_paramet.
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_03.
+  IF sy-subrc NE 0.
+    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+* Carrega intervalo de movimentos do processo 3
+  CLEAR r_sbewart.
+  LOOP AT gw_paramet INTO gs_paramet FROM sy-tabix.
+    IF gs_paramet-processo <> cn_03.
+      EXIT.
+    ENDIF.
+    IF gs_paramet-chk_rateio EQ cc_x.
+      lc_sbewart_rat = gs_paramet-sbewart.
+    ENDIF.
+    rs_sbewart-sign   = cc_i.
+    rs_sbewart-option = cc_eq.
+    rs_sbewart-low    = gs_paramet-sbewart.
+    APPEND rs_sbewart TO r_sbewart.
+  ENDLOOP.
+
+* Filtra "Itens Lançados" por tipo de movimento conforme parametros do processo 3
+  gw_vdbepi_aux[] = gw_vdbepi[].
+  gw_vdbeki_aux[] = gw_vdbeki[].
+  DELETE gw_vdbepi_aux WHERE NOT sbewart IN r_sbewart.
+  DELETE gw_vdbepi_aux WHERE bhwhr IS INITIAL.
+  SORT gw_vdbepi_aux BY bukrs rbelkpfd sbewart.
+
+* Elimina itens lançados que já foram contabilizados no processo 3
+  LOOP AT gw_log_p3 INTO gs_log_p3.
+    DELETE gw_vdbeki_aux WHERE bukrs    = gs_log_p3-bukrs
+                         AND   rbelkpfd = gs_log_p3-rbelkpfd.
+    DELETE gw_vdbepi_aux WHERE bukrs    = gs_log_p3-bukrs
+                         AND   rbelkpfd = gs_log_p3-rbelkpfd.
+    DELETE TABLE gw_log_p3 FROM gs_log_p3.
+  ENDLOOP.
+
+  LOOP AT gw_vdbepi_aux INTO gs_vdbepi_aux.
+    PERFORM zf_lancar_processo3 USING lc_sbewart_rat.
+  ENDLOOP.
+
+ENDFORM.                    " ZF_LIMPAR_TRANSITORIA
+
+*---------------------------------------------------------------------*
+*      Form  ZF_ESPELHAMENTO_CONTA_REF
+*---------------------------------------------------------------------*
+*      Processo n° 4
+*      Lançamento contábil para Espelhamento da Conta REF no momento
+*      do recebimento
+*---------------------------------------------------------------------*
+FORM zf_espelhamento_conta_ref .
+
+* Lê parametros do processo 4
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_04.
+  IF sy-subrc NE 0.
+    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+* Carrega intervalo de movimentos do processo 4
+  CLEAR r_sbewart.
+  LOOP AT gw_paramet INTO gs_paramet FROM sy-tabix.
+    IF gs_paramet-processo <> cn_04.
+      EXIT.
+    ENDIF.
+    rs_sbewart-sign   = cc_i.
+    rs_sbewart-option = cc_eq.
+    rs_sbewart-low    = gs_paramet-sbewart.
+    APPEND rs_sbewart TO r_sbewart.
+  ENDLOOP.
+
+* Filtra "Itens Lançados" por tipo de movimento conforme parametros do processo 4
+  gw_vdbepi_aux[] = gw_vdbepi[].
+  gw_vdbeki_aux[] = gw_vdbeki[].
+  DELETE gw_vdbepi_aux WHERE NOT sbewart IN r_sbewart.
+  DELETE gw_vdbepi_aux WHERE bhwhr IS INITIAL.
+
+* Exclui "itens Lançados" que foram estornados
+  SORT gw_vdbeki_aux BY sstorno DESCENDING bukrs rbelkpfd ranl.
+  LOOP AT gw_vdbeki_aux INTO gs_vdbeki_aux.
+    IF gs_vdbeki_aux-sstorno IS INITIAL.
+      EXIT.
+    ENDIF.
+    DELETE gw_vdbeki_aux INDEX sy-tabix.
+    DELETE gw_vdbepi_aux WHERE bukrs    = gs_vdbeki_aux-bukrs
+                         AND   rbelkpfd = gs_vdbeki_aux-rbelkpfd.
+  ENDLOOP.
+
+* Elimina itens lançados que já foram contabilizados no processo 4
+  SORT gw_vdbepi_aux BY bukrs rbelkpfd sbewart.
+  LOOP AT gw_log_p4 INTO gs_log_p4.
+    DELETE gw_vdbeki_aux WHERE bukrs    = gs_log_p4-bukrs
+                         AND   rbelkpfd = gs_log_p4-rbelkpfd.
+
+    DELETE gw_vdbepi_aux WHERE bukrs    = gs_log_p4-bukrs
+                         AND   rbelkpfd = gs_log_p4-rbelkpfd.
+
+    DELETE TABLE gw_log_p4 FROM gs_log_p4.
+  ENDLOOP.
+
+  LOOP AT gw_vdbepi_aux INTO gs_vdbepi_aux.
+    PERFORM zf_lancar_processo4.
+  ENDLOOP.
+
+ENDFORM.                    " ZF_ESPELHAMENTO_CONTA_REF
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_LIMPAR_CONTA_JUROS1
+*---------------------------------------------------------------------*
+*      Processo n° 5
+*      Limpar Contas de Juros no momento do recebimento
+*      Contabilização 1: Compensação dos documentos criados nos
+*                        processo 3 e 2
+*---------------------------------------------------------------------*
+FORM zf_limpar_conta_juros1.
+  DATA:  ln_valor     TYPE  ztbloans_log_aj-bhwhr,
+         ln_valor_p2  TYPE  ztbloans_log_aj-bhwhr,
+         ln_valor_p3  TYPE  ztbloans_log_aj-bhwhr,
+         lc_belnr     TYPE  ztbloans_log_aj-belnr,
+         lc_belnr_rat TYPE  ztbloans_log_aj-belnr,
+         lc_belnr2    TYPE  ztbloans_log_aj-belnr.
+
+* Lê parametros do processo 5
+*  READ TABLE gw_paramet TRANSPORTING NO FIELDS WITH KEY processo = cn_05
+*                                                        prioridade = cn_02.
+*  IF sy-subrc NE 0.
+*    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+*    STOP.
+*  ENDIF.
+  SORT gw_paramet BY processo DESCENDING prioridade ASCENDING.
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_05
+                                                 prioridade = cn_01.
+  IF sy-subrc NE 0.
+    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+* Carrega intervalo de movimentos do processo 5
+*  CLEAR r_sbewart.
+*  LOOP AT gw_paramet INTO gs_paramet FROM sy-tabix.
+*    IF gs_paramet-processo <> cn_05 or
+*       gs_paramet-PRIORIDADE <> cn_01.
+*      EXIT.
+*    ENDIF.
+*    rs_sbewart-sign   = cc_i.
+*    rs_sbewart-option = cc_eq.
+*    rs_sbewart-low    = gs_paramet-sbewart.
+*    APPEND rs_sbewart TO r_sbewart.
+*  ENDLOOP.
+
+* Filtra "Itens Lançados" por tipo de movimento conforme parametros do processo 5
+  gw_vdbepi_aux[] = gw_vdbepi[].
+  gw_vdbeki_aux[] = gw_vdbeki[].
+*  DELETE gw_vdbepi_aux WHERE NOT sbewart IN r_sbewart.
+  DELETE gw_vdbepi_aux WHERE NOT sbewart = gs_paramet-sbewart.
+  SORT gw_vdbepi_aux BY bukrs rbelkpfd sbewart.
+
+* Elimina "itens lançados" que já realizaram a contabilização 1 no processo 5
+  gw_logp5_contab1[] = gw_log_p5[].
+  DELETE gw_logp5_contab1 WHERE NOT movimento = gs_paramet-movimento.
+*  LOOP AT gw_log_p5 INTO gs_log_p5.
+*
+*    DELETE gw_vdbepi_aux WHERE bukrs    = gs_log_p5-bukrs
+*                         AND   rbelkpfd = gs_log_p5-rbelkpfd
+*                         AND   sbewart  = gs_log_p5-sbewart
+*                         AND   dtrans   = gs_log_p5-dtrans
+*                         AND   ttrans   = gs_log_p5-ttrans
+*                         AND   ntrans   = gs_log_p5-ntrans.
+*    IF sy-subrc EQ 0.
+*      DELETE gw_vdbeki_aux WHERE bukrs    = gs_log_p5-bukrs
+*                           AND   rbelkpfd = gs_log_p5-rbelkpfd.
+*
+**      DELETE TABLE gw_log_p5 FROM gs_log_p5.
+*    ENDIF.
+*  ENDLOOP.
+
+  SORT: gw_log_aux BY processo bukrs ranl dtrans ttrans ntrans sbewart.
+
+  LOOP AT gw_vdbepi_aux INTO gs_vdbepi_aux.
+
+    CLEAR: gs_vdbeki_aux.
+    READ TABLE gw_vdbeki_aux INTO gs_vdbeki_aux WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+                                                         rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+    CHECK sy-subrc = 0.
+
+    READ TABLE gw_logp5_contab1 TRANSPORTING NO FIELDS WITH KEY bukrs    = gs_vdbeki_aux-bukrs
+                                                                ranl     = gs_vdbeki_aux-ranl
+                                                                sbewart  = gs_vdbepi_aux-sbewart
+                                                                dtrans   = gs_vdbepi_aux-dtrans
+                                                                ttrans   = gs_vdbepi_aux-ttrans
+                                                                ntrans   = gs_vdbepi_aux-ntrans
+                                                                rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+    CHECK sy-subrc <> 0.
+
+
+*   Le registros contabilizados no processo 2 (Juros Nominal + Rateio de Juros Incorridos)
+    CLEAR: gs_log_aux, ln_valor, ln_valor_p2, ln_valor_p3, lc_belnr, lc_belnr2.
+    READ TABLE gw_log_aux INTO gs_log_aux WITH KEY processo = cn_02
+                                                   bukrs    = gs_vdbeki_aux-bukrs
+                                                   ranl     = gs_vdbeki_aux-ranl
+                                                   dtrans   = gs_vdbepi_aux-dtrans
+                                                   ttrans   = gs_vdbepi_aux-ttrans
+                                                   ntrans   = gs_vdbepi_aux-ntrans.
+    CHECK sy-subrc = 0.
+
+    LOOP AT gw_log_aux INTO gs_log_aux FROM sy-tabix.
+      IF gs_log_aux-processo <> cn_02                OR
+         gs_log_aux-bukrs    <> gs_vdbeki_aux-bukrs  OR
+         gs_log_aux-ranl     <> gs_vdbeki_aux-ranl   OR
+         gs_log_aux-dtrans   <> gs_vdbepi_aux-dtrans OR
+         gs_log_aux-ttrans   <> gs_vdbepi_aux-ttrans OR
+         gs_log_aux-ntrans   <> gs_vdbepi_aux-ntrans .
+        EXIT.
+      ENDIF.
+      IF lc_belnr IS INITIAL.
+        lc_belnr    = gs_log_aux-belnr.
+        ln_valor_p2 = gs_log_aux-bhwhr.
+      ELSEIF lc_belnr_rat IS INITIAL.
+        lc_belnr_rat = gs_log_aux-belnr.
+        ln_valor_p2  = ln_valor_p2 + gs_log_aux-bhwhr.
+      ELSE.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+*   Le registro contabilizado no processo 3
+    CLEAR gs_log_aux.
+    READ TABLE gw_log_aux INTO gs_log_aux WITH KEY processo = cn_03
+                                                         bukrs    = gs_vdbeki_aux-bukrs
+                                                         ranl     = gs_vdbeki_aux-ranl
+                                                         sbewart  = gs_vdbepi_aux-sbewart
+                                                         dtrans   = gs_vdbepi_aux-dtrans
+                                                         ttrans   = gs_vdbepi_aux-ttrans
+                                                         ntrans   = gs_vdbepi_aux-ntrans
+                                                         rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+    IF sy-subrc NE 0.
+      CONTINUE.
+    ENDIF.
+
+    ln_valor_p3 = gs_log_aux-bhwhr.
+
+    ln_valor = ln_valor_p3 - ln_valor_p2.
+    lc_belnr2 = gs_log_aux-belnr.
+
+    CHECK lc_belnr IS NOT INITIAL.
+    CHECK lc_belnr2 IS NOT INITIAL.
+    PERFORM zf_compensar_processo5 USING cn_01
+                                         ln_valor
+                                         lc_belnr
+                                         lc_belnr_rat
+                                         lc_belnr2.
+  ENDLOOP.
+
+ENDFORM.                    " ZF_LIMPAR_CONTA_JUROS1
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_LIMPAR_CONTA_JUROS2
+*---------------------------------------------------------------------*
+*      Processo n° 5
+*      Limpar Contas de Juros no momento do recebimento
+*      Contabilização 2: Compensação do docto criado na contabilização 1
+*                        do processo 5 com o docto. criado no processo 2
+*---------------------------------------------------------------------*
+FORM zf_limpar_conta_juros2.
+  DATA:  lc_movto_contab1 TYPE  ztbloans_log_aj-movimento,
+         ln_valor         TYPE  ztbloans_log_aj-bhwhr,
+         ln_valor_p2      TYPE  ztbloans_log_aj-bhwhr,
+         ln_valor_p5      TYPE  ztbloans_log_aj-bhwhr,
+         lc_belnr         TYPE  ztbloans_log_aj-belnr,
+         lc_belnr_rat     TYPE  ztbloans_log_aj-belnr,
+         lc_belnr2        TYPE  ztbloans_log_aj-belnr.
+
+  SORT gw_paramet BY processo DESCENDING prioridade ASCENDING.
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_05
+                                                 prioridade = cn_01.
+  lc_movto_contab1 = gs_paramet-movimento.
+
+  CLEAR gs_paramet.
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_05
+                                                 prioridade = cn_02.
+  IF sy-subrc NE 0.
+    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+
+
+* Filtra "Itens Lançados" por tipo de movimento conforme parametros do processo 5
+  gw_vdbepi_aux[] = gw_vdbepi[].
+  gw_vdbeki_aux[] = gw_vdbeki[].
+  DELETE gw_vdbepi_aux WHERE NOT sbewart = gs_paramet-sbewart.
+
+* Elimina "itens lançados" que já realizaram a contabilização 2 no processo 5
+  gw_logp5_contab2[] = gw_log_p5[].
+  DELETE gw_logp5_contab2 WHERE NOT movimento = gs_paramet-movimento.
+
+  SORT: gw_vdbepi_aux BY bukrs rbelkpfd sbewart,
+        gw_log_aux BY processo bukrs ranl dtrans ttrans ntrans sbewart.
+
+  LOOP AT gw_vdbepi_aux INTO gs_vdbepi_aux.
+
+    CLEAR: gs_vdbeki_aux.
+    READ TABLE gw_vdbeki_aux INTO gs_vdbeki_aux WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+                                                         rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+    CHECK sy-subrc = 0.
+
+    READ TABLE gw_logp5_contab2 TRANSPORTING NO FIELDS WITH KEY bukrs    = gs_vdbeki_aux-bukrs
+                                                                ranl     = gs_vdbeki_aux-ranl
+                                                                sbewart  = gs_vdbepi_aux-sbewart
+                                                                dtrans   = gs_vdbepi_aux-dtrans
+                                                                ttrans   = gs_vdbepi_aux-ttrans
+                                                                ntrans   = gs_vdbepi_aux-ntrans
+                                                                rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+    CHECK sy-subrc <> 0.
+
+
+*   Le registros contabilizados no processo 2 (Juros Nominal + Rateio de Juros Incorridos)
+    CLEAR: gs_log_aux, ln_valor, ln_valor_p2, ln_valor_p5, lc_belnr, lc_belnr2.
+    READ TABLE gw_log_aux INTO gs_log_aux WITH KEY processo = cn_02
+                                                   bukrs    = gs_vdbeki_aux-bukrs
+                                                   ranl     = gs_vdbeki_aux-ranl
+                                                   dtrans   = gs_vdbepi_aux-dtrans
+                                                   ttrans   = gs_vdbepi_aux-ttrans
+                                                   ntrans   = gs_vdbepi_aux-ntrans.
+    CHECK sy-subrc = 0.
+
+    LOOP AT gw_log_aux INTO gs_log_aux FROM sy-tabix.
+      IF gs_log_aux-processo <> cn_02                OR
+         gs_log_aux-bukrs    <> gs_vdbeki_aux-bukrs  OR
+         gs_log_aux-ranl     <> gs_vdbeki_aux-ranl   OR
+         gs_log_aux-dtrans   <> gs_vdbepi_aux-dtrans OR
+         gs_log_aux-ttrans   <> gs_vdbepi_aux-ttrans OR
+         gs_log_aux-ntrans   <> gs_vdbepi_aux-ntrans .
+        EXIT.
+      ENDIF.
+      IF lc_belnr IS INITIAL.
+        lc_belnr    = gs_log_aux-belnr.
+        ln_valor_p2 = gs_log_aux-bhwhr.
+      ELSEIF lc_belnr_rat IS INITIAL.
+        lc_belnr_rat = gs_log_aux-belnr.
+        ln_valor_p2  = ln_valor_p2 + gs_log_aux-bhwhr.
+      ELSE.
+        EXIT.
+      ENDIF.
+    ENDLOOP.
+
+*   Verifica se a contabilização2 do processo 5 já foi efetuada
+    READ TABLE gw_logp5_contab2 INTO gs_logp5_contab2 WITH KEY bukrs    = gs_vdbeki_aux-bukrs
+                                                               ranl     = gs_vdbeki_aux-ranl
+                                                               sbewart  = gs_vdbepi_aux-sbewart
+                                                               dtrans   = gs_vdbepi_aux-dtrans
+                                                               ttrans   = gs_vdbepi_aux-ttrans
+                                                               ntrans   = gs_vdbepi_aux-ntrans
+                                                               rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+    CHECK sy-subrc <> 0.
+
+*   Le registro lançado conforme contabilização1 do processo 5
+    READ TABLE gw_logp5_contab1 INTO gs_logp5_contab1 WITH KEY bukrs    = gs_vdbeki_aux-bukrs
+                                                               ranl     = gs_vdbeki_aux-ranl
+                                                               sbewart  = gs_vdbepi_aux-sbewart
+                                                               dtrans   = gs_vdbepi_aux-dtrans
+                                                               ttrans   = gs_vdbepi_aux-ttrans
+                                                               ntrans   = gs_vdbepi_aux-ntrans
+                                                               rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+    IF sy-subrc EQ 0.
+      ln_valor_p5 = gs_logp5_contab1-bhwhr.
+      lc_belnr2   = gs_logp5_contab1-belnr.
+    ELSE.
+      CLEAR gs_log_aj.
+      READ TABLE gw_log_aj INTO gs_log_aj WITH KEY processo  = cn_05
+                                                   bukrs     = gs_vdbeki_aux-bukrs
+                                                   ranl      = gs_vdbeki_aux-ranl
+                                                   movimento = lc_movto_contab1
+                                                   dtrans    = gs_vdbepi_aux-dtrans
+                                                   ttrans    = gs_vdbepi_aux-ttrans
+                                                   ntrans    = gs_vdbepi_aux-ntrans
+                                                   rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+      ln_valor_p5 = gs_log_aj-bhwhr.
+      lc_belnr2   = gs_log_aj-belnr.
+    ENDIF.
+
+
+
+    IF lc_belnr IS NOT INITIAL AND
+       lc_belnr2 IS NOT INITIAL.
+      ln_valor = ln_valor_p5 + ln_valor_p2.
+      PERFORM zf_compensar_processo5 USING cn_02
+                                           ln_valor
+                                           lc_belnr
+                                           lc_belnr_rat
+                                           lc_belnr2.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    " ZF_LIMPAR_CONTA_JUROS2
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_GRAVAR_BDC
+* Descrição: Grava os dados para Batch Input.
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_gravar_bdc USING value(p_nome)   TYPE any
+                         value(p_valor)  TYPE any
+                         value(p_inicio) TYPE any.
+  CLEAR gs_bdc.
+  IF p_inicio IS INITIAL.
+    MOVE: p_nome  TO gs_bdc-fnam,
+          p_valor TO gs_bdc-fval.
+  ELSE.
+    MOVE: p_inicio   TO gs_bdc-dynbegin,
+          p_nome     TO gs_bdc-program,
+          p_valor    TO gs_bdc-dynpro.
+  ENDIF.
+  APPEND gs_bdc TO gw_bdc.
+
+ENDFORM.                    " ZF_GRAVAR_BDC
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_EXECUTAR_BDC
+* Descrição: Executa a transação FB08 com os dados gravados na tabela
+*            interna gw_bdc.
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_executar_bdc USING p_tcode TYPE sy-tcode.
+  DATA: ls_opt     TYPE ctu_params.
+
+*  lc_mode = 'N'.         "A - VISIVEL / E - SOMENTE ERRO / N - BACKGROUND
+  ls_opt-dismode  = 'N'.         "A - VISIVEL / E - SOMENTE ERRO / N - BACKGROUND
+  ls_opt-updmode  = 'S'.
+  ls_opt-racommit = 'X'.
+  CLEAR gw_msgbatch[].
+
+* WAIT UP TO 3 SECONDS.
+  CALL TRANSACTION p_tcode USING  gw_bdc                 "#EC CI_CALLTA
+                           OPTIONS FROM ls_opt
+*                           MODE   lc_mode
+*                           UPDATE 'S'
+                           MESSAGES INTO gw_msgbatch.
+  FREE gw_bdc.
+ENDFORM.                    " ZF_EXECUTAR_BDC
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_ESTORNAR
+*---------------------------------------------------------------------*
+*      Estorna lancamentos que sofreram modificação no processo 2
+*---------------------------------------------------------------------*
+FORM zf_estornar USING p_belnr_in TYPE bkpf-belnr
+                       p_bukrs_in TYPE bkpf-bukrs
+                       p_gjahr_in TYPE bkpf-gjahr
+              CHANGING pn_belnr TYPE bkpf-belnr.
+
+  DATA: lc_data(10) TYPE c.
+
+  CONCATENATE so_data-low+6(2)
+              so_data-low+4(2)
+              so_data-low(4)
+         INTO lc_data SEPARATED BY '.'.
+
+  PERFORM zf_gravar_bdc USING:
+  'SAPMF05A'        '0105'           'X',
+  'BDC_OKCODE'      gc_okcode        '',
+  'RF05A-BELNS'     p_belnr_in       '',
+  'BKPF-BUKRS'      p_bukrs_in       '',
+  'RF05A-GJAHS'     p_gjahr_in       '',
+  'UF05A-STGRD'     cn_02            '',
+  'BSIS-BUDAT'      lc_data          ''.
+
+***Efetuar lançamento na transação FB08
+  PERFORM zf_executar_bdc USING cc_fb08.
+
+***Ler mensagem de retorno. Se houver docto.contábil criado, então grava dados na tabela de log
+  CLEAR gs_msgbatch.
+
+** 26/1/09 inicio
+**  READ TABLE gw_msgbatch INTO gs_msgbatch WITH KEY msgtyp  = 'S'
+**                                                   msgspra = 'P'
+**                                                   msgid   = 'F5'
+**                                                   msgnr   = '312'.
+** 26/1/09 fim
+  LOOP AT gw_msgbatch INTO gs_msgbatch.
+    IF gs_msgbatch-msgtyp  = 'S' AND gs_msgbatch-msgspra = 'P' AND
+       gs_msgbatch-msgid   = 'F5' AND gs_msgbatch-msgnr   = '312'.
+      IF NOT gs_msgbatch-msgv1 IS INITIAL.
+        pn_belnr = gs_msgbatch-msgv1.
+      ENDIF.
+    ENDIF.
+    CLEAR gs_log_tela.
+    gs_log_tela-processo  = cn_02.
+    gs_log_tela-bukrs     = p_bukrs_in.
+    gs_log_tela-ranl      = gs_logp2_aux-ranl.
+    gs_log_tela-snwhr     = gs_logp2_aux-snwhr.
+    gs_log_tela-moeda_int = cc_brl.
+    gs_log_tela-bnwhr     = gs_logp2_aux-bnwhr.
+    gs_log_tela-bhwhr     = gs_logp2_aux-bhwhr.
+    MESSAGE ID gs_msgbatch-msgid TYPE gs_msgbatch-msgtyp
+        NUMBER gs_msgbatch-msgnr
+          WITH gs_msgbatch-msgv1 gs_msgbatch-msgv2
+               gs_msgbatch-msgv3 gs_msgbatch-msgv4
+          INTO gs_log_tela-obs.
+    CONCATENATE 'Estorno' gs_log_tela-obs INTO gs_log_tela-obs
+                SEPARATED BY space.
+
+
+
+
+    APPEND gs_log_tela TO gw_log_tela.
+
+  ENDLOOP.
+
+
+ENDFORM.                    " ZF_ESTORNAR
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_LANCAR_PROCESSO2
+*---------------------------------------------------------------------*
+*      Efetua lancamentos para registros novos ou alterados da tabela
+*      de itens planejados
+*---------------------------------------------------------------------*
+FORM zf_lancar_processo2 .
+  DATA: lc_montante(13)    TYPE c,
+        lc_montante_mi(13) TYPE c,
+        lc_data(10)        TYPE c.
+
+  CONCATENATE so_data-low+6(2)
+              so_data-low+4(2)
+              so_data-low(4)
+         INTO lc_data SEPARATED BY '.'.
+
+  IF gs_vdbepp_aux-snwhr = cc_brl.
+    WRITE gs_vdbepp_aux-bnwhr CURRENCY cc_brl TO lc_montante.
+  ELSE.
+    WRITE gs_vdbepp_aux-bnwhr CURRENCY gs_vdbepp_aux-snwhr TO lc_montante.
+    WRITE gs_vdbepp_aux-bhwhr CURRENCY cc_brl TO lc_montante_mi.
+  ENDIF.
+
+* Le tabela sd_loans para gravar Projeto Financeiro no log
+  CLEAR gs_sdloans.
+  READ TABLE gw_sdloans INTO gs_sdloans WITH KEY empresa        = gs_vdbepp_aux-bukrs
+                                                 contrato_serie = gs_vdbepp_aux-ranl.
+
+* Le o movimentos
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_02
+                                                 sbewart  = gs_vdbepp_aux-sbewart.
+
+* Le descricao do tipo de movimento
+  CLEAR gs_tzb0t.
+  READ TABLE gw_tzb0t INTO gs_tzb0t WITH KEY sbewart = gs_paramet-movimento.
+
+
+* Busca Referencia de Classif.Contabil para entrada da função de Determinação de Conta
+  CLEAR gs_vdarl.
+  READ TABLE gw_vdarl INTO gs_vdarl WITH KEY bukrs = gs_vdbepp_aux-bukrs
+                                             ranl  = gs_vdbepp_aux-ranl.
+
+  CLEAR: gs_ikofi, gc_komo1, gc_eigr1.
+  MOVE: gs_vdarl-rrefkont     TO gc_komo1,
+        gs_paramet-movimento  TO gc_eigr1.
+  CALL FUNCTION 'ACCOUNT_DETERMINATION'
+    EXPORTING
+      i_anwnd = cc_anwnd
+      i_eigr1 = gc_eigr1
+      i_eigr2 = cc_eigr2
+      i_eigr3 = space
+      i_eigr4 = space
+      i_komo1 = gc_komo1
+      i_komo2 = space
+      i_ktopl = gs_paramet-ktopl
+      i_sakin = space
+    IMPORTING
+      e_ikofi = gs_ikofi.
+
+
+***Mapeamento da transação FB01
+  PERFORM zf_gravar_bdc USING:
+
+  'SAPMF05A'           '0100'                       'X',
+  'BDC_OKCODE'    '/00'                        '',
+  'BKPF-BLDAT'    lc_data                      '',
+  'BKPF-BLART'    gs_ikofi-attr1               '',
+  'BKPF-BUKRS'    gs_vdbepp_aux-bukrs          '',
+  'BKPF-BUDAT'    lc_data                      '',
+  'BKPF-MONAT'    lc_data+3(2)                 '',
+  'BKPF-WAERS'    gs_vdbepp_aux-snwhr          '',
+  'FS006-DOCID'	  '*'                          '',
+  'RF05A-NEWBS'	  gs_ikofi-bsch1               '',
+  'RF05A-NEWKO'	  gs_ikofi-sakn1               '',
+
+  'SAPMF05A'           '0300'                       'X',
+  'BDC_OKCODE'    '/00'                        '',
+  'BSEG-WRBTR'    lc_montante                  ''.
+  IF gs_vdbepp_aux-snwhr <> cc_brl.
+    PERFORM zf_gravar_bdc USING:
+    'BSEG-DMBTR'    lc_montante_mi               ''.
+  ENDIF.
+  PERFORM zf_gravar_bdc USING:
+  'BSEG-VALUT'    lc_data                      '',
+  'BSEG-ZUONR'    gs_vdbepp_aux-ranl           '',
+  'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+  'RF05A-NEWBS'	  gs_ikofi-bsch2               '',
+  'RF05A-NEWKO'	  gs_ikofi-sakn2               '',
+  'DKACB-FMORE'	  'X'                          '',
+
+  'SAPLKACB'           '0002'                       'X',
+  'BDC_OKCODE'    '=ENTE'                      '',
+  'COBL-GSBER'    gs_vdarl-gsber               '',
+
+  'SAPMF05A'           '0300'                       'X',
+  'BDC_OKCODE'    gc_okcode                    '',
+  'BSEG-WRBTR'    lc_montante                  ''.
+  IF gs_vdbepp_aux-snwhr <> cc_brl.
+    PERFORM zf_gravar_bdc USING:
+    'BSEG-DMBTR'    lc_montante_mi               ''.
+  ENDIF.
+  PERFORM zf_gravar_bdc USING:
+  'BSEG-VALUT'    lc_data                      '',
+  'BSEG-ZUONR'    gs_vdbepp_aux-ranl           '',
+  'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+  'DKACB-FMORE'	  'X'                          '',
+
+  'SAPLKACB'           '0002'                       'X',
+  'BDC_OKCODE'    '=ENTE'                      '',
+  'COBL-GSBER'    gs_vdarl-gsber               ''.
+
+
+***Efetuar lançamento na transação FB01
+  PERFORM zf_executar_bdc USING cc_fb01.
+
+
+***Ler mensagem de retorno. Se houver docto.contábil criado, então grava dados na tabela de log
+  CLEAR gs_msgbatch.
+  READ TABLE gw_msgbatch INTO gs_msgbatch WITH KEY msgtyp  = 'S'
+                                                   msgspra = 'P'
+                                                   msgid   = 'F5'
+                                                   msgnr   = '312'.
+*  IF NOT gs_msgbatch-msgv1 IS INITIAL.
+  CLEAR gs_log_aj.
+  gs_log_aj-mandt     = sy-mandt.
+  gs_log_aj-processo  = cn_02.
+  gs_log_aj-bukrs     = gs_vdbepp_aux-bukrs.
+  gs_log_aj-ranl      = gs_vdbepp_aux-ranl.
+  gs_log_aj-data      = so_data-low.
+  gs_log_aj-belnr     = gs_msgbatch-msgv1.
+  gs_log_aj-gjahr     = so_data-low(4).
+  gs_log_aj-sbewart   = gs_vdbepp_aux-sbewart.
+  gs_log_aj-rklammer  = gs_sdloans-ag_ordem_venda.
+  gs_log_aj-dtrans    = gs_vdbepp_aux-dtrans.
+  gs_log_aj-ttrans    = gs_vdbepp_aux-ttrans.
+  gs_log_aj-ntrans    = gs_vdbepp_aux-ntrans.
+  gs_log_aj-bnwhr     = gs_vdbepp_aux-bnwhr.
+  gs_log_aj-snwhr     = gs_vdbepp_aux-snwhr.
+  gs_log_aj-moeda_int = cc_brl.
+  gs_log_aj-bhwhr     = gs_vdbepp_aux-bhwhr.
+  gs_log_aj-dfaell    = gs_vdbepp_aux-dfaell.
+*** MNCOSTA - 15.10.2008
+  gs_log_aj-movimento = gs_paramet-movimento.
+*** MNCOSTA - 15.10.2008
+  IF gs_log_aj-bhwhr IS INITIAL AND gs_log_aj-snwhr EQ cc_brl.
+    gs_log_aj-bhwhr   = gs_log_aj-bnwhr.
+  ENDIF.
+
+  APPEND gs_log_aj TO gw_log_aux.
+
+  IF NOT gs_msgbatch-msgv1 IS INITIAL.
+    APPEND gs_log_aj TO gw_log_aj.
+    MODIFY ztbloans_log_aj FROM gs_log_aj.
+
+    CLEAR gs_log_tela.
+    MOVE-CORRESPONDING gs_log_aj TO gs_log_tela.
+    gs_log_tela-saknr_d    =  gs_ikofi-sakn1.
+    gs_log_tela-saknr_c    =  gs_ikofi-sakn2.
+    APPEND gs_log_tela TO gw_log_tela.
+  ELSE.
+    CLEAR gs_log_tela.
+    gs_log_tela-processo  = cn_02.
+    gs_log_tela-bukrs     = gs_vdbepp_aux-bukrs.
+    gs_log_tela-ranl      = gs_vdbepp_aux-ranl.
+    gs_log_tela-data      = so_data-low.
+    gs_log_tela-gjahr     = so_data-low(4).
+    gs_log_tela-sbewart   = gs_vdbepp_aux-sbewart.
+    gs_log_tela-rklammer  = gs_sdloans-ag_ordem_venda.
+    gs_log_tela-dfaell    = gs_vdbepp_aux-dfaell.
+    gs_log_tela-bnwhr     = gs_vdbepp_aux-bnwhr.
+    gs_log_tela-snwhr     = gs_vdbepp_aux-snwhr.
+    gs_log_tela-moeda_int = cc_brl.
+    gs_log_tela-bhwhr     = gs_vdbepp_aux-bhwhr.
+    gs_log_tela-saknr_d   = gs_ikofi-sakn1.
+    gs_log_tela-saknr_c   = gs_ikofi-sakn2.
+
+    LOOP AT gw_msgbatch INTO gs_msgbatch.
+      MESSAGE ID gs_msgbatch-msgid TYPE gs_msgbatch-msgtyp
+          NUMBER gs_msgbatch-msgnr
+            WITH gs_msgbatch-msgv1 gs_msgbatch-msgv2
+                 gs_msgbatch-msgv3 gs_msgbatch-msgv4
+            INTO gs_log_tela-obs.
+      APPEND gs_log_tela TO gw_log_tela.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.                    " ZF_LANCAR_PROCESSO2
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_LANCAR_PROCESSO3
+*---------------------------------------------------------------------*
+*      Efetua lancamentos para registros novos da tabela
+*      de itens lançados
+*---------------------------------------------------------------------*
+FORM zf_lancar_processo3 USING p_sbewart_rat TYPE vdbepp-sbewart.
+  DATA: lc_montante(13)    TYPE c,
+        lc_data(10)        TYPE c.
+
+  DATA: lc_bnwhr LIKE vdbepi-bnwhr.
+
+  CONCATENATE so_data-low+6(2)
+              so_data-low+4(2)
+              so_data-low(4)
+         INTO lc_data SEPARATED BY '.'.
+
+* Lê o movimento que será utilizado para contabilização
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_03
+                                                 sbewart  = gs_vdbepi_aux-sbewart.
+
+* Lê a descrição do tipo de movimento de contabilização
+  CLEAR gs_tzb0t.
+  READ TABLE gw_tzb0t INTO gs_tzb0t WITH KEY sbewart = gs_paramet-movimento.
+
+
+* Busca N° do contrato para o "Item Lançado"
+  CLEAR gs_vdbeki_aux.
+  READ TABLE gw_vdbeki_aux INTO gs_vdbeki_aux WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+                                                       rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+
+* Busca Referencia de Classif.Contabil para entrada da função de Determinação de Conta
+  CLEAR gs_vdarl.
+  READ TABLE gw_vdarl INTO gs_vdarl WITH KEY bukrs = gs_vdbeki_aux-bukrs
+                                             ranl  = gs_vdbeki_aux-ranl.
+
+** 28/1/09
+* CHECK gs_vdarl-rrefkont = 'FINANC'.
+
+* Le tabela sd_loans para gravar Projeto Financeiro no log
+  CLEAR gs_sdloans.
+  READ TABLE gw_sdloans INTO gs_sdloans WITH KEY empresa        = gs_vdbeki_aux-bukrs
+                                                 contrato_serie = gs_vdbeki_aux-ranl.
+
+
+  CLEAR gs_log_rat.
+  READ TABLE gw_log_rat INTO gs_log_rat WITH KEY processo = cn_02
+                                                 bukrs    = gs_vdbeki_aux-bukrs
+                                                 ranl     = gs_vdbeki_aux-ranl
+                                                 dtrans   = gs_vdbepi_aux-dtrans
+                                                 ttrans   = gs_vdbepi_aux-ttrans
+                                                 ntrans   = gs_vdbepi_aux-ntrans.
+*  IF gs_vdbepi_aux-sbewart = p_sbewart_rat.
+*    gs_vdbepi_aux-bhwhr = gs_vdbepi_aux-bhwhr + gs_log_rat-bhwhr.
+*  ELSE.
+*    gs_vdbepi_aux-bhwhr = gs_vdbepi_aux-bhwhr - gs_log_rat-bhwhr.
+*  ENDIF.
+* Busca valor do rateio de Juros Incorridos
+  IF sy-subrc = 0.
+
+    IF gs_vdbepi_aux-snwhr = cc_brl.
+      lc_bnwhr = gs_log_rat-bnwhr.
+    ELSE.
+      lc_bnwhr = gs_log_rat-bnwhr / 1000.
+    ENDIF.
+
+    gs_vdbepi_aux-bhwhr = gs_vdbepi_aux-bhwhr + ( lc_bnwhr * gs_vdbepi_aux-kurs2 ).
+  ELSE.
+
+    READ TABLE gw_log_rat INTO gs_log_rat WITH KEY processo = cn_02
+                                                   bukrs    = gs_vdbeki_aux-bukrs
+                                                   ranl     = gs_vdbeki_aux-ranl
+                                                   dtrans   = gs_vdbepi_aux-dtrans
+                                                   ttrans   = gs_vdbepi_aux-ttrans
+*                                                 ntrans   = gs_vdbepi_aux-ntrans.
+                                                   dfaell   =  gs_vdbepi_aux-dfaell.
+    IF sy-subrc = 0.
+      IF gs_vdbepi_aux-snwhr = cc_brl.
+        lc_bnwhr = gs_log_rat-bnwhr.
+      ELSE.
+        lc_bnwhr = gs_log_rat-bnwhr / 1000.
+      ENDIF.
+
+      gs_vdbepi_aux-bhwhr = gs_vdbepi_aux-bhwhr - ( lc_bnwhr * gs_vdbepi_aux-kurs2 ).
+    ENDIF.
+  ENDIF.
+
+
+  WRITE gs_vdbepi_aux-bhwhr CURRENCY cc_brl TO lc_montante.
+
+
+  CLEAR: gs_ikofi, gc_komo1, gc_eigr1.
+  MOVE: gs_vdarl-rrefkont    TO gc_komo1,
+        gs_paramet-movimento TO gc_eigr1.
+  CALL FUNCTION 'ACCOUNT_DETERMINATION'
+    EXPORTING
+      i_anwnd = cc_anwnd
+      i_eigr1 = gc_eigr1
+      i_eigr2 = cc_eigr2
+      i_eigr3 = space
+      i_eigr4 = space
+      i_komo1 = gc_komo1
+      i_komo2 = space
+      i_ktopl = gs_paramet-ktopl
+      i_sakin = space
+    IMPORTING
+      e_ikofi = gs_ikofi.
+
+
+***Mapeamento da transação FB01
+  PERFORM zf_gravar_bdc USING:
+
+  'SAPMF05A'           '0100'                       'X',
+  'BDC_OKCODE'    '/00'                        '',
+  'BKPF-BLDAT'    lc_data                      '',
+  'BKPF-BLART'    gs_ikofi-attr1               '',
+  'BKPF-BUKRS'    gs_vdbepi_aux-bukrs          '',
+  'BKPF-BUDAT'    lc_data                      '',
+  'BKPF-MONAT'    lc_data+3(2)                 '',
+  'BKPF-WAERS'    cc_brl                       '',
+  'FS006-DOCID'	  '*'                          '',
+  'RF05A-NEWBS'	  gs_ikofi-bsch1               '',
+  'RF05A-NEWKO'	  gs_ikofi-sakn1               '',
+
+  'SAPMF05A'           '0300'                       'X',
+  'BDC_OKCODE'    '/00'                        '',
+  'BSEG-WRBTR'    lc_montante                  '',
+  'BSEG-VALUT'    lc_data                      '',
+  'BSEG-ZUONR'    gs_vdbeki_aux-ranl           '',
+  'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+  'RF05A-NEWBS'	  gs_ikofi-bsch2               '',
+  'RF05A-NEWKO'	  gs_ikofi-sakn2               '',
+  'DKACB-FMORE'	  'X'                          '',
+
+  'SAPLKACB'           '0002'                       'X',
+  'BDC_OKCODE'    '=ENTE'                      '',
+  'COBL-GSBER'    gs_vdarl-gsber               '',
+
+  'SAPMF05A'           '0300'                       'X',
+  'BDC_OKCODE'    gc_okcode                    '',
+  'BSEG-WRBTR'    lc_montante                  '',
+  'BSEG-VALUT'    lc_data                      '',
+  'BSEG-ZUONR'    gs_vdbeki_aux-ranl           '',
+  'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+  'DKACB-FMORE'	  'X'                          '',
+
+  'SAPLKACB'           '0002'                       'X',
+  'BDC_OKCODE'    '=ENTE'                      '',
+  'COBL-GSBER'    gs_vdarl-gsber               ''.
+
+
+***Efetuar lançamento na transação FB01
+  PERFORM zf_executar_bdc USING cc_fb01.
+
+
+***Ler mensagem de retorno. Se houver docto.contábil criado, então grava dados na tabela de log
+  CLEAR gs_msgbatch.
+  READ TABLE gw_msgbatch INTO gs_msgbatch WITH KEY msgtyp  = 'S'
+                                                   msgspra = 'P'
+                                                   msgid   = 'F5'
+                                                   msgnr   = '312'.
+*  IF NOT gs_msgbatch-msgv1 IS INITIAL.
+  CLEAR gs_log_aj.
+  gs_log_aj-mandt     = sy-mandt.
+  gs_log_aj-processo  = cn_03.
+  gs_log_aj-bukrs     = gs_vdbepi_aux-bukrs.
+  gs_log_aj-rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+  gs_log_aj-ranl      = gs_vdbeki_aux-ranl.
+  gs_log_aj-data      = so_data-low.
+  gs_log_aj-belnr     = gs_msgbatch-msgv1.
+  gs_log_aj-gjahr     = so_data-low(4).
+  gs_log_aj-sbewart   = gs_vdbepi_aux-sbewart.
+  gs_log_aj-rklammer  = gs_sdloans-ag_ordem_venda.
+  gs_log_aj-dtrans    = gs_vdbepi_aux-dtrans.
+  gs_log_aj-ttrans    = gs_vdbepi_aux-ttrans.
+  gs_log_aj-ntrans    = gs_vdbepi_aux-ntrans.
+*    gs_log_aj-bnwhr     = gs_vdbepi_aux-bnwhr.
+*    gs_log_aj-snwhr     = gs_vdbepi_aux-snwhr.
+  gs_log_aj-moeda_int = cc_brl.
+  gs_log_aj-bhwhr     = gs_vdbepi_aux-bhwhr.
+  gs_log_aj-dfaell    = gs_vdbepi_aux-dfaell.
+*** MNCOSTA - 15.10.2008
+  gs_log_aj-movimento = gs_paramet-movimento.
+*** MNCOSTA - 15.10.2008
+  APPEND gs_log_aj TO gw_log_aux.
+
+  IF NOT gs_msgbatch-msgv1 IS INITIAL.
+    APPEND gs_log_aj TO gw_log_aj.
+    MODIFY ztbloans_log_aj FROM gs_log_aj.
+
+    CLEAR gs_log_tela.
+    MOVE-CORRESPONDING gs_log_aj TO gs_log_tela.
+    gs_log_tela-saknr_d    =  gs_ikofi-sakn1.
+    gs_log_tela-saknr_c    =  gs_ikofi-sakn2.
+    APPEND gs_log_tela TO gw_log_tela.
+  ELSE.
+    CLEAR gs_log_tela.
+    gs_log_tela-processo  = cn_03.
+    gs_log_tela-bukrs     = gs_vdbepi_aux-bukrs.
+    gs_log_tela-rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+    gs_log_tela-ranl      = gs_vdbeki_aux-ranl.
+    gs_log_tela-data      = so_data-low.
+    gs_log_tela-gjahr     = so_data-low(4).
+    gs_log_tela-sbewart   = gs_vdbepi_aux-sbewart.
+    gs_log_tela-rklammer  = gs_sdloans-ag_ordem_venda.
+    gs_log_tela-dfaell    = gs_vdbepi_aux-dfaell.
+*    gs_log_tela-bnwhr     = gs_vdbepi_aux-bnwhr.
+*    gs_log_tela-snwhr     = gs_vdbepi_aux-snwhr.
+    gs_log_tela-moeda_int = cc_brl.
+    gs_log_tela-bhwhr     = gs_vdbepi_aux-bhwhr.
+    gs_log_tela-saknr_d   = gs_ikofi-sakn1.
+    gs_log_tela-saknr_c   = gs_ikofi-sakn2.
+    LOOP AT gw_msgbatch INTO gs_msgbatch.
+      MESSAGE ID gs_msgbatch-msgid TYPE gs_msgbatch-msgtyp
+          NUMBER gs_msgbatch-msgnr
+            WITH gs_msgbatch-msgv1 gs_msgbatch-msgv2
+                 gs_msgbatch-msgv3 gs_msgbatch-msgv4
+            INTO gs_log_tela-obs.
+      APPEND gs_log_tela TO gw_log_tela.
+    ENDLOOP.
+  ENDIF.
+
+
+ENDFORM.                    " ZF_LANCAR_PROCESSO3
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_LANCAR_PROCESSO4
+*---------------------------------------------------------------------*
+*      Efetua lancamentos para registros novos da tabela
+*      de itens lançados
+*---------------------------------------------------------------------*
+FORM zf_lancar_processo4 .
+  DATA: lc_montante(13)    TYPE c,
+        lc_data(10)        TYPE c.
+
+  DATA: lc_bnwhr LIKE vdbepi-bnwhr.
+
+  CONCATENATE so_data-low+6(2)
+              so_data-low+4(2)
+              so_data-low(4)
+         INTO lc_data SEPARATED BY '.'.
+
+* Busca valor do rateio de Juros Incorridos
+  IF gs_vdbepi_aux-snwhr = cc_brl.
+    lc_bnwhr = gs_log_rat-bnwhr.
+  ELSE.
+    lc_bnwhr = gs_log_rat-bnwhr / 1000.
+  ENDIF.
+
+
+  READ TABLE gw_log_rat INTO gs_log_rat WITH KEY processo = cn_02
+                                                 bukrs    = gs_vdbeki_aux-bukrs
+                                                 ranl     = gs_vdbeki_aux-ranl
+                                                 dtrans   = gs_vdbepi_aux-dtrans
+                                                 ttrans   = gs_vdbepi_aux-ttrans
+                                                 dfaell   =  gs_vdbepi_aux-dfaell.
+  IF sy-subrc = 0.
+    gs_vdbepi_aux-bhwhr = gs_vdbepi_aux-bhwhr - ( lc_bnwhr * gs_vdbepi_aux-kurs2 ).
+  ENDIF.
+
+  WRITE gs_vdbepi_aux-bhwhr CURRENCY cc_brl TO lc_montante.
+
+* Lê o movimento que será utilizado para contabilização
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_04
+                                                 sbewart  = gs_vdbepi_aux-sbewart.
+
+* Lê a descrição do tipo de movimento de contabilização
+  CLEAR gs_tzb0t.
+  READ TABLE gw_tzb0t INTO gs_tzb0t WITH KEY sbewart = gs_paramet-movimento.
+
+
+* Busca N° do contrato para o "Item Lançado"
+  CLEAR gs_vdbeki_aux.
+  READ TABLE gw_vdbeki_aux INTO gs_vdbeki_aux WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+                                                       rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+
+* Busca Referencia de Classif.Contabil para entrada da função de Determinação de Conta
+  CLEAR gs_vdarl.
+  READ TABLE gw_vdarl INTO gs_vdarl WITH KEY bukrs = gs_vdbeki_aux-bukrs
+                                             ranl  = gs_vdbeki_aux-ranl.
+
+** 29/1/09
+* CHECK gs_vdarl-rrefkont = 'FINANC'.
+
+* Checa se já houve lançamento para lançar variação monetária
+  IF gs_vdbepi_aux-sbewart = '8130' OR
+     gs_vdbepi_aux-sbewart = '8140'.
+    READ TABLE gw_vdbeki_pi INTO gs_vdbeki_pi
+                            WITH KEY bukrs = gs_vdbeki_aux-bukrs
+                                     ranl  = gs_vdbeki_aux-ranl
+                                     dbestand = gs_vdbepi_aux-dbestand.
+
+    IF sy-subrc <> 0.
+      EXIT.
+    ENDIF.
+  ENDIF.
+
+* Le tabela sd_loans para gravar Projeto Financeiro no log
+  CLEAR gs_sdloans.
+  READ TABLE gw_sdloans INTO gs_sdloans WITH KEY empresa        = gs_vdbeki_aux-bukrs
+                                                 contrato_serie = gs_vdbeki_aux-ranl.
+
+
+  CLEAR: gs_ikofi, gc_komo1, gc_eigr1.
+  MOVE: gs_vdarl-rrefkont    TO gc_komo1,
+        gs_paramet-movimento TO gc_eigr1.
+  CALL FUNCTION 'ACCOUNT_DETERMINATION'
+    EXPORTING
+      i_anwnd = cc_anwnd
+      i_eigr1 = gc_eigr1
+      i_eigr2 = cc_eigr2
+      i_eigr3 = space
+      i_eigr4 = space
+      i_komo1 = gc_komo1
+      i_komo2 = space
+      i_ktopl = gs_paramet-ktopl
+      i_sakin = space
+    IMPORTING
+      e_ikofi = gs_ikofi.
+
+
+***Mapeamento da transação FB01
+  PERFORM zf_gravar_bdc USING:
+
+  'SAPMF05A'           '0100'                       'X',
+  'BDC_OKCODE'    '/00'                        '',
+  'BKPF-BLDAT'    lc_data                      '',
+  'BKPF-BLART'    gs_ikofi-attr1               '',
+  'BKPF-BUKRS'    gs_vdbepi_aux-bukrs          '',
+  'BKPF-BUDAT'    lc_data                      '',
+  'BKPF-MONAT'    lc_data+3(2)                 '',
+  'BKPF-WAERS'    cc_brl                       '',
+  'FS006-DOCID'	  '*'                          '',
+  'RF05A-NEWBS'	  gs_ikofi-bsch1               '',
+  'RF05A-NEWKO'	  gs_ikofi-sakn1               '',
+
+  'SAPMF05A'           '0300'                       'X',
+  'BDC_OKCODE'    '/00'                        '',
+  'BSEG-WRBTR'    lc_montante                  '',
+*  'BSEG-VALUT'	  lc_data                      '',
+  'BSEG-ZUONR'    gs_vdbeki_aux-ranl           '',
+  'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+  'RF05A-NEWBS'	  gs_ikofi-bsch2               '',
+  'RF05A-NEWKO'	  gs_ikofi-sakn2               '',
+  'DKACB-FMORE'	  'X'                          '',
+
+  'SAPLKACB'           '0002'                       'X',
+  'BDC_OKCODE'    '=ENTE'                      '',
+  'COBL-GSBER'    gs_vdarl-gsber               '',
+
+  'SAPMF05A'           '0300'                       'X',
+  'BDC_OKCODE'    gc_okcode                    '',
+  'BSEG-WRBTR'    lc_montante                  '',
+*  'BSEG-VALUT'	  lc_data                      '',
+  'BSEG-ZUONR'    gs_vdbeki_aux-ranl           '',
+  'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+  'DKACB-FMORE'	  'X'                          '',
+
+  'SAPLKACB'           '0002'                       'X',
+  'BDC_OKCODE'    '=ENTE'                      '',
+  'COBL-GSBER'    gs_vdarl-gsber               ''.
+
+
+***Efetuar lançamento na transação FB01
+  PERFORM zf_executar_bdc USING cc_fb01.
+
+
+***Ler mensagem de retorno. Se houver docto.contábil criado, então grava dados na tabela de log
+  CLEAR gs_msgbatch.
+  READ TABLE gw_msgbatch INTO gs_msgbatch WITH KEY msgtyp  = 'S'
+                                                   msgspra = 'P'
+                                                   msgid   = 'F5'
+                                                   msgnr   = '312'.
+  IF NOT gs_msgbatch-msgv1 IS INITIAL.
+    CLEAR gs_log_aj.
+    gs_log_aj-mandt     = sy-mandt.
+    gs_log_aj-processo  = cn_04.
+    gs_log_aj-bukrs     = gs_vdbepi_aux-bukrs.
+    gs_log_aj-rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+    gs_log_aj-ranl      = gs_vdbeki_aux-ranl.
+    gs_log_aj-data      = so_data-low.
+    gs_log_aj-belnr     = gs_msgbatch-msgv1.
+    gs_log_aj-gjahr     = so_data-low(4).
+    gs_log_aj-sbewart   = gs_vdbepi_aux-sbewart.
+    gs_log_aj-rklammer  = gs_sdloans-ag_ordem_venda.
+*    gs_log_aj-bnwhr     = gs_vdbepi_aux-bnwhr.
+*    gs_log_aj-snwhr     = gs_vdbepi_aux-snwhr.
+    gs_log_aj-moeda_int = cc_brl.
+    gs_log_aj-bhwhr     = gs_vdbepi_aux-bhwhr.
+    gs_log_aj-dfaell    = gs_vdbepi_aux-dfaell.
+*** MNCOSTA - 15.10.2008
+    gs_log_aj-movimento = gs_paramet-movimento.
+*** MNCOSTA - 15.10.2008
+    APPEND gs_log_aj TO gw_log_aj.
+    MODIFY ztbloans_log_aj FROM gs_log_aj.
+
+    CLEAR gs_log_tela.
+    MOVE-CORRESPONDING gs_log_aj TO gs_log_tela.
+    gs_log_tela-saknr_d    =  gs_ikofi-sakn1.
+    gs_log_tela-saknr_c    =  gs_ikofi-sakn2.
+    APPEND gs_log_tela TO gw_log_tela.
+  ELSE.
+    CLEAR gs_log_tela.
+    gs_log_tela-processo  = cn_04.
+    gs_log_tela-bukrs     = gs_vdbepi_aux-bukrs.
+    gs_log_tela-rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+    gs_log_tela-ranl      = gs_vdbeki_aux-ranl.
+    gs_log_tela-data      = so_data-low.
+    gs_log_tela-gjahr     = so_data-low(4).
+    gs_log_tela-sbewart   = gs_vdbepi_aux-sbewart.
+    gs_log_tela-rklammer  = gs_sdloans-ag_ordem_venda.
+*    gs_log_tela-bnwhr     = gs_vdbepi_aux-bnwhr.
+*    gs_log_tela-snwhr     = gs_vdbepi_aux-snwhr.
+    gs_log_tela-moeda_int = cc_brl.
+    gs_log_tela-bhwhr     = gs_vdbepi_aux-bhwhr.
+    gs_log_tela-saknr_d   = gs_ikofi-sakn1.
+    gs_log_tela-saknr_c   = gs_ikofi-sakn2.
+    LOOP AT gw_msgbatch INTO gs_msgbatch.
+      MESSAGE ID gs_msgbatch-msgid TYPE gs_msgbatch-msgtyp
+          NUMBER gs_msgbatch-msgnr
+            WITH gs_msgbatch-msgv1 gs_msgbatch-msgv2
+                 gs_msgbatch-msgv3 gs_msgbatch-msgv4
+            INTO gs_log_tela-obs.
+      APPEND gs_log_tela TO gw_log_tela.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.                    " ZF_LANCAR_PROCESSO4
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_COMPENSAR_PROCESSO5
+*---------------------------------------------------------------------*
+*      Efetua a compensação das contas de juros no momento
+*      do recebimento
+*---------------------------------------------------------------------*
+*     <--P_GS_LOG_AJ_BELNR  -  Retorno do N° Docto Gerado
+*---------------------------------------------------------------------*
+FORM zf_compensar_processo5 USING    p_priori    TYPE any
+                                     p_valor     TYPE any
+                                     p_docto1    TYPE bkpf-belnr
+                                     p_docto_rat TYPE bkpf-belnr
+                                     p_docto2    TYPE bkpf-belnr.
+
+  DATA: lc_montante(13)    TYPE c,
+        lc_data(10)        TYPE c,
+        lc_prctr           TYPE ztbloans_divclcc-prctr.
+
+  CONCATENATE so_data-low+6(2)
+              so_data-low+4(2)
+              so_data-low(4)
+         INTO lc_data SEPARATED BY '.'.
+
+  IF p_valor LT 0.
+    p_valor = p_valor * -1.
+    WRITE p_valor CURRENCY cc_brl TO lc_montante.
+    p_valor = p_valor * -1.
+  ELSE.
+    WRITE p_valor CURRENCY cc_brl TO lc_montante.
+  ENDIF.
+
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_05
+                                                 prioridade = p_priori.
+* Lê a descrição do tipo de movimento de contabilização
+  CLEAR gs_tzb0t.
+  READ TABLE gw_tzb0t INTO gs_tzb0t WITH KEY sbewart = gs_paramet-movimento.
+
+* Busca Referencia de Classif.Contabil para entrada da função de Determinação de Conta
+  CLEAR gs_vdarl.
+  READ TABLE gw_vdarl INTO gs_vdarl WITH KEY bukrs = gs_vdbeki_aux-bukrs
+                                             ranl  = gs_vdbeki_aux-ranl.
+
+* Le tabela sd_loans para gravar Projeto Financeiro no log
+  CLEAR gs_sdloans.
+  READ TABLE gw_sdloans INTO gs_sdloans WITH KEY empresa        = gs_vdbeki_aux-bukrs
+                                                 contrato_serie = gs_vdbeki_aux-ranl.
+
+  SELECT SINGLE prctr
+    INTO lc_prctr
+      FROM ztbloans_divclcc
+        WHERE gsber = gs_vdarl-gsber.
+
+  CLEAR: gs_ikofi, gc_komo1, gc_eigr1.
+  MOVE: gs_vdarl-rrefkont    TO gc_komo1,
+        gs_paramet-movimento TO gc_eigr1.
+  CALL FUNCTION 'ACCOUNT_DETERMINATION'
+    EXPORTING
+      i_anwnd = cc_anwnd
+      i_eigr1 = gc_eigr1
+      i_eigr2 = cc_eigr2
+      i_eigr3 = space
+      i_eigr4 = space
+      i_komo1 = gc_komo1
+      i_komo2 = space
+      i_ktopl = gs_paramet-ktopl
+      i_sakin = space
+    IMPORTING
+      e_ikofi = gs_ikofi.
+
+  PERFORM zf_gravar_bdc USING:
+  'SAPMF05A'         '0122'                'X',
+  'BDC_OKCODE'       '=SL'                 '',
+  'BKPF-BLDAT'       lc_data               '',
+  'BKPF-BLART'       gs_ikofi-attr1        '',
+  'BKPF-BUKRS'       gs_vdbepi_aux-bukrs   '',
+  'BKPF-BUDAT'       lc_data               '',
+  'BKPF-MONAT'       lc_data+3(2)          '',
+  'BKPF-WAERS'       cc_brl                '',
+  'FS006-DOCID'      '*'                   '',
+
+  'SAPMF05A'         '0710'                'X',
+  'BDC_OKCODE'       '/00'                 '',
+  'RF05A-AGBUK'      gs_vdbepi_aux-bukrs   '',
+  'RF05A-AGKON'      gs_ikofi-sakn1        '',
+  'RF05A-AGKOA'      'S'                   '',
+  'RF05A-XNOPS'      'X'                   '',
+  'RF05A-XPOS1(07)'  'X'                   '',
+
+  'SAPMF05A'         '0731'                'X',
+  'BDC_OKCODE'       '=PA'                 '',
+  'RF05A-SEL01(01)'  p_docto1              '',
+  'RF05A-SEL01(02)'  p_docto2              '',
+  'RF05A-SEL01(03)'  p_docto_rat           ''.
+
+  IF p_valor IS INITIAL.
+    PERFORM zf_gravar_bdc USING:
+    'SAPDF05X'         '3100'              'X',
+    'BDC_OKCODE'       '=BU'               ''.
+  ELSE.
+    PERFORM zf_gravar_bdc USING:
+    'SAPDF05X'         '3100'              'X',
+    'BDC_OKCODE'       '=KMD'              '',
+    'RF05A-ABPOS'      '1'                 '',
+
+    'SAPMF05A'         '0700'              'X',
+    'BDC_OKCODE'       '/00'               ''.
+    IF p_valor GT 0.
+      PERFORM zf_gravar_bdc USING:
+      'RF05A-NEWBS'      gs_ikofi-bsch2    '',
+      'RF05A-NEWKO'      gs_ikofi-sakn2    ''.
+    ELSE.
+      PERFORM zf_gravar_bdc USING:
+      'RF05A-NEWBS'      gs_ikofi-bsch1    '',
+      'RF05A-NEWKO'      gs_ikofi-sakn2    ''.
+    ENDIF.
+
+    IF p_priori = cn_01.
+      PERFORM zf_gravar_bdc USING:
+      'SAPMF05A'         '0300'              'X',
+      'BDC_OKCODE'       gc_okcode           '',
+      'BSEG-WRBTR'       lc_montante         '',
+**   'BSEG-VALUT'       lc_data             '',
+      'BSEG-ZUONR'       gs_vdbeki_aux-ranl  '',
+      'BSEG-SGTXT'       gs_tzb0t-xbewart    '',
+      'DKACB-FMORE'      'X'                 '',
+
+      'SAPLKACB'         '0002'              'X',
+      'BDC_OKCODE'       '=ENTE'             '',
+      'COBL-GSBER'       gs_vdarl-gsber      '',
+      'COBL-PRCTR'       lc_prctr            ''.
+
+    ELSEIF p_priori = cn_02.
+      PERFORM zf_gravar_bdc USING:
+      'SAPMF05A'         '0300'              'X'.
+
+      IF gs_vdbepi_aux-bhwhr = p_valor.
+        PERFORM zf_gravar_bdc USING:
+        'BDC_OKCODE'       gc_okcode           ''.
+      ELSE.
+        PERFORM zf_gravar_bdc USING:
+        'BDC_OKCODE'       '=BS'               ''.
+      ENDIF.
+
+      PERFORM zf_gravar_bdc USING:
+      'BSEG-WRBTR'       lc_montante         '',
+**   'BSEG-VALUT'       lc_data             '',
+      'BSEG-ZUONR'       gs_vdbeki_aux-ranl  '',
+      'BSEG-SGTXT'       gs_tzb0t-xbewart    '',
+      'DKACB-FMORE'      'X'                 ''.
+
+      PERFORM zf_gravar_bdc USING:
+      'SAPLKACB'         '0002'              'X',
+      'BDC_OKCODE'       '=ENTE'             '',
+      'COBL-GSBER'       gs_vdarl-gsber      '',
+      'COBL-PRCTR'       lc_prctr            ''.
+
+
+
+
+      PERFORM zf_gravar_bdc USING:
+      'SAPMF05A'         '0700'              'X',
+      'BDC_OKCODE'       '=NK'               ''.
+
+      PERFORM zf_gravar_bdc USING:
+      'SAPMF05A'         '0300'              'X',
+      'BDC_OKCODE'       gc_okcode           ''.
+
+      PERFORM zf_gravar_bdc USING:
+     'SAPLKACB'         '0002'              'X',
+     'BDC_OKCODE'       '=ENTE'             '',
+     'COBL-GSBER'       gs_vdarl-gsber      '',
+     'COBL-PRCTR'       lc_prctr            ''.
+
+      PERFORM zf_gravar_bdc USING:
+      'SAPMF05A'         '0700'              'X',
+      'BDC_OKCODE'       gc_okcode           ''.
+
+      PERFORM zf_gravar_bdc USING:
+      'SAPMF05A'         '0700'              'X',
+      'BDC_OKCODE'       '=NK'               ''.
+
+      PERFORM zf_gravar_bdc USING:
+      'SAPMF05A'         '0300'              'X',
+      'BDC_OKCODE'       gc_okcode           ''.
+
+      PERFORM zf_gravar_bdc USING:
+     'SAPLKACB'         '0002'              'X',
+     'BDC_OKCODE'       '=ENTE'             '',
+     'COBL-GSBER'       gs_vdarl-gsber      '',
+     'COBL-PRCTR'       lc_prctr            ''.
+    ENDIF.
+
+  ENDIF.
+
+
+***Efetuar lançamento na transação F-04
+  PERFORM zf_executar_bdc USING cc_f04.
+
+***Ler mensagem de retorno. Se houver docto.contábil criado, então grava dados na tabela de log
+  CLEAR gs_msgbatch.
+  READ TABLE gw_msgbatch INTO gs_msgbatch WITH KEY msgtyp  = 'S'
+                                                   msgspra = 'P'
+                                                   msgid   = 'F5'
+                                                   msgnr   = '312'.
+  IF NOT gs_msgbatch-msgv1 IS INITIAL.
+    CLEAR gs_log_aj.
+    gs_log_aj-mandt     = sy-mandt.
+    gs_log_aj-processo  = cn_05.
+    gs_log_aj-bukrs     = gs_vdbepi_aux-bukrs.
+    gs_log_aj-ranl      = gs_vdbeki_aux-ranl.
+    gs_log_aj-data      = so_data-low.
+    gs_log_aj-belnr     = gs_msgbatch-msgv1.
+    gs_log_aj-gjahr     = so_data-low(4).
+    gs_log_aj-sbewart   = gs_vdbepi_aux-sbewart.
+    gs_log_aj-movimento = gs_paramet-movimento.
+    gs_log_aj-rklammer  = gs_sdloans-ag_ordem_venda.
+    gs_log_aj-dtrans    = gs_vdbepi_aux-dtrans.
+    gs_log_aj-ttrans    = gs_vdbepi_aux-ttrans.
+    gs_log_aj-ntrans    = gs_vdbepi_aux-ntrans.
+    gs_log_aj-rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+*    gs_log_aj-bnwhr     = gs_vdbepi_aux-bnwhr.
+*    gs_log_aj-snwhr     = gs_vdbepi_aux-snwhr.
+    gs_log_aj-moeda_int = cc_brl.
+    gs_log_aj-bhwhr     = p_valor.
+    gs_log_aj-dfaell    = gs_vdbepi_aux-dfaell.
+    APPEND gs_log_aj TO gw_log_aj.
+    MODIFY ztbloans_log_aj FROM gs_log_aj.
+
+    CLEAR gs_log_tela.
+    MOVE-CORRESPONDING gs_log_aj TO gs_log_tela.
+    gs_log_tela-saknr_d    =  gs_ikofi-sakn1.
+    gs_log_tela-saknr_c    =  gs_ikofi-sakn2.
+    APPEND gs_log_tela TO gw_log_tela.
+  ELSE.
+    CLEAR gs_log_tela.
+    gs_log_tela-processo  = cn_05.
+    gs_log_tela-bukrs     = gs_vdbepi_aux-bukrs.
+    gs_log_tela-rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+    gs_log_tela-ranl      = gs_vdbeki_aux-ranl.
+    gs_log_tela-data      = so_data-low.
+    gs_log_tela-gjahr     = so_data-low(4).
+    gs_log_tela-sbewart   = gs_vdbepi_aux-sbewart.
+    gs_log_tela-rklammer  = gs_sdloans-ag_ordem_venda.
+*    gs_log_tela-bnwhr     = gs_vdbepi_aux-bnwhr.
+*    gs_log_tela-snwhr     = gs_vdbepi_aux-snwhr.
+    gs_log_tela-moeda_int = cc_brl.
+    gs_log_tela-bhwhr     = p_valor.
+    gs_log_tela-saknr_d   = gs_ikofi-sakn1.
+    gs_log_tela-saknr_c   = gs_ikofi-sakn2.
+    LOOP AT gw_msgbatch INTO gs_msgbatch.
+      MESSAGE ID gs_msgbatch-msgid TYPE gs_msgbatch-msgtyp
+          NUMBER gs_msgbatch-msgnr
+            WITH gs_msgbatch-msgv1 gs_msgbatch-msgv2
+                 gs_msgbatch-msgv3 gs_msgbatch-msgv4
+            INTO gs_log_tela-obs.
+      APPEND gs_log_tela TO gw_log_tela.
+    ENDLOOP.
+
+  ENDIF.
+
+
+ENDFORM.                    " ZF_COMPENSAR_PROCESSO5
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_EXIBIR_LOG_ERRO
+*---------------------------------------------------------------------*
+*      Exibe relatório com os erros gerados nos processos
+*---------------------------------------------------------------------*
+FORM zf_exibir_log_erro .
+  DATA: lc_repid TYPE sy-repid.
+
+  MOVE: sy-repid TO lc_repid.
+
+  CHECK NOT gw_log_tela IS INITIAL.
+
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name = 'ZSTLOANS_LOG_TELA'
+    CHANGING
+      ct_fieldcat      = gw_fieldcat.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program = lc_repid
+      it_fieldcat        = gw_fieldcat
+*      i_default              = 'X'
+      i_save                 = 'A'
+*      is_variant             = gs_variante
+*      is_print               = gs_print
+    TABLES
+      t_outtab           = gw_log_tela
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    " ZF_EXIBIR_LOG_ERRO
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_GRAVAR_LOG_OK
+*---------------------------------------------------------------------*
+*      Grava registros de processos bem sucedidos na tabela
+*      de log
+*---------------------------------------------------------------------*
+FORM zf_gravar_log_ok .
+
+* CHECK NOT gw_log_aj IS INITIAL.
+* MODIFY ztbloans_log_aj FROM TABLE gw_log_aj.
+  COMMIT WORK.
+
+ENDFORM.                    " ZF_GRAVAR_LOG_OK
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_RATEAR_LANCAR
+*---------------------------------------------------------------------*
+*      text
+*---------------------------------------------------------------------*
+*     -->P_LC_BUKRS  text
+*     -->P_LC_RANL   text
+*---------------------------------------------------------------------*
+FORM zf_ratear_lancar  USING    p_lc_bukrs TYPE vdarl-bukrs
+                                p_lc_ranl  TYPE vdarl-ranl.
+
+  DATA: lf_valor_a       TYPE  f,  "Percentual de Juros Incorridos
+        lf_valor_b       TYPE  f,  "N° de parcelas de Juros Nominal
+        lf_valor_c       TYPE  f,  "Base do percentual de Juros Incorridos por parcela
+        lf_valor_d       TYPE  f,  "Valor do Juros Incorridos
+        lf_valor_e       TYPE  f,
+        lf_valor_f       TYPE  f,
+        lf_valor_g       TYPE  f,
+        lf_arred_rateio  TYPE  vdbepp-bnwhr.
+
+  DATA: lf_valor_d_mi       TYPE  f,  "Valor do Juros Incorridos
+        lf_valor_e_mi       TYPE  f,  "
+        lf_valor_f_mi       TYPE  f,  "
+        lf_valor_g_mi       TYPE  f,  "
+        lf_arred_rateio_mi  TYPE  vdbepp-bnwhr.
+
+  DATA: lc_sem_rateio TYPE c,
+        ln_cont(4)    TYPE n.
+
+  SORT: gw_vdbepp_rat BY bukrs ranl dfaell,
+        gw_vdbepp_aux BY bukrs ranl dfaell.
+
+  READ TABLE gw_vdbepp_aux INTO gs_vdbepp_aux WITH KEY bukrs = p_lc_bukrs
+                                                       ranl  = p_lc_ranl.
+  IF sy-subrc EQ 0.
+    LOOP AT gw_vdbepp_aux INTO gs_vdbepp_aux FROM sy-tabix.
+      IF gs_vdbepp_aux-bukrs NE p_lc_bukrs OR
+         gs_vdbepp_aux-ranl  NE p_lc_ranl.
+        EXIT.
+      ENDIF.
+
+      PERFORM zf_lancar_processo2.
+
+      AT FIRST.
+        READ TABLE gw_vdbepp_rat INTO gs_vdbepp_rat WITH KEY bukrs = p_lc_bukrs
+                                                             ranl  = p_lc_ranl.
+        IF sy-subrc EQ 0.
+          lf_valor_a      = ( gs_vdbepp_rat-pkond / 100 ).
+          lf_valor_b      = gs_vdbepp_rat-n_reg.
+          lf_valor_c      = ( lf_valor_a * ( 1 + lf_valor_a ) ** lf_valor_b ) / ( ( ( 1 + lf_valor_a ) ** lf_valor_b ) - 1 ).
+          lf_valor_d      = gs_vdbepp_rat-bnwhr.
+          lf_valor_e      = lf_valor_c * lf_valor_d.
+          lf_arred_rateio = gs_vdbepp_rat-bnwhr.
+          IF gs_vdbepp_rat-snwhr NE cc_brl.
+            lf_valor_d_mi      = gs_vdbepp_rat-bhwhr.
+            lf_valor_e_mi      = lf_valor_c * lf_valor_d_mi.
+            lf_arred_rateio_mi = gs_vdbepp_rat-bhwhr.
+          ENDIF.
+        ELSE.
+          lc_sem_rateio = 'X'.
+        ENDIF.
+      ENDAT.
+
+      IF lc_sem_rateio IS INITIAL.
+
+        ln_cont = ln_cont + 1.
+
+        lf_valor_d = lf_valor_d - lf_valor_g.
+        lf_valor_f = lf_valor_d * lf_valor_a.
+        lf_valor_g = lf_valor_e - lf_valor_f.
+
+        IF gs_vdbepp_rat-snwhr NE cc_brl.
+          lf_valor_d_mi = lf_valor_d_mi - lf_valor_g_mi.
+          lf_valor_f_mi = lf_valor_d_mi * lf_valor_a.
+          lf_valor_g_mi = lf_valor_e_mi - lf_valor_f_mi.
+        ENDIF.
+
+        lf_arred_rateio    = lf_arred_rateio    - lf_valor_g.
+        lf_arred_rateio_mi = lf_arred_rateio_mi - lf_valor_g_mi.
+
+        IF ln_cont EQ lf_valor_b.
+          lf_valor_g    = lf_valor_g    + lf_arred_rateio.
+          lf_valor_g_mi = lf_valor_g_mi + lf_arred_rateio_mi.
+        ENDIF.
+
+        gs_vdbepp_aux-sbewart = gs_vdbepp_rat-sbewart.
+        gs_vdbepp_aux-snwhr = gs_vdbepp_rat-snwhr.
+        gs_vdbepp_aux-bnwhr = lf_valor_g.
+        gs_vdbepp_aux-bhwhr = lf_valor_g_mi.
+
+        PERFORM zf_lancar_processo2.
+      ENDIF.
+    ENDLOOP.
+
+  ENDIF.
+
+ENDFORM.                    " ZF_RATEAR_LANCAR
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_ESTORNAR_LANCTOS
+*---------------------------------------------------------------------*
+*      text
+*---------------------------------------------------------------------*
+FORM zf_estornar_lanctos .
+  DATA: lc_repid TYPE sy-repid.
+
+  MOVE: sy-repid TO lc_repid.
+
+  IF pc_teste IS INITIAL.
+    gc_okcode = '=BU'.
+  ELSE.
+    gc_okcode = space.
+  ENDIF.
+
+***Busca dados da tabela de log dos processos de Ajustes Contábeis
+  CHECK NOT so_ranl IS INITIAL.
+
+  SELECT *
+    INTO TABLE gw_log_estorno
+      FROM ztbloans_log_aj
+        WHERE processo IN ('1', '2', '3', '4', '5', '10')
+        AND   bukrs    IN so_bukrs
+        AND   ranl     IN so_ranl
+        AND   belnr_e  EQ space.
+  IF sy-subrc NE 0.
+    MESSAGE s002(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name = 'ZSTLOANS_LOG016'
+    CHANGING
+      ct_fieldcat      = gw_fieldcat.
+
+*  CLEAR gs_fieldcat.
+*  gs_fieldcat-fieldname = 'BOX'.
+*  APPEND gs_fieldcat TO gw_fieldcat.
+
+*  CLEAR: ls_fieldcat.
+*  ls_fieldcat-tabname    =  'GW_LOG_ESTORNO'.
+*  ls_fieldcat-fieldname  =  'EMPRESA'.
+*  ls_fieldcat-seltext_m  =  text-112.
+
+
+* Grava detalhes do layout do ALV
+  MOVE: cc_x                   TO gs_layout-colwidth_optimize,
+        'GW_LOG_ESTORNO'       TO gs_layout-box_tabname,
+        'BOX'                  TO gs_layout-box_fieldname.
+
+* Grava eventos para o ALV
+  gs_events-name = cc_user_command.
+  gs_events-form = cc_zf_user_command.
+  APPEND gs_events TO gw_events.
+
+* Ordena Colunas do ALV
+  gs_sort-spos      = 1.
+  gs_sort-fieldname = 'BUKRS'.
+  APPEND gs_sort TO gw_sort.
+  gs_sort-spos      = 2.
+  gs_sort-fieldname = 'RKLAMMER'.
+  APPEND gs_sort TO gw_sort.
+  gs_sort-spos      = 3.
+  gs_sort-fieldname = 'RANL'.
+  APPEND gs_sort TO gw_sort.
+  gs_sort-spos      = 4.
+  gs_sort-fieldname = 'PROCESSO'.
+  APPEND gs_sort TO gw_sort.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = lc_repid
+      i_callback_pf_status_set = 'ZF_SET_PF_STATUS'
+      is_layout                = gs_layout
+      it_fieldcat              = gw_fieldcat
+      it_sort                  = gw_sort
+      it_events                = gw_events
+    TABLES
+      t_outtab                 = gw_log_estorno
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    " ZF_ESTORNAR_LANCTOS
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_USER_COMMAND
+* Descrição: Ações do usuário
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_user_command USING ucomm    LIKE sy-ucomm           "#EC CALLED
+                           selfield TYPE slis_selfield.     "#EC NEEDED
+
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = cl_alv.
+
+  CALL METHOD cl_alv->check_changed_data.
+
+
+  CHECK ucomm EQ '&ESTORNAR'.
+
+  DATA: lw_log_estorno TYPE TABLE OF log_estorno_type,
+        ls_log_estorno TYPE log_estorno_type.
+
+  DATA: lc_nao_estornar(1) TYPE c,
+        ln_tabix           TYPE sy-tabix.
+
+  lw_log_estorno[] = gw_log_estorno[].
+
+  SORT: gw_log_estorno BY box DESCENDING processo DESCENDING bukrs ranl.
+
+  READ TABLE gw_log_estorno INTO gs_log_estorno WITH KEY box = cc_x.
+
+* Lê registros marcados para estorno
+  LOOP AT gw_log_estorno INTO gs_log_estorno FROM sy-tabix.
+    CLEAR lc_nao_estornar.
+    ln_tabix = sy-tabix.
+    IF gs_log_estorno-box NE cc_x.
+      CONTINUE.
+    ENDIF.
+
+*   Verifica se há processos posteriores contabilizados. Se houver, não deixa estornar
+*   O processo 1 não grava n° do contrato, portanto, a comparação entre processos é feita por projeto financeiro
+    IF gs_log_estorno-processo EQ '01' OR
+       gs_log_estorno-processo EQ '02' OR
+       gs_log_estorno-processo EQ '03'.
+      CLEAR: ls_log_estorno, lc_nao_estornar.
+      READ TABLE lw_log_estorno INTO ls_log_estorno WITH KEY bukrs    = gs_log_estorno-bukrs
+                                                             rklammer = gs_log_estorno-rklammer.
+    ELSE.
+      CLEAR: ls_log_estorno, lc_nao_estornar.
+      READ TABLE lw_log_estorno INTO ls_log_estorno WITH KEY bukrs = gs_log_estorno-bukrs
+                                                             ranl  = gs_log_estorno-ranl.
+    ENDIF.
+    LOOP AT lw_log_estorno INTO ls_log_estorno FROM sy-tabix.
+      IF gs_log_estorno-processo EQ '01' OR
+         gs_log_estorno-processo EQ '02' OR
+         gs_log_estorno-processo EQ '03'.
+        IF ls_log_estorno-bukrs    NE gs_log_estorno-bukrs OR
+           ls_log_estorno-rklammer NE gs_log_estorno-rklammer.
+          EXIT.
+        ENDIF.
+      ELSE.
+        IF ls_log_estorno-bukrs NE gs_log_estorno-bukrs OR
+           ls_log_estorno-ranl  NE gs_log_estorno-ranl.
+          EXIT.
+        ENDIF.
+      ENDIF.
+
+** 30/1/09
+*** Não checar sequencia de estornos
+*      IF ls_log_estorno-processo GT gs_log_estorno-processo.
+*        lc_nao_estornar = cc_x.
+*      ENDIF.
+    ENDLOOP.
+
+    IF lc_nao_estornar IS INITIAL.
+      PERFORM zf_estornar USING gs_log_estorno-belnr
+                                gs_log_estorno-bukrs
+                                gs_log_estorno-gjahr
+                       CHANGING gs_log_estorno-belnr_e.
+      IF NOT gs_log_estorno-belnr_e IS INITIAL.
+        gs_log_estorno-data_e = so_data-low.
+        MODIFY ztbloans_log_aj FROM gs_log_estorno.
+        DELETE gw_log_estorno FROM ln_tabix.
+      ENDIF.
+    ENDIF.
+
+  ENDLOOP.
+
+  selfield-refresh = cc_x.
+
+ENDFORM.                    " zf_user_command
+
+*-------------------------------------------------------------------------
+* Form: ZF_SET_PF_STATUS
+* Descrição: Carrega barra de botões
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_set_pf_status                                       "#EC CALLED
+                USING rt_extab TYPE slis_t_extab.           "#EC NEEDED
+
+  SET PF-STATUS 'Z_PF_STATUS'.
+
+ENDFORM.                    "zf_set_pf_status
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CHECA_AUTORIZACAO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM zf_checa_autorizacao .
+  SELECT bukrs
+    FROM t001
+    INTO t001-bukrs
+   WHERE bukrs IN so_bukrs.
+
+    AUTHORITY-CHECK OBJECT 'F_BKPF_BUK'
+                 ID 'BUKRS' FIELD t001-bukrs
+                 ID 'ACTVT' FIELD '03'.
+
+    CHECK sy-subrc NE 0.
+    MESSAGE s009(zlloans001) DISPLAY LIKE 'E'.
+
+    LEAVE LIST-PROCESSING.
+
+
+  ENDSELECT.
+
+ENDFORM.                    " ZF_CHECA_AUTORIZACAO
+
+*** Início da alteração - Gabriel H. MOnteiro - 16/12/2008
+*&---------------------------------------------------------------------*
+*&      Form  ZF_VARIACAO_MONETARIA_VENDA
+*&---------------------------------------------------------------------*
+FORM zf_variacao_monetaria_venda .
+
+* Lê parametros do processo 10
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_10.
+  IF sy-subrc NE 0.
+    MESSAGE e016(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+* Carrega intervalo de movimentos do processo 10
+  CLEAR r_sbewart.
+  LOOP AT gw_paramet INTO gs_paramet FROM sy-tabix.
+    IF gs_paramet-processo <> cn_10.
+      EXIT.
+    ENDIF.
+    rs_sbewart-sign   = cc_i.
+    rs_sbewart-option = cc_eq.
+    rs_sbewart-low    = gs_paramet-sbewart.
+    APPEND rs_sbewart TO r_sbewart.
+  ENDLOOP.
+
+* Filtra "Itens Lançados" por tipo de movimento conforme parametros do processo 10
+  gw_vdbepi_aux[] = gw_vdbepi[].
+  gw_vdbeki_aux[] = gw_vdbeki[].
+  DELETE gw_vdbepi_aux WHERE NOT sbewart IN r_sbewart.
+  DELETE gw_vdbepi_aux WHERE bhwhr IS INITIAL.
+
+* Exclui "itens Lançados" que foram estornados
+  SORT gw_vdbeki_aux BY sstorno DESCENDING bukrs rbelkpfd ranl.
+  LOOP AT gw_vdbeki_aux INTO gs_vdbeki_aux.
+    IF gs_vdbeki_aux-sstorno IS INITIAL.
+      EXIT.
+    ENDIF.
+    DELETE gw_vdbeki_aux INDEX sy-tabix.
+    DELETE gw_vdbepi_aux WHERE bukrs    = gs_vdbeki_aux-bukrs
+                         AND   rbelkpfd = gs_vdbeki_aux-rbelkpfd.
+  ENDLOOP.
+
+* Elimina itens lançados que já foram contabilizados no processo 10
+  SORT gw_vdbepi_aux BY bukrs rbelkpfd sbewart.
+  LOOP AT gw_log_p10 INTO gs_log_p10.
+    DELETE gw_vdbeki_aux WHERE bukrs    = gs_log_p10-bukrs
+                         AND   rbelkpfd = gs_log_p10-rbelkpfd.
+
+    DELETE gw_vdbepi_aux WHERE bukrs    = gs_log_p10-bukrs
+                         AND   rbelkpfd = gs_log_p10-rbelkpfd.
+
+    DELETE TABLE gw_log_p10 FROM gs_log_p10.
+  ENDLOOP.
+
+  SORT gw_vdbeki_aux2 BY bukrs ranl.
+
+  LOOP AT gw_vdbepi_aux INTO gs_vdbepi_aux.
+    PERFORM zf_lancar_processo10.
+  ENDLOOP.
+
+ENDFORM.                    " ZF_VARIACAO_MONETARIA_VENDA
+
+*---------------------------------------------------------------------*
+*      Form  ZF_LANCAR_PROCESSO10
+*---------------------------------------------------------------------*
+*      Efetua lancamentos para registros novos da tabela
+*      de itens lançados
+*---------------------------------------------------------------------*
+FORM zf_lancar_processo10 .
+
+  DATA: lc_montante(13)    TYPE c,
+        lc_data(10)        TYPE c,
+        lc_taxa            TYPE vdbepi-kurs2.
+
+  CONCATENATE so_data-low+6(2)
+              so_data-low+4(2)
+              so_data-low(4)
+         INTO lc_data SEPARATED BY '.'.
+
+*** Busca a taxa do movimento do início do contrato (pode ser 0001 ou 0009)
+** 27/1/09
+  READ TABLE gw_vdbekipi INTO gs_vdbekipi WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+                                                   rbelkpfd = gs_vdbepi_aux-rbelkpfd
+                                                   sbewart  = cc_mov_001.
+  IF sy-subrc IS INITIAL.
+    lc_taxa = gs_vdbekipi-kurs2.
+  ELSE.
+    READ TABLE gw_vdbekipi INTO gs_vdbekipi WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+                                                     rbelkpfd = gs_vdbepi_aux-rbelkpfd
+                                                     sbewart  = cc_mov_009.
+    lc_taxa = gs_vdbekipi-kurs2.
+  ENDIF.
+*  CLEAR gs_vdbeki.
+*  READ TABLE gw_vdbeki INTO gs_vdbeki WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+*                                               rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+*  IF sy-subrc IS INITIAL.
+*
+*    LOOP AT gw_vdbeki_aux2 INTO gs_vdbeki_aux2
+*      WHERE bukrs = gs_vdbeki-bukrs
+*        AND ranl  = gs_vdbeki-ranl.
+*
+*      CLEAR gs_vdbepi.
+*      READ TABLE gw_vdbepi_aux2 INTO gs_vdbepi WITH KEY bukrs = gs_vdbeki_aux2-bukrs
+*                                                   rbelkpfd = gs_vdbeki_aux2-rbelkpfd.
+*      IF sy-subrc IS INITIAL AND
+*         ( gs_vdbepi-sbewart EQ cc_mov_001 OR gs_vdbepi-sbewart EQ cc_mov_009 ) AND
+*         NOT gs_vdbepi-kurs2 IS INITIAL.
+*        lc_taxa = gs_vdbepi-kurs2.
+*        EXIT.
+*      ENDIF.
+*
+*    ENDLOOP.
+*
+*  ENDIF.
+
+
+
+*** Busca a taxa de venda histórica
+  CLEAR gs_vdbeki.
+  READ TABLE gw_vdbeki_aux INTO gs_vdbeki_aux WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+                                                       rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+  IF sy-subrc IS INITIAL.
+
+    CLEAR gs_zvenda.
+    READ TABLE gw_zvenda INTO gs_zvenda WITH KEY empresa  = gs_vdbeki_aux-bukrs
+                                                 contrato = gs_vdbeki_aux-ranl.
+    IF NOT sy-subrc IS INITIAL.
+      EXIT.
+
+    ENDIF.
+  ENDIF.
+
+*** Calcular o montante
+  gs_vdbepi_aux-bhwhr = ( lc_taxa - gs_zvenda-val_ind ) * gs_vdbepi_aux-bnwhr / 1000.
+
+*** Início da alteração - Gabriel H. Monteiro - 17/12/2008
+*** Se não houve valor de cálculo, ir para o próximo registro
+  IF gs_vdbepi_aux-bhwhr IS INITIAL.
+    EXIT.
+
+  ENDIF.
+*** Fim da alteração    - Gabriel H. Monteiro - 17/12/2008
+
+  WRITE gs_vdbepi_aux-bhwhr CURRENCY cc_brl TO lc_montante.
+
+* Lê o movimento que será utilizado para contabilização
+  READ TABLE gw_paramet INTO gs_paramet WITH KEY processo = cn_10
+                                                 sbewart  = gs_vdbepi_aux-sbewart.
+
+* Lê a descrição do tipo de movimento de contabilização
+  CLEAR gs_tzb0t.
+  READ TABLE gw_tzb0t INTO gs_tzb0t WITH KEY sbewart = gs_paramet-movimento.
+
+
+* Busca N° do contrato para o "Item Lançado"
+  CLEAR gs_vdbeki_aux.
+  READ TABLE gw_vdbeki_aux INTO gs_vdbeki_aux WITH KEY bukrs    = gs_vdbepi_aux-bukrs
+                                                       rbelkpfd = gs_vdbepi_aux-rbelkpfd.
+
+* Busca Referencia de Classif.Contabil para entrada da função de Determinação de Conta
+  CLEAR gs_vdarl.
+  READ TABLE gw_vdarl INTO gs_vdarl WITH KEY bukrs = gs_vdbeki_aux-bukrs
+                                             ranl  = gs_vdbeki_aux-ranl.
+
+
+** 28/1/09
+* CHECK gs_vdarl-rrefkont = 'FINANC'.
+* Le tabela sd_loans para gravar Projeto Financeiro no log
+  CLEAR gs_sdloans.
+  READ TABLE gw_sdloans INTO gs_sdloans WITH KEY empresa        = gs_vdbeki_aux-bukrs
+                                                 contrato_serie = gs_vdbeki_aux-ranl.
+
+
+  CLEAR: gs_ikofi, gc_komo1, gc_eigr1.
+  MOVE: gs_vdarl-rrefkont    TO gc_komo1,
+        gs_paramet-movimento TO gc_eigr1.
+  CALL FUNCTION 'ACCOUNT_DETERMINATION'
+    EXPORTING
+      i_anwnd = cc_anwnd
+      i_eigr1 = gc_eigr1
+      i_eigr2 = cc_eigr2
+      i_eigr3 = space
+      i_eigr4 = space
+      i_komo1 = gc_komo1
+      i_komo2 = space
+      i_ktopl = gs_paramet-ktopl
+      i_sakin = space
+    IMPORTING
+      e_ikofi = gs_ikofi.
+
+
+***Mapeamento da transação FB01
+  PERFORM zf_gravar_bdc USING:
+
+  'SAPMF05A'           '0100'                       'X',
+  'BDC_OKCODE'    '/00'                        '',
+  'BKPF-BLDAT'    lc_data                      '',
+  'BKPF-BLART'    gs_ikofi-attr1               '',
+  'BKPF-BUKRS'    gs_vdbepi_aux-bukrs          '',
+  'BKPF-BUDAT'    lc_data                      '',
+  'BKPF-MONAT'    lc_data+3(2)                 '',
+  'BKPF-WAERS'    cc_brl                       '',
+  'FS006-DOCID'	  '*'                          '',
+  'RF05A-NEWBS'	  gs_ikofi-bsch1               '',
+  'RF05A-NEWKO'	  gs_ikofi-sakn1               '',
+
+  'SAPMF05A'           '0300'                       'X',
+  'BDC_OKCODE'    '/00'                        '',
+  'BSEG-WRBTR'    lc_montante                  '',
+  'BSEG-ZUONR'    gs_vdbeki_aux-ranl           '',
+  'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+  'RF05A-NEWBS'	  gs_ikofi-bsch2               '',
+  'RF05A-NEWKO'	  gs_ikofi-sakn2               '',
+  'DKACB-FMORE'	  'X'                          '',
+
+  'SAPLKACB'           '0002'                       'X',
+  'BDC_OKCODE'    '=ENTE'                      '',
+  'COBL-GSBER'    gs_vdarl-gsber               '',
+
+  'SAPMF05A'           '0300'                       'X',
+  'BDC_OKCODE'    gc_okcode                    '',
+  'BSEG-WRBTR'    lc_montante                  '',
+  'BSEG-ZUONR'    gs_vdbeki_aux-ranl           '',
+  'BSEG-SGTXT'    gs_tzb0t-xbewart             '',
+  'DKACB-FMORE'	  'X'                          '',
+
+  'SAPLKACB'           '0002'                       'X',
+  'BDC_OKCODE'    '=ENTE'                      '',
+  'COBL-GSBER'    gs_vdarl-gsber               ''.
+
+
+***Efetuar lançamento na transação FB01
+  PERFORM zf_executar_bdc USING cc_fb01.
+
+
+***Ler mensagem de retorno. Se houver docto.contábil criado, então grava dados na tabela de log
+  CLEAR gs_msgbatch.
+  READ TABLE gw_msgbatch INTO gs_msgbatch WITH KEY msgtyp  = 'S'
+                                                   msgspra = 'P'
+                                                   msgid   = 'F5'
+                                                   msgnr   = '312'.
+  IF NOT gs_msgbatch-msgv1 IS INITIAL.
+    CLEAR gs_log_aj.
+    gs_log_aj-mandt     = sy-mandt.
+    gs_log_aj-processo  = cn_10.
+    gs_log_aj-bukrs     = gs_vdbepi_aux-bukrs.
+    gs_log_aj-rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+    gs_log_aj-ranl      = gs_vdbeki_aux-ranl.
+    gs_log_aj-data      = so_data-low.
+    gs_log_aj-belnr     = gs_msgbatch-msgv1.
+    gs_log_aj-gjahr     = so_data-low(4).
+    gs_log_aj-sbewart   = gs_vdbepi_aux-sbewart.
+    gs_log_aj-rklammer  = gs_sdloans-ag_ordem_venda.
+    gs_log_aj-moeda_int = cc_brl.
+    gs_log_aj-bhwhr     = gs_vdbepi_aux-bhwhr.
+    gs_log_aj-dfaell    = gs_vdbepi_aux-dfaell.
+    gs_log_aj-movimento = gs_paramet-movimento.
+    APPEND gs_log_aj TO gw_log_aj.
+    MODIFY ztbloans_log_aj FROM gs_log_aj.
+
+    CLEAR gs_log_tela.
+    MOVE-CORRESPONDING gs_log_aj TO gs_log_tela.
+    gs_log_tela-saknr_d    =  gs_ikofi-sakn1.
+    gs_log_tela-saknr_c    =  gs_ikofi-sakn2.
+    APPEND gs_log_tela TO gw_log_tela.
+  ELSE.
+    CLEAR gs_log_tela.
+    gs_log_tela-processo  = cn_10.
+    gs_log_tela-bukrs     = gs_vdbepi_aux-bukrs.
+    gs_log_tela-rbelkpfd  = gs_vdbepi_aux-rbelkpfd.
+    gs_log_tela-ranl      = gs_vdbeki_aux-ranl.
+    gs_log_tela-data      = so_data-low.
+    gs_log_tela-gjahr     = so_data-low(4).
+    gs_log_tela-sbewart   = gs_vdbepi_aux-sbewart.
+    gs_log_tela-rklammer  = gs_sdloans-ag_ordem_venda.
+*    gs_log_tela-bnwhr     = gs_vdbepi_aux-bnwhr.
+*    gs_log_tela-snwhr     = gs_vdbepi_aux-snwhr.
+    gs_log_tela-moeda_int = cc_brl.
+    gs_log_tela-bhwhr     = gs_vdbepi_aux-bhwhr.
+    gs_log_tela-saknr_d   = gs_ikofi-sakn1.
+    gs_log_tela-saknr_c   = gs_ikofi-sakn2.
+    LOOP AT gw_msgbatch INTO gs_msgbatch.
+      MESSAGE ID gs_msgbatch-msgid TYPE gs_msgbatch-msgtyp
+          NUMBER gs_msgbatch-msgnr
+            WITH gs_msgbatch-msgv1 gs_msgbatch-msgv2
+                 gs_msgbatch-msgv3 gs_msgbatch-msgv4
+            INTO gs_log_tela-obs.
+      APPEND gs_log_tela TO gw_log_tela.
+    ENDLOOP.
+  ENDIF.
+
+ENDFORM.                    " ZF_LANCAR_PROCESSO10
+*** Fim da alteração    - Gabriel H. MOnteiro - 16/12/2008

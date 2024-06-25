@@ -1,0 +1,230 @@
+ALTERNATIVA:
+ALSM_EXCEL_TO_INTERNAL_TABLE
+
+
+*&---------------------------------------------------------------------*
+*& Report  ZCARGA_CNPJ_B2B_OB
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  zcarga_cnpj_b2b_ob.
+
+************************************************************************
+*** TELA INICIAL
+************************************************************************
+SELECTION-SCREEN BEGIN OF BLOCK a WITH FRAME TITLE text-001.
+*
+* ARQ. ORIGEM
+PARAMETER:  p_arq TYPE   string
+            DEFAULT 'C:\temp\carga_b2b.txt'.
+*            p_dele TYPE char1.
+SELECTION-SCREEN END OF BLOCK a.
+*
+************************************************************************
+*** INCLUDE COM DEFINIÇÕES DE TAB. INTERNAS, VARIÁVEIS, CONSTANTES...
+************************************************************************
+*
+*DATA: tabexcel LIKE kcde_cells OCCURS 0 WITH HEADER LINE.
+*
+TYPES: BEGIN OF ty_excel,
+        cnpj(16),  "Nº CNPJ do destinatário da NF-e
+        b2b_aktiv(1), "Código para cenário B2B
+      END OF ty_excel.
+*
+DATA it_excel TYPE STANDARD TABLE OF ty_excel.
+DATA s_excel TYPE  ty_excel.
+
+************************************************************************
+*** INICIALIZAÇÃO - PROCESSAMENTO  DURANTE APRESENTAÇÃO TELA PRINCIPAL
+************************************************************************
+INITIALIZATION.
+*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_arq.
+*Função para localização do arquivo de entrada.
+  CALL FUNCTION 'WS_FILENAME_GET'
+    EXPORTING
+      def_path = ' '
+      mask     = ',*.*,*.*.'
+      mode     = 'O'
+      title    = 'Procura arquivo de entrada'
+    IMPORTING
+      filename = p_arq
+    EXCEPTIONS
+      OTHERS   = 5.
+
+  IF sy-subrc <> 0.
+    MESSAGE e001(00)
+    WITH 'Erro na execução da função para localização'
+         'do arquivo de entrada.'.
+  ENDIF.
+*
+************************************************************************
+*** INÍCIO DA LÓGICA PRINCILAP DE PROCESSAMENTO
+************************************************************************
+START-OF-SELECTION.
+
+*  IF p_dele IS INITIAL.
+
+* UPLOAD dos arquivos para carga...
+  PERFORM: f_upload,
+*
+* CARGA em tabela
+           f_carga.
+
+* Apagar todos registros da tabela
+*  ELSE.
+*
+*    DATA t_tb2b TYPE TABLE OF /xnfe/tb2b .
+*
+*    SELECT *
+*      FROM /xnfe/tb2b
+*     INTO TABLE t_tb2b .
+*
+*    IF sy-subrc IS INITIAL.
+*
+*      DELETE /xnfe/tb2b FROM TABLE t_tb2b .
+*
+*    ENDIF.
+*
+*  ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  f_upload
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_upload.
+*
+*** ABRE ARQUIVO NO FORMATO EXCEL.
+*  CALL FUNCTION 'KCD_EXCEL_OLE_TO_INT_CONVERT'
+*    EXPORTING
+*      filename    = p_arq  "CAMINHO DO ARQUIVO A SER LIDO
+*      i_begin_col = 1    "PRIMEIRA COLUNA A SER LIDA
+*      i_begin_row = 1    "PRIMEIRA LINHA A SER LIDA
+*      i_end_col   = 2   "NÚMERO MÁXIMO DE COLUNAS NO EXCEL
+*      i_end_row   = 9000 "NÚM MÁX. LINHAS EXCEL(EXEMPLO 1000)
+*    TABLES
+*      intern      = tabexcel.
+*
+
+  IF NOT p_arq IS INITIAL.
+* Gui Upload
+    CLEAR it_excel.
+    REFRESH it_excel.
+    CALL METHOD cl_gui_frontend_services=>gui_upload
+      EXPORTING
+        filename                = p_arq
+        filetype                = 'ASC'
+        has_field_separator     = 'X'
+*     header_length           = 0
+*     read_by_line            = 'X'
+*     dat_mode                = SPACE
+*     codepage                = SPACE
+*     ignore_cerr             = ABAP_TRUE
+*     replacement             = '#'
+*     virus_scan_profile      =
+*   IMPORTING
+*     filelength              =
+*     header                  =
+      CHANGING
+        data_tab                = it_excel
+      EXCEPTIONS
+        file_open_error         = 1
+        file_read_error         = 2
+        no_batch                = 3
+        gui_refuse_filetransfer = 4
+        invalid_type            = 5
+        no_authority            = 6
+        unknown_error           = 7
+        bad_data_format         = 8
+        header_not_allowed      = 9
+        separator_not_allowed   = 10
+        header_too_long         = 11
+        unknown_dp_error        = 12
+        access_denied           = 13
+        dp_out_of_memory        = 14
+        disk_full               = 15
+        dp_timeout              = 16
+        not_supported_by_gui    = 17
+        error_no_gui            = 18
+        OTHERS                  = 19
+            .
+    IF sy-subrc <> 0.
+      MESSAGE e015(/xnfe/app).
+*   Fehler beim Laden der Datei
+    ENDIF.
+  ENDIF.
+
+*
+*** INICIA O LOOP NA TABELA TABEXCEL.
+*  LOOP AT tabexcel.
+*** INICIA A MONTAGEM DA TABELA
+*    CASE tabexcel-col.
+*** MOVE DA TABELA TABEXCEL_CV-VALUE CAMPO 1 PARA TABELA IT_CV-WERKS
+*      WHEN 1.
+*        MOVE : tabexcel-value TO it_excel-cnpj.
+*      WHEN 2.
+*        MOVE : tabexcel-value TO it_excel-b2b_aktiv.
+*    ENDCASE.
+**
+*    AT END OF row.
+*      APPEND it_excel.
+*      CLEAR it_excel.
+*    ENDAT.
+**
+*  ENDLOOP.
+*
+ENDFORM.                    " f_upload
+*&---------------------------------------------------------------------*
+*&      Form  f_carga
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_carga .
+
+  DATA t_tb2b TYPE TABLE OF /xnfe/tb2b.
+  DATA s_tb2b TYPE /xnfe/tb2b.
+
+  DATA v_lines TYPE i.
+
+  FIELD-SYMBOLS <fs_excel> TYPE ty_excel.
+
+  CHECK it_excel[] IS NOT INITIAL.
+
+  FREE t_tb2b.
+  CLEAR s_tb2b.
+
+  LOOP AT it_excel ASSIGNING <fs_excel>.
+
+    MOVE: sy-mandt             TO s_tb2b-mandt,
+          <fs_excel>-cnpj      TO s_tb2b-cnpj,
+          <fs_excel>-b2b_aktiv TO s_tb2b-b2b_aktiv.
+
+    APPEND s_tb2b TO t_tb2b.
+    CLEAR s_tb2b .
+
+  ENDLOOP.
+
+  MODIFY /xnfe/tb2b FROM TABLE t_tb2b.
+
+  IF sy-subrc IS INITIAL.
+
+    DESCRIBE TABLE t_tb2b LINES v_lines.
+
+    COMMIT WORK.
+    WRITE: v_lines, 'arquivos incluídos com sucesso'.
+
+  ELSE.
+
+    ROLLBACK WORK.
+    WRITE: 'Erro ao incluir arquivos'.
+
+  ENDIF.
+
+ENDFORM.                    " f_carga

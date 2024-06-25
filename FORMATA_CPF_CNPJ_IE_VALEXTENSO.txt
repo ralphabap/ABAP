@@ -1,0 +1,391 @@
+*&--------------------------------------------------------
+*&      Form  ZF_MONTA_DADOS
+*&--------------------------------------------------------
+*       Monta os dados
+*---------------------------------------------------------
+*       --> P_DADOS
+*       --> P_LEN
+*       <-- P_CHAR
+*---------------------------------------------------------
+FORM zf_monta_dados USING    p_dados  TYPE zstfi047
+                             p_len    TYPE int4
+                    CHANGING p_char   TYPE c.
+
+*** Variáveis (Locais)
+  DATA:
+    lc_string       TYPE string,
+    lc_char(9999)   TYPE c,
+    li_pos          TYPE int4,
+    lc_cnpj(18)     TYPE c,
+    lc_ie(15)       TYPE c,
+    lc_cpf(14)      TYPE c,
+    lc_valor(255)   TYPE c,
+    lc_extenso(255) TYPE c.
+
+*** Constants
+  CONSTANTS:
+    c_virgula(01) TYPE c VALUE ',',
+    c_pipe(01)    TYPE c VALUE '|'.
+
+*** Codificação
+
+  CLEAR: p_char, lc_char.
+
+*** Cabeçalho 1
+  CLEAR: lc_string.
+  IF NOT p_dados-street IS INITIAL.
+    lc_string = p_dados-street.
+  ENDIF.
+*  IF NOT lc_string IS INITIAL.
+*    CONCATENATE
+*      lc_string
+*      c_virgula
+*    INTO lc_string.
+*  ENDIF.
+*  IF NOT p_dados-house_num1 IS INITIAL.
+*    IF NOT lc_string IS INITIAL.
+*    CONCATENATE
+*      lc_string
+*      p_dados-house_num1
+*    INTO lc_string
+*    SEPARATED BY space.
+*    ELSE.
+*      lc_string = p_dados-house_num1.
+*    ENDIF.
+*  ENDIF.
+  IF NOT p_dados-city2 IS INITIAL.
+    IF NOT lc_string IS INITIAL.
+      CONCATENATE
+        lc_string
+        c_pipe
+        p_dados-city2
+      INTO lc_string
+      SEPARATED BY space.
+    ELSE.
+      lc_string = p_dados-city2.
+    ENDIF.
+  ENDIF.
+
+  lc_char+li_pos(p_len) = lc_string.
+
+*** Cabeçalho 2
+  CLEAR: lc_string.
+  IF NOT p_dados-post_code1 IS INITIAL.
+    lc_string = p_dados-post_code1.
+  ENDIF.
+  IF NOT p_dados-city1 IS INITIAL.
+    IF NOT lc_string IS INITIAL.
+      CONCATENATE
+        lc_string
+        c_pipe
+        p_dados-city1
+      INTO lc_string
+      SEPARATED BY space.
+    ELSE.
+      lc_string = p_dados-city1.
+    ENDIF.
+  ENDIF.
+  IF NOT p_dados-region IS INITIAL.
+    IF NOT lc_string IS INITIAL.
+      CONCATENATE
+        lc_string
+        c_pipe
+        p_dados-region
+      INTO lc_string
+      SEPARATED BY space.
+    ELSE.
+      lc_string = p_dados-region.
+    ENDIF.
+  ENDIF.
+
+  li_pos = li_pos + p_len.
+  lc_char+li_pos(p_len) = lc_string.
+
+*** Cabeçalho 3
+  CLEAR: lc_string.
+  IF NOT p_dados-tel_number IS INITIAL.
+    lc_string = p_dados-tel_number.
+  ENDIF.
+  IF NOT p_dados-fax_number IS INITIAL.
+    IF NOT lc_string IS INITIAL.
+      CONCATENATE
+        lc_string
+        c_pipe
+        p_dados-fax_number
+      INTO lc_string
+      SEPARATED BY space.
+    ELSE.
+      lc_string = p_dados-fax_number.
+    ENDIF.
+  ENDIF.
+
+  li_pos = li_pos + p_len.
+  lc_char+li_pos(p_len) = lc_string.
+
+*** Cabeçalho 4
+  CLEAR: lc_string.
+  IF NOT p_dados-cgc_branch IS INITIAL.
+*** Formata CNPJ
+    PERFORM zf_formata_cnpj USING    p_dados-cgc_branch
+                            CHANGING lc_cnpj.
+    lc_string = lc_cnpj.
+  ENDIF.
+  IF NOT p_dados-state_insc IS INITIAL.
+*** Formata IE
+    PERFORM zf_formata_ie USING    p_dados-state_insc
+                          CHANGING lc_ie.
+    IF NOT lc_string IS INITIAL.
+      CONCATENATE
+        lc_string
+        c_pipe
+        lc_ie
+      INTO lc_string
+      SEPARATED BY space.
+    ELSE.
+      lc_string = lc_ie.
+    ENDIF.
+  ENDIF.
+
+  li_pos = li_pos + p_len.
+  lc_char+li_pos(p_len) = lc_string.
+
+*** Recibo 1
+  CLEAR: lc_string.
+  IF NOT p_dados-pessoa_fisica IS INITIAL.
+*** Formata CPF
+     PERFORM zf_formata_cpf USING    p_dados-cpf_cnpj
+                            CHANGING lc_cpf.
+     lc_string = lc_cpf.
+  ELSE.
+*** Formata CNPJ
+    PERFORM zf_formata_cnpj USING    p_dados-cpf_cnpj
+                            CHANGING lc_cnpj.
+    lc_string = lc_cnpj.
+  ENDIF.
+
+  li_pos = li_pos + p_len.
+  lc_char+li_pos(p_len) = lc_string.
+
+*** Recibo 2
+  CLEAR: lc_string.
+  IF NOT p_dados-valor IS INITIAL.
+
+    CLEAR: lc_valor.
+    lc_valor = p_dados-valor.
+
+*** Escreve valor por extenso
+    PERFORM zf_valor_extenxo USING    lc_valor
+                             CHANGING lc_extenso.
+
+    lc_string = lc_extenso.
+
+  ENDIF.
+
+  li_pos = li_pos + p_len.
+  lc_char+li_pos(p_len) = lc_string.
+
+*** Passa o valor que será utilizado
+  p_char = lc_char.
+
+ENDFORM.
+
+*&--------------------------------------------------------
+*&      Form  ZF_FORMATA_CNPJ
+*&--------------------------------------------------------
+*       Formata CNPJ
+*---------------------------------------------------------
+*       --> P_I
+*       <-- P_O
+*---------------------------------------------------------
+FORM zf_formata_cnpj USING    p_i TYPE c
+                     CHANGING p_o TYPE c.
+
+*** Constantes
+  CONSTANTS:
+    c_ponto(01)   TYPE c VALUE '.',
+    c_barra(01)   TYPE c VALUE '/',
+    c_hifem(01)   TYPE c VALUE '-'.
+
+  CLEAR: p_o.
+
+*** Fomatar CNPJ
+  IF NOT p_i IS INITIAL.
+    p_o = p_i.
+    CONDENSE p_o.
+    CONCATENATE
+      p_o(2)   c_ponto
+      p_o+2(3) c_ponto
+      p_o+5(3) c_barra
+      p_o+8(4) c_hifem
+      p_o+12(2) INTO p_o.
+  ENDIF.
+
+ENDFORM.
+
+*&--------------------------------------------------------
+*&      Form  ZF_FORMATA_IE
+*&--------------------------------------------------------
+*       Formata IE
+*---------------------------------------------------------
+*       --> P_I
+*       <-- P_O
+*---------------------------------------------------------
+FORM zf_formata_ie USING    p_i TYPE c
+                   CHANGING p_o TYPE c.
+
+*** Constantes
+  CONSTANTS:
+    c_ponto(01) TYPE c VALUE '.'.
+
+  CLEAR: p_o.
+
+*** Formatar IE
+  IF p_i IS NOT INITIAL.
+    p_o = p_i.
+    CONDENSE p_o.
+    CONCATENATE
+      p_o(3)   c_ponto
+      p_o+3(3) c_ponto
+      p_o+6(3) c_ponto
+      p_o+9(3) INTO p_o.
+  ENDIF.
+
+ENDFORM.
+
+*&--------------------------------------------------------
+*&      Form  ZF_FORMATA_CPF
+*&--------------------------------------------------------
+*       Formata CPF
+*---------------------------------------------------------
+*       --> P_I
+*       <-- P_O
+*---------------------------------------------------------
+FORM zf_formata_cpf USING    p_i TYPE c
+                    CHANGING p_o TYPE c.
+
+*** Constantes
+  CONSTANTS:
+    c_ponto(01)   TYPE c VALUE '.',
+    c_hifem(01)   TYPE c VALUE '-'.
+
+*** Formatar CPF
+  IF p_i IS NOT INITIAL.
+    p_o = p_i.
+    CONDENSE p_o.
+    CONCATENATE
+      p_o(3)   c_ponto
+      p_o+3(3) c_ponto
+      p_o+6(3) c_hifem
+      p_o+9(2) INTO p_o.
+  ENDIF.
+
+ENDFORM.
+
+*&--------------------------------------------------------
+*&      Form  ZF_VALOR_EXTENSO
+*&--------------------------------------------------------
+*       Escreve valor por extenso
+*---------------------------------------------------------
+*       --> P_I
+*       <-- P_O
+*---------------------------------------------------------
+FORM zf_valor_extenxo USING    p_i TYPE c
+                      CHANGING p_o TYPE c.
+
+*** Variáveis
+  DATA:
+    ls_words type spell.
+
+*** Constantes
+  CONSTANTS:
+    c_waers        TYPE SY-WAERS      VALUE '2'       ,
+    c_zero         TYPE spell-decword VALUE 'ZERO'    ,
+    c_um           TYPE spell-decword VALUE 'UM'      ,
+    c_reais(05)    TYPE c             VALUE 'reais'   ,
+    c_real(04)     TYPE c             VALUE 'real'    ,
+    c_centavos(08) TYPE c             VALUE 'centavos',
+    c_centavo(07)  TYPE c             VALUE 'centavo' ,
+    c_e(01)        TYPE c             VALUE 'e'       .
+
+  CLEAR: p_o.
+
+*** Valor por Extenso
+  CALL FUNCTION 'SPELL_AMOUNT'
+    EXPORTING
+      amount   = p_i
+      currency = c_waers
+      language = sy-langu
+    IMPORTING
+      in_words = ls_words.
+
+  IF ls_words-decword = c_zero.
+    IF ls_words-word = c_um.
+      CONCATENATE ls_words-word c_real
+        INTO p_o
+        SEPARATED BY space.
+    ELSE.
+      CONCATENATE ls_words-word c_reais
+        INTO p_o
+        SEPARATED BY space.
+    ENDIF.
+  ELSE.
+    IF ls_words-word    = c_um AND
+       ls_words-decword = c_um.
+      CONCATENATE ls_words-word c_real
+        c_e ls_words-decword c_centavo
+        INTO p_o
+        SEPARATED BY space.
+    ELSEIF ls_words-word    = c_um AND
+           ls_words-decword <> c_um.
+      CONCATENATE ls_words-word c_real
+        c_e ls_words-decword c_centavos
+        INTO p_o
+        SEPARATED BY space.
+    ELSEIF ls_words-word    <> c_um AND
+           ls_words-decword =  c_um.
+      CONCATENATE ls_words-word c_reais
+        c_e ls_words-decword c_centavo
+        INTO p_o
+        SEPARATED BY space.
+    ELSEIF ls_words-word    <> c_um AND
+           ls_words-decword <> c_um.
+      CONCATENATE ls_words-word c_reais
+        c_e ls_words-decword c_centavos
+        INTO p_o
+        SEPARATED BY space.
+    ENDIF.
+  ENDIF.
+
+  TRANSLATE p_o TO LOWER CASE.
+
+ENDFORM.
+
+*&--------------------------------------------------------
+*&      Form  ZF_MES_EXTENSO
+*&--------------------------------------------------------
+*       Escreve mes por extenso
+*---------------------------------------------------------
+*       --> P_I
+*       <-- P_O
+*---------------------------------------------------------
+FORM zf_mes_extenxo USING    p_i TYPE any
+                    CHANGING p_o TYPE c.
+*** Variáveis (Locais)
+DATA:
+  lc_mes         TYPE month,
+  ls_retorno_mes TYPE t247.
+
+  lc_mes = p_i.
+  CALL FUNCTION 'IDWT_READ_MONTH_TEXT'
+  EXPORTING
+    langu = sy-langu
+    month = lc_mes
+  IMPORTING
+    t247 = ls_retorno_mes.
+
+  IF NOT ls_retorno_mes-ltx IS INITIAL.
+    p_o = ls_retorno_mes-ltx.
+    TRANSLATE p_o TO LOWER CASE.
+  ENDIF.
+
+ENDFORM.

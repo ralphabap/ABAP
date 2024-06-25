@@ -1,0 +1,1908 @@
+*-----------------------------------------------------------------------
+*WEG EQUIPAMENTOS ELÉTRICOS S.A.
+*Implementador: Procwork Informática Ltda.
+*
+*ID    Request      Data          Nome
+*BR    ED0K902155   13/04/2007    Bruno Rabelo
+*
+*Descrição:  -Transação: ZTPP014
+*            -Relatório Informações Gerenciais
+*-----------------------------------------------------------------------
+*Histórico de Alterações do Objeto
+*-----------------------------------------------------------------------
+*ID    Request      Data          Nome
+*GP    ED0K909665   25/09/2007    Gevelson Pereira
+*Descrição:  - Alteração na tela de seleção (radio button, checkbox)
+*            - Alteração nas rotinas de seleção
+*            - Atualização da tabela ZTBPP_022
+*            - Modificação para ALV OO.
+*-----------------------------------------------------------------------
+*ID    Request      Data          Nome
+*
+*Descrição:
+*-----------------------------------------------------------------------
+************************************************************************
+
+REPORT zpppr_009.
+
+*-----------------------------------------------------------------------
+* Tabelas Standards
+*-----------------------------------------------------------------------
+
+TABLES: vbap,        "Documento de vendas: dados de item
+        marc.        "Dados de centro para material
+
+*----------------------------------------------------------------------
+* Declaração das constantes
+*----------------------------------------------------------------------
+CONSTANTS: c_a(01)         TYPE c             VALUE 'A',                     "Valor Fixo A
+           c_x(01)         TYPE c             VALUE 'X',                     "Valor Fixo X
+           c_e             TYPE c             VALUE 'E',                     "Valor Fixo E
+           c_i             TYPE c             VALUE 'I',                     "Valor Fixo I
+           c_s(01)         TYPE c             VALUE 'S',                     "Valor Fixo S
+           c_%(01)         TYPE c             VALUE '%',                     "Valor Fixo %
+           c_bt(02)        TYPE c             VALUE 'BT',                    "Valor Fixo BT
+           c_caracter2(02) TYPE c             VALUE './',                    "Caracter especial
+           c_caracter4(01) TYPE c             VALUE '.',                     "Caracter especial
+           c_logo(09)      TYPE c             VALUE 'LOGO_WEG',              "Logotipo da Weg
+           c_alv_m(08)     TYPE c             VALUE 'T_ALV_M',               "Nome da Tabela Interna
+           c_alv_o(08)     TYPE c             VALUE 'T_ALV_O',               "Nome da Tabela Interna
+           c_alv_ovm(13)   TYPE c             VALUE 'T_ALV_OVM_AUX',         "Nome da Tabela Interna
+           c_werks(05)     TYPE c             VALUE 'WERKS',                 "Nome do Campo
+           c_lgpro(05)     TYPE c             VALUE 'LGPRO',                 "Nome do Campo
+           c_lgort(05)     TYPE c             VALUE 'LGORT',                 "Nome do Campo
+           c_matnr(05)     TYPE c             VALUE 'MATNR',                 "Nome do Campo
+           c_maktg(05)     TYPE c             VALUE 'MAKTG',                 "Nome do Campo
+           c_vbeln(05)     TYPE c             VALUE 'VBELN',                 "Nome do Campo
+           c_auart(05)     TYPE c             VALUE 'AUART',                 "Nome do Campo
+           c_posnr(05)     TYPE c             VALUE 'POSNR',                 "Nome do Campo
+           c_bmeng(06)     TYPE c             VALUE 'BMENG',                 "Nome do Campo
+           c_etenr(05)     TYPE c             VALUE 'ETENR',                 "Nome do Campo
+           c_labst(05)     TYPE c             VALUE 'LABST',                 "Nome do Campo
+           c_kalab(05)     TYPE c             VALUE 'KALAB',                 "Nome do Campo
+           c_qtdma(05)     TYPE c             VALUE 'QTDMA',                 "Nome do Campo
+           c_qtdmn(05)     TYPE c             VALUE 'QTDMN',                 "Nome do Campo
+           c_porcma(06)    TYPE c             VALUE 'PORCMA',                "Nome do Campo
+           c_qtdia(05)     TYPE c             VALUE 'QTDIA',                 "Nome do Campo
+           c_qtdin(05)     TYPE c             VALUE 'QTDIN',                 "Nome do Campo
+           c_porcia(06)    TYPE c             VALUE 'PORCIA',                "Nome do Campo
+           c_data(06)      TYPE c             VALUE 'S_DATA',                "Parametro de seleção
+           c_nome(14)      TYPE c             VALUE 'CATEGORIA_ITEM',        "Constante
+           c_vendas(10)    TYPE c             VALUE 'DOC_VENDAS',            "Constante
+           c_mint(21)      TYPE c             VALUE 'DOC_VENDAS_MERCADO_MI', "Constante
+           c_mex(21)       TYPE c             VALUE 'DOC_VENDAS_MERCADO_ME', "Constante
+           c_igual(1)      TYPE c             VALUE '=',                     "Busca Constante
+           c_metric(4)     TYPE c             VALUE '0001'.                  "Container
+
+*----------------------------------------------------------------------
+* Declaração das type-pools
+*----------------------------------------------------------------------
+
+TYPE-POOLS: slis,  "Tabela para utilização do ALV.
+            kkblo. "Tabela para utilização do ALV.
+
+*----------------------------------------------------------------------
+* Declaração dos types
+*----------------------------------------------------------------------
+
+TYPES: BEGIN OF y_principal,    "Tabela da seleção de dados
+       vbeln  TYPE vbap-vbeln,  "Documento de vendas
+       posnr  TYPE vbap-posnr,  "Item do documento de vendas
+       matnr  TYPE vbap-matnr,  "Nº do material
+* >>> GP - 25/09/2007
+       etenr  TYPE vbep-etenr,  "Nº da divisão de remessa
+       bmeng  TYPE vbep-bmeng,  "Quantidade confirmada
+* <<< GP - 25/09/2007
+       werks  TYPE vbap-werks,  "Centro (próprio ou externo)
+       pstyv  TYPE vbap-pstyv,  "Categoria do item do documento de vendas e distribuição
+* >>> GP - 25/09/2007
+       auart  TYPE vbak-auart,  "Tipo de documento de vendas
+* <<< GP - 25/09/2007
+       lfsta  TYPE vbup-lfsta,  "Status de remessa
+       wadat  TYPE vbep-wadat,  "Data de saída da mercadoria
+* >>> GP - 25/09/2007
+       mbdat  TYPE vbep-wadat,  "Data de preparação do material
+       edatu  TYPE vbep-edatu,  "Data de divisão da remessa
+* <<< GP - 25/09/2007
+       lgpro  TYPE marc-lgpro,  "Depósito de produção
+       maktg  TYPE makt-maktg,  "Texto breve de material
+ END OF y_principal.
+
+TYPES: BEGIN OF y_sel_lips,     "Tabela para seleção na Lips
+       matnr TYPE lips-matnr,   "Nº do material
+       vgbel TYPE lips-vgbel,   "Nº documento do documento de referência
+       vgpos TYPE lips-vgpos,   "Nº item do item comercial modelo
+ END OF y_sel_lips.
+
+TYPES: BEGIN OF y_estoq,        "Tabela para seleção na Lips
+       matnr TYPE vbap-matnr,   "Nº do material
+       werks TYPE vbap-werks,   "Centro
+       labst TYPE mard-labst,   "Estoque Livre
+ END OF y_estoq.
+
+TYPES: BEGIN OF y_estoque,     "Tabela para seleção na Lips
+       matnr TYPE vbap-matnr,   "Nº do material
+       werks TYPE vbap-werks,   "Centro
+       labst TYPE mard-labst,   "Estoque Livre
+ END OF y_estoque.
+
+TYPES: BEGIN OF y_sel_estoq,     "Tabela para seleção na Lips
+       matnr TYPE vbap-matnr,   "Nº do material
+       werks TYPE vbap-werks,   "Centro
+ END OF y_sel_estoq.
+
+TYPES: BEGIN OF y_lips,         "Tabela para seleção na Lips
+       vbeln TYPE lips-vbeln,   "Fornecimento
+       posnr TYPE lips-posnr,   "Item de remessa
+       erdat TYPE lips-erdat,   "Data de criação do registro
+       matnr TYPE lips-matnr,   "Nº do material
+       lfimg TYPE lips-lfimg,   "Qtd fornecida de fato, em UMV
+       vgbel TYPE lips-vgbel,   "Nº documento do documento de referência
+       vgpos TYPE lips-vgpos,   "Nº item do item comercial modelo
+ END OF y_lips.
+
+TYPES: BEGIN OF y_lips_aux,
+       matnr TYPE lips-matnr,   "Nº do material
+       vgbel TYPE lips-vgbel,   "Nº documento do documento de referência
+       vgpos TYPE lips-vgpos,   "Nº item do item comercial modelo
+* >>> GP - 25/09/2007
+       qtdma TYPE vbep-bmeng,  "Qtd da ordem acumulada em unidade de venda
+       qtdmn TYPE vbep-bmeng,  "Qtd da ordem acumulada em unidade de venda
+* <<< GP - 25/09/2007
+ END OF y_lips_aux.
+
+TYPES: BEGIN OF y_mska,
+        matnr TYPE mska-matnr, "Material
+        werks TYPE mska-werks, "Centro
+        vbeln TYPE mska-vbeln, "Ordem de Venda
+        posnr TYPE mska-posnr, "Item da Ordem de Venda
+        kalab TYPE mska-kalab, "Estoque avaliado de utilização livre
+        pstyv TYPE vbap-pstyv, "Categoria do item do documento de vendas e distribuição
+       END OF y_mska.
+
+TYPES: BEGIN OF y_param,
+        ds_nome     TYPE ztbpp_tp01-ds_nome,    " Nome da Constante
+        id_range    TYPE ztbpp_tp01-id_range,   " Range
+        id_operacao TYPE ztbpp_tp01-id_operacao," Operação
+        ds_valor_1  TYPE ztbpp_tp01-ds_valor_1, " Valor do parametro
+       END OF y_param.
+
+TYPES: BEGIN OF y_alv_m,        "Tabela da Impressão do Alv (Material)
+       werks  TYPE vbap-werks,  "Centro
+       lgpro  TYPE marc-lgpro,  "Depósito de produção
+       matnr  TYPE vbap-matnr,  "Nº do material
+       maktg  TYPE makt-maktg,  "Texto breve de material
+       vbeln  TYPE vbap-vbeln,  "Documento de vendas
+* >>> GP - 25/09/2007
+       posnr  TYPE vbap-posnr,  "Item do documento de vendas
+       etenr  TYPE vbep-etenr,  "Nº da divisão de remessa
+       bmeng  TYPE vbep-bmeng, "Qtd da ordem acumulada em unidade de venda
+* <<< GP - 25/09/2007
+       labst  TYPE mard-labst,  "Estoque avaliado de utilização livre
+       kalab  TYPE mska-kalab,  "Estoque especial
+* >>> GP - 25/09/2007
+       qtdma  TYPE vbep-bmeng,  "Qtd da ordem acumulada em unidade de venda
+       qtdmn  TYPE vbep-bmeng,  "Qtd da ordem acumulada em unidade de venda
+       porcma TYPE vbep-bmeng,  "Qtd da ordem acumulada em unidade de venda
+* <<< GP - 25/09/2007
+ END OF y_alv_m.
+
+TYPES: BEGIN OF y_alv_o,               "Tabela da Impressão do Alv (Ordem)
+       werks      TYPE vbap-werks,     "Centro
+       lgpro      TYPE marc-lgpro,     "Depósito de produção
+       vbeln      TYPE vbap-vbeln,     "Documento de vendas
+       qtdia(06)  TYPE p DECIMALS 2,   "Qtd da ordem acumulada em unidade de venda
+       qtdin(06)  TYPE p DECIMALS 2,   "Qtd da ordem acumulada em unidade de venda
+       porcia(03) TYPE p DECIMALS 2,   "Qtd da ordem acumulada em unidade de venda
+ END OF y_alv_o.
+
+*<<< GP - 25/09/2007
+TYPES: BEGIN OF y_alv_ovm,
+       werks     TYPE ZTBPP_022-CD_CENTRO,        " Centro
+       lgort     TYPE ZTBPP_022-CD_DEPOSITO,      " Depósito
+       vbeln     TYPE ZTBPP_022-CD_DOCUMEN_VENDA, " Nº documento de vendas
+       auart     TYPE ZTBPP_022-CD_TIPO_DOCTO,    " Tipo de documento de vendas
+       qtdia(8)  TYPE p DECIMALS 2,    "Qtd da ordem acumulada em unidade de venda
+       qtdin(8)  TYPE p DECIMALS 2,    "Qtd da ordem acumulada em unidade de venda
+       porcia(5) TYPE p DECIMALS 2,    "Qtd da ordem acumulada em unidade de venda
+END OF y_alv_ovm.
+
+TYPES: BEGIN OF y_alv_ovm_aux,
+       werks     TYPE ZTBPP_022-CD_CENTRO,        " Centro
+       lgort     TYPE ZTBPP_022-CD_DEPOSITO,      " Depósito
+       vbeln     TYPE ZTBPP_022-CD_DOCUMEN_VENDA, " Nº documento de vendas
+       qtdia(8)  TYPE p DECIMALS 2,    "Qtd da ordem acumulada em unidade de venda
+       qtdin(8)  TYPE p DECIMALS 2,    "Qtd da ordem acumulada em unidade de venda
+       porcia(5) TYPE p DECIMALS 2,    "Qtd da ordem acumulada em unidade de venda
+END OF y_alv_ovm_aux.
+*>>> GP - 25/09/2007
+
+*----------------------------------------------------------------------
+* Declaração das tabelas internas
+*----------------------------------------------------------------------
+DATA: t_principal    TYPE TABLE OF y_principal,       "Armazenará todos os dados
+      t_sel_lips     TYPE TABLE OF y_sel_lips,        "Armazenará dados da Lips
+      t_sel_lips_aux TYPE TABLE OF y_sel_lips,        "Armazenará dados da Lips
+      t_lips         TYPE TABLE OF y_lips,            "Tabela dados de remessa
+      t_lips_aux     TYPE TABLE OF y_lips_aux,        "Tabela Auxiliar da Lips
+      t_estoq        TYPE TABLE OF y_estoq,           "Tabela Estoque Físico
+      t_sel_estoq    TYPE TABLE OF y_sel_estoq,       "Tabela Estoque Físico
+      t_estoque      TYPE TABLE OF y_estoque,         "Tabela Estoque Físico
+      t_consumo      TYPE TABLE OF y_estoque,         "Tabela Estoque Físico
+      t_mska         TYPE TABLE OF y_mska,            "Tabela Estoque Utilização Livre
+      t_param        TYPE TABLE OF y_param,           "Tabela de Parametros
+      t_alv_m        TYPE TABLE OF y_alv_m,           "Tabela do Relatório
+      t_alv_o        TYPE TABLE OF y_alv_o,           "Tabela do Relatório
+* >>> GP - 25/09/2007
+      t_ztbpp_022    TYPE TABLE OF ztbpp_022,         "Index de Atendidento a Vendas e Produção
+      t_alv_ovm      TYPE TABLE OF y_alv_ovm,         "Tabela do Relatório
+      t_alv_ovm_aux  TYPE TABLE OF y_alv_ovm_aux,     "Tabela do Relatório
+      t_tipo_doc     TYPE TABLE OF y_param,           "Tabela de Parametros
+      t_mercado      TYPE TABLE OF y_param,           "Tabela de Parametros
+* <<< GP - 25/09/2007
+* >>> GP - 02/10/2007
+      t_fcat         TYPE          lvc_t_fcat,        "Tabela de campos da strutura alv
+      t_sort         TYPE          lvc_t_sort,        "Tabela de campos da strutura alv
+* <<< GP - 02/10/2007
+      t_top_of_page  TYPE TABLE OF slis_listheader.   "Tabela de campos da strutura alv
+
+*----------------------------------------------------------------------
+* Declaração das work areas
+*----------------------------------------------------------------------
+DATA: wa_principal   TYPE y_principal,               "WorkÁrea dos campos da principal
+      wa_sel_lips    TYPE y_sel_lips,                "WorkÁrea dos campos da Lips
+      wa_lips        TYPE y_lips,                    "WorkÁrea dos campos da Lips
+      wa_lips_aux    TYPE y_lips_aux,                "WorkÁrea Auxiliar dos campos da Lips
+      wa_estoq       TYPE y_estoq,                   "WorkÁrea dos estoques
+      wa_sel_estoq   TYPE y_sel_estoq,               "WorkÁrea estoque
+      wa_estoque     TYPE y_estoque,                 "WorkÁrea estoque
+      wa_consumo     TYPE y_estoque,                 "WorkÁrea estoque
+      wa_mska        TYPE y_mska,                    "WorkÁrea estoque utilização livre
+      wa_alv_m       TYPE y_alv_m,                   "WorkÁrea dos campos da Alv M
+      wa_alv_o       TYPE y_alv_o,                   "WorkÁrea dos campos da Alv O
+* >>> GP - 25/09/2007
+      wa_ztbpp_022   TYPE ztbpp_022,                 "Workarea Index de Atendimento a Vendas e Produção
+      wa_alv_ovm     TYPE y_alv_ovm,                 "WorkÁrea dos campos da Alv OVM
+      wa_alv_ovm_aux TYPE y_alv_ovm_aux,             "WorkÁrea auxiliar dos campos da Alv OVM
+      wa_tipo_doc    TYPE y_param,                   "WorkÁrea da tabela de parâmetros
+      wa_mercado     TYPE y_param,                   "WorkÁrea da tabela de parâmetros
+      wa_param       TYPE y_param,                   "WorkÁrea da tabela de parâmetros
+* <<< GP - 25/09/2007
+* >>> GP - 02/10/2007
+      wa_fcat        TYPE lvc_s_fcat,                "WorkÁrea dos campos da estru. alv
+      wa_sort        TYPE lvc_s_sort,                "WorkÁrea dos campos da estru. alv
+      wa_top_of_page TYPE slis_listheader,           "WorkÁrea dos campos da estru. alv
+      wa_layout      TYPE lvc_s_layo.                "WorkÁrea dos campos da estru. alv
+* <<< GP - 02/10/2007
+
+*----------------------------------------------------------------------
+* Declaração das variaveis globais
+*----------------------------------------------------------------------
+DATA: v_calc(03)      TYPE p,                          "Efetuará um calculo
+      v_tcalc(03)     TYPE c,                          "Efetuará um calculo
+      v_qtdma         TYPE vbap-kwmeng,                "Soma dos Materiais Atendidos
+      v_qtdmn         TYPE vbap-kwmeng,                "Soma dos Materiais Não Atendidos
+      v_werks         TYPE werks_d,                    "Controla Centro
+      v_matnr         TYPE mara-matnr,                 "Controla Material
+      v_soma_qt       TYPE vbap-kwmeng,                "Soma Qtd do Material
+      v_variant       TYPE disvariant,                 "Variant.exibição
+* >>> GP - 02/10/2007
+      go_splitter        TYPE REF TO cl_gui_splitter_container, "Divisão de tela - criação de container dinamicamente
+      go_splitter_cab    TYPE REF TO cl_gui_splitter_container, "Divisão de tela - Cabeçalho
+      go_container       TYPE REF TO cl_gui_container,          "Container para o ALV
+      go_container_cab   TYPE REF TO cl_gui_container,          "Container para o Cabeçalho
+      go_cont_cab_txt    TYPE REF TO cl_gui_container,          "Container para o Cabeçalho - Texto
+      go_alv             TYPE REF TO cl_gui_alv_grid,           "ALV Control
+      ok_code            TYPE        sy-ucomm.                  "Váriavel de controle
+
+*----------------------------------------------------------------------*
+*  CLASS lcl_event_handler DEFINITION
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler DEFINITION .
+
+  PUBLIC SECTION .
+    METHODS:
+    handle_print_top_of_list
+    FOR EVENT print_top_of_list OF cl_gui_alv_grid .
+
+  PRIVATE SECTION.
+
+ENDCLASS.                    "lcl_event_handler DEFINITION
+
+*-----------------------------------------------------------------------*
+*       CLASS lcl_event_handler IMPLEMENTATION
+*-----------------------------------------------------------------------*
+CLASS lcl_event_handler IMPLEMENTATION .
+
+  METHOD handle_print_top_of_list .
+    WRITE:/ 'Relatório de Informações Gerenciais.'(036), sy-pagno .
+  ENDMETHOD .                    "handle_print_top_of_list
+
+ENDCLASS .                    "lcl_event_handler IMPLEMENTATION
+* <<< GP - 02/10/2007
+
+
+*----------------------------------------------------------------------
+* Tela de Seleção
+*----------------------------------------------------------------------
+* S_WERKS    -> Centro
+* S_MATNR    -> Material
+* S_LGPRO    -> Fábrica
+* S_VBELN    -> Ordem de Vendas
+* S_DATA     -> Data
+* P_INT      -> Mercado Interno
+* P_EXT      -> Mercado Externo
+* P_TODOS    -> Todos
+* P_MATERIAL -> Material
+* P_ORDEM    -> Ordem
+* P_MENSAL   -> Ordem de Venda Mensal
+* P_VENDAS   -> Vendas
+* P_PRODUC   -> Produção
+* P_ATUALI   -> Atualizar Base
+*----------------------------------------------------------------------
+
+* 1º Frame
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+
+SELECT-OPTIONS: s_werks FOR marc-werks OBLIGATORY,
+                s_matnr FOR marc-matnr,
+                s_lgpro FOR marc-lgpro,
+                s_vbeln FOR vbap-vbeln,
+                s_data  FOR sy-datum NO-EXTENSION.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+* >>> GP - 25/09/2007
+* 2º Frame
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-030.
+
+PARAMETERS: p_int    RADIOBUTTON GROUP rb03 USER-COMMAND rb03,
+            p_ext    RADIOBUTTON GROUP rb03,
+            p_todos  RADIOBUTTON GROUP rb03 DEFAULT 'X'.
+
+SELECTION-SCREEN END OF BLOCK b2.
+
+* <<< GP - 25/09/2007
+
+* 3º Frame
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-002.
+
+PARAMETERS: p_mat    RADIOBUTTON GROUP rb01 USER-COMMAND rb01,
+            p_ordem  RADIOBUTTON GROUP rb01,
+* >>> GP - 25/09/2007
+            p_mensal RADIOBUTTON GROUP rb01.
+* <<< GP - 25/09/2007
+
+SELECTION-SCREEN END OF BLOCK b3.
+
+* 4º Frame
+SELECTION-SCREEN BEGIN OF BLOCK b4 WITH FRAME TITLE text-005.
+
+PARAMETERS: p_vendas RADIOBUTTON GROUP rb02 USER-COMMAND rb02,
+            p_produc RADIOBUTTON GROUP rb02 DEFAULT 'X',
+* >>> GP - 25/09/2007
+            p_atuali AS CHECKBOX.
+* <<< GP - 25/09/2007
+SELECTION-SCREEN END OF BLOCK b4.
+
+* >>> GP - 01/10/2007
+INITIALIZATION.
+
+  PERFORM zf_trava_data.
+
+*  Inicializa Variáveis
+  v_variant-report = sy-repid.
+  v_variant-username = sy-uname.
+* <<< GP - 01/10/2007
+
+*----------------------------------------------------------------------
+* Validação dos campos de seleção
+*----------------------------------------------------------------------
+AT SELECTION-SCREEN OUTPUT.
+
+  PERFORM zf_check_atendimento.
+
+START-OF-SELECTION.
+
+  PERFORM zf_valida_campos.
+
+*** Obrigar o campo data
+  IF s_data-low IS INITIAL OR s_data-high IS INITIAL.
+    MESSAGE s208(00) DISPLAY LIKE c_e WITH text-003.
+  ELSE.
+    PERFORM zf_seleciona_dados.
+  ENDIF.
+
+END-OF-SELECTION.
+
+  CHECK NOT t_principal IS INITIAL.
+
+* >>> GP - 01/10/2007
+  PERFORM zf_relatorio.         "Chama o relatório ALV
+* <<< GP - 01/10/2007
+  PERFORM zf_liberar_memoria.
+
+
+*----------------------------------------------------------------------*
+* Form zf_seleciona_dados
+*----------------------------------------------------------------------*
+* Rotina para selecionar todos os dados que irão compor o relatório
+*----------------------------------------------------------------------*
+FORM zf_seleciona_dados.
+* >>> GP - 26/09/2007
+  IF p_vendas IS NOT INITIAL.
+*** Seleciona os itens da ordem de venda
+    SELECT a~vbeln a~posnr a~matnr c~etenr c~bmeng a~werks a~pstyv f~auart
+           b~lfsta
+           c~wadat
+           c~mbdat
+           c~edatu
+           d~lgpro
+           e~maktg
+     FROM vbap AS a
+
+     INNER JOIN
+     vbup AS b ON
+     b~vbeln EQ a~vbeln AND
+     b~posnr EQ a~posnr
+
+     INNER JOIN
+     vbep AS c ON
+     c~vbeln EQ a~vbeln AND
+     c~posnr EQ a~posnr AND
+     c~bmeng NE 0
+
+     INNER JOIN
+     marc AS d ON
+     d~matnr EQ  a~matnr AND
+     d~werks EQ  a~werks
+
+     INNER JOIN
+     makt AS e ON
+     e~spras EQ sy-langu AND
+     e~matnr EQ d~matnr
+
+     INNER JOIN
+     vbak AS f ON
+     f~vbeln EQ a~vbeln
+
+     INTO TABLE t_principal
+
+         WHERE a~vbeln IN s_vbeln
+           AND a~matnr IN s_matnr
+           AND a~abgru = space
+           AND a~werks IN s_werks
+           AND c~wadat IN s_data
+           AND d~lgpro IN s_lgpro.
+
+  ELSEIF p_produc IS NOT INITIAL.
+    SELECT a~vbeln a~posnr a~matnr c~etenr c~bmeng a~werks a~pstyv f~auart
+        b~lfsta
+        c~wadat
+        c~mbdat
+        c~edatu
+        d~lgpro
+        e~maktg
+    FROM vbap AS a
+
+    INNER JOIN
+    vbup AS b ON
+    b~vbeln EQ a~vbeln AND
+    b~posnr EQ a~posnr
+
+    INNER JOIN
+    vbep AS c ON
+    c~vbeln EQ a~vbeln AND
+    c~posnr EQ a~posnr AND
+    c~bmeng NE 0
+
+    INNER JOIN
+    marc AS d ON
+    d~matnr EQ  a~matnr AND
+    d~werks EQ  a~werks
+
+    INNER JOIN
+    makt AS e ON
+    e~spras EQ sy-langu AND
+    e~matnr EQ d~matnr
+
+    INNER JOIN
+    vbak AS f ON
+    f~vbeln EQ a~vbeln
+
+    INTO TABLE t_principal
+
+        WHERE a~vbeln IN s_vbeln
+          AND a~matnr IN s_matnr
+          AND a~abgru = space
+          AND a~werks IN s_werks
+          AND c~mbdat IN s_data
+          AND d~lgpro IN s_lgpro.
+
+  ENDIF.
+
+  IF p_mensal IS NOT INITIAL.
+    SELECT cd_centro cd_deposito cd_documen_venda cd_tipo_docto
+           qt_atendida qt_nao_atendida qt_index_atend
+      FROM ZTBPP_022
+      INTO TABLE t_alv_ovm
+      WHERE cd_centro        IN s_werks AND
+            cd_deposito      IN s_lgpro AND
+            cd_material      IN s_matnr AND
+            cd_documen_venda IN s_vbeln AND
+            dt_remessa       IN s_data.
+
+    PERFORM zf_seleciona_mercado.
+  ENDIF.
+*<<< GP - 26/09/2007
+  IF sy-subrc = 0.
+    SORT t_principal BY vbeln.
+*>>> GP - 26/09/2007
+    PERFORM zf_seleciona_doc_vendas.
+    PERFORM zf_mercado.
+*<<< GP - 26/09/2007
+    PERFORM zf_seleciona_remessa.
+    PERFORM zf_calcula_quantidades.
+  ELSE.
+    MESSAGE s208(00) DISPLAY LIKE c_e WITH text-004.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+
+ENDFORM.                    " zf_seleciona_dados
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_seleciona_doc_vendas
+*&---------------------------------------------------------------------*
+* Seleção do tipo de documentos de vendas que estejam cadastrados na
+* tabela de parâmetros ZTBPP_TP01
+*----------------------------------------------------------------------*
+FORM zf_seleciona_doc_vendas .
+
+* Seleciona dados de constantes de PP
+  SELECT ds_nome id_range id_operacao ds_valor_1
+  FROM ztbpp_tp01
+  INTO TABLE t_tipo_doc
+  WHERE cd_programa = sy-repid
+    AND ds_nome     = c_vendas
+    AND id_operacao = c_i
+    AND id_range    = c_igual.
+
+  CHECK sy-subrc IS INITIAL.
+  SORT t_tipo_doc BY ds_valor_1.
+
+* Leitura na tabela para deletar os documentos em que o tipo do documento não estiver
+* cadastrado na tabela de parâmetros
+  LOOP AT t_principal INTO wa_principal.
+
+    CLEAR wa_tipo_doc.
+    READ TABLE t_tipo_doc INTO wa_tipo_doc WITH KEY ds_valor_1 = wa_principal-auart
+                                                                      BINARY SEARCH.
+
+    IF sy-subrc IS NOT INITIAL.
+
+      DELETE t_principal.
+
+    ENDIF.
+
+  ENDLOOP.
+
+
+ENDFORM.                    " zf_seleciona_doc_vendas
+*&---------------------------------------------------------------------*
+*&      Form  zf_mercado
+*&---------------------------------------------------------------------*
+* Identifica o mercado de venda
+*----------------------------------------------------------------------*
+FORM zf_mercado .
+
+* Se o mercado for interno
+  IF p_int IS NOT INITIAL.
+
+* Seleciona os dados de constantes de PP
+    SELECT ds_nome id_range id_operacao ds_valor_1
+    FROM ztbpp_tp01
+    INTO TABLE t_mercado
+    WHERE cd_programa = sy-repid
+      AND ds_nome     = c_mint
+      AND id_operacao = c_i
+      AND id_range    = c_igual.
+
+    CHECK sy-subrc IS INITIAL.
+    SORT t_mercado BY ds_valor_1.
+
+    LOOP AT t_principal INTO wa_principal.
+
+      CLEAR wa_mercado.
+      READ TABLE t_mercado INTO wa_mercado WITH KEY ds_valor_1 = wa_principal-auart
+                                                                      BINARY SEARCH.
+
+      IF sy-subrc IS NOT INITIAL.
+        DELETE t_principal.
+      ENDIF.
+
+    ENDLOOP.
+
+* Se for mercado externo
+  ELSEIF p_ext IS NOT INITIAL.
+
+*   Seleciona dados na tabela de constantes
+    SELECT ds_nome id_range id_operacao ds_valor_1
+    FROM ztbpp_tp01
+    INTO TABLE t_mercado
+    WHERE cd_programa = sy-repid
+      AND ds_nome     = c_mex
+      AND id_operacao = c_i
+      AND id_range    = c_igual.
+
+
+    CHECK sy-subrc IS INITIAL.
+    SORT t_mercado by ds_valor_1.
+
+    LOOP AT t_principal INTO wa_principal.
+
+      CLEAR wa_mercado.
+      READ TABLE t_mercado INTO wa_mercado WITH KEY ds_valor_1 = wa_principal-auart
+                                                                      BINARY SEARCH.
+
+      IF sy-subrc IS NOT INITIAL.
+
+        DELETE t_principal.
+
+      ENDIF.
+
+    ENDLOOP.
+
+* Se for todos
+  ELSEIF p_todos IS NOT INITIAL.
+
+    EXIT.
+
+  ENDIF.
+
+ENDFORM.                    " zf_mercado
+
+*----------------------------------------------------------------------*
+* Form zf_seleciona_remessa
+*----------------------------------------------------------------------*
+* Rotina para selecionar as remessas de acordo com a tab. t_sel_lips
+*----------------------------------------------------------------------*
+FORM zf_seleciona_remessa.
+
+  IF t_principal IS NOT INITIAL.
+
+    DELETE ADJACENT DUPLICATES FROM t_principal.
+
+    SORT t_principal BY vbeln posnr.
+
+    PERFORM zf_estoque_especial.
+
+*** Rotina para montar tabela que irá selecionar as remessas por ordem de venda e material
+    LOOP AT t_principal INTO wa_principal.
+
+      CLEAR wa_sel_lips.
+
+      MOVE: wa_principal-vbeln TO wa_sel_lips-vgbel,
+            wa_principal-posnr TO wa_sel_lips-vgpos,
+            wa_principal-matnr TO wa_sel_lips-matnr.
+
+      APPEND wa_sel_lips TO t_sel_lips.
+      CLEAR  wa_sel_lips.
+
+      MOVE: wa_principal-matnr TO wa_sel_estoq-matnr,
+            wa_principal-werks TO wa_sel_estoq-werks.
+
+      APPEND wa_sel_estoq TO t_sel_estoq. CLEAR wa_sel_estoq.
+
+
+    ENDLOOP.
+
+*** Executar rotina somente para opção material
+    IF p_mat EQ c_x.
+      SORT t_estoq BY matnr werks.
+      DELETE ADJACENT DUPLICATES FROM t_sel_estoq
+                              COMPARING matnr
+                                        werks.
+
+      IF t_sel_estoq[] IS NOT INITIAL.
+*** Selecionar o estoque físico do material e centro
+        SELECT matnr werks labst
+        FROM mard
+        INTO TABLE t_estoq
+        FOR ALL ENTRIES IN t_sel_estoq
+        WHERE matnr EQ t_sel_estoq-matnr
+          AND werks EQ t_sel_estoq-werks.
+
+*** Rotina para calcular o estoque físico por material e centro
+        LOOP AT t_estoq INTO wa_estoq.
+
+          IF ( v_matnr NE wa_estoq-matnr OR v_werks NE wa_estoq-werks )
+             AND sy-tabix GT 1.
+
+            PERFORM zf_append_tabela USING wa_estoque
+                                     CHANGING t_estoque.
+            CLEAR wa_estoque.
+
+          ENDIF.
+
+          CLEAR: v_matnr, v_werks.
+          MOVE:
+            wa_estoq-matnr TO wa_estoque-matnr,
+            wa_estoq-werks TO wa_estoque-werks,
+            wa_estoq-matnr TO v_matnr,
+            wa_estoq-werks TO v_werks.
+
+          ADD wa_estoq-labst TO wa_estoque-labst.
+
+        ENDLOOP.
+
+        PERFORM zf_append_tabela USING wa_estoque
+                                 CHANGING t_estoque.
+        CLEAR wa_estoque.
+
+      ENDIF.
+    ENDIF.
+
+    CHECK t_sel_lips[] IS NOT INITIAL.
+
+    t_sel_lips_aux[] = t_sel_lips[].
+
+    SORT t_sel_lips_aux BY matnr
+                           vgbel
+                           vgpos.
+
+    DELETE ADJACENT DUPLICATES FROM t_sel_lips_aux
+                          COMPARING matnr
+                                    vgbel
+                                    vgpos.
+
+*** Selecionar todas as remessas para cada material ordem e item
+    SELECT vbeln posnr erdat matnr lfimg vgbel vgpos
+           FROM lips
+           INTO TABLE t_lips
+           FOR ALL ENTRIES IN t_sel_lips_aux
+           WHERE matnr = t_sel_lips_aux-matnr
+             AND vgbel = t_sel_lips_aux-vgbel
+             AND vgpos = t_sel_lips_aux-vgpos.
+
+  ELSE.
+    MESSAGE s208(00) DISPLAY LIKE c_e WITH text-004.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+
+ENDFORM.                    " zf_seleciona_remessa
+*----------------------------------------------------------------------*
+* Form zf_calcula_quantidades
+*----------------------------------------------------------------------*
+* Rotina para efetuar diversos calculos.
+*----------------------------------------------------------------------*
+FORM zf_calcula_quantidades.
+
+  t_consumo = t_estoque.
+
+  SORT: t_sel_lips  BY vgbel vgpos,
+        t_lips      BY vgbel vgpos matnr,
+        t_principal BY vbeln posnr matnr,
+        t_consumo   BY matnr werks.
+
+  CLEAR: t_lips_aux, wa_lips_aux, v_qtdma, v_qtdmn.
+
+  LOOP AT t_lips INTO wa_lips.
+
+    IF wa_lips_aux IS NOT INITIAL AND ( wa_lips_aux-matnr NE wa_lips-matnr OR
+                                        wa_lips_aux-vgbel NE wa_lips-vgbel OR
+                                        wa_lips_aux-vgpos NE wa_lips-vgpos ).
+
+      PERFORM zf_append_tabela USING wa_lips_aux
+                            CHANGING t_lips_aux.
+      CLEAR wa_lips_aux.
+
+    ENDIF.
+
+*** Verifica a data do Item
+    CLEAR wa_principal.
+    READ TABLE t_principal INTO wa_principal WITH KEY vbeln = wa_lips-vgbel
+                                                      posnr = wa_lips-vgpos
+                                                      matnr = wa_lips-matnr BINARY SEARCH.
+
+*** Qtd Atendida
+    IF wa_lips-erdat LE wa_principal-wadat.
+      ADD wa_lips-lfimg TO wa_lips_aux-qtdma.
+    ELSE.
+*** Qtd não Atendida
+      ADD wa_lips-lfimg TO wa_lips_aux-qtdmn.
+    ENDIF.
+
+
+    MOVE:
+          wa_lips-matnr TO   wa_lips_aux-matnr,
+          wa_lips-vgbel TO   wa_lips_aux-vgbel,
+          wa_lips-vgpos TO   wa_lips_aux-vgpos.
+
+  ENDLOOP.
+
+  IF wa_lips_aux IS NOT INITIAL.
+
+    PERFORM zf_append_tabela USING wa_lips_aux
+                          CHANGING t_lips_aux.
+    CLEAR wa_lips_aux.
+
+  ENDIF.
+
+*** Rotina para montar as tabelas de impressão do ALV
+  LOOP AT t_principal INTO wa_principal.
+
+*** Somente para a opção Material
+    IF p_mat EQ c_x.
+
+      MOVE: wa_principal-werks  TO wa_alv_m-werks,
+            wa_principal-lgpro  TO wa_alv_m-lgpro,
+            wa_principal-matnr  TO wa_alv_m-matnr,
+            wa_principal-maktg  TO wa_alv_m-maktg,
+            wa_principal-vbeln  TO wa_alv_m-vbeln,
+            wa_principal-posnr  TO wa_alv_m-posnr,
+* >>> GP - 26/09/2007
+            wa_principal-etenr  TO wa_alv_m-etenr,
+            wa_principal-bmeng  TO wa_alv_m-bmeng.
+* <<< GP - 26/09/2007
+
+*** Verificar se a qtd material é atendida ou não
+      IF sy-datum GT wa_principal-wadat AND
+         wa_principal-lfsta EQ c_a.
+
+*** Quantidade não atendida
+        MOVE: 0                  TO wa_alv_m-qtdma,
+* >>> GP - 26/09/2007
+              wa_principal-bmeng TO wa_alv_m-qtdmn.
+* <<< GP - 26/09/2007
+
+      ELSE.
+
+        CLEAR wa_lips_aux.
+        READ TABLE t_lips_aux INTO wa_lips_aux WITH KEY matnr = wa_principal-matnr
+                                                        vgbel = wa_principal-vbeln
+                                                        vgpos = wa_principal-posnr BINARY SEARCH.
+*** Qtd atendida
+        IF sy-subrc EQ 0.
+
+*** Tratamento para calculo das qtd do material
+          CLEAR v_soma_qt.
+          v_soma_qt = wa_lips_aux-qtdma + wa_lips_aux-qtdmn.
+* >>> GP - 26/09/2007
+          IF v_soma_qt EQ wa_principal-bmeng.
+* <<< GP - 26/09/2007
+            MOVE: wa_lips_aux-qtdma TO wa_alv_m-qtdma,
+                  wa_lips_aux-qtdmn TO wa_alv_m-qtdmn.
+
+          ELSE.
+
+            IF wa_lips_aux-qtdma IS INITIAL.
+* >>> GP - 26/09/2007
+              wa_alv_m-qtdma = wa_principal-bmeng - wa_lips_aux-qtdmn.
+* <<< GP - 26/09/2007
+              MOVE wa_lips_aux-qtdmn TO wa_alv_m-qtdmn.
+            ELSE.
+* >>> GP - 26/09/2007
+              wa_alv_m-qtdmn = wa_principal-bmeng - wa_lips_aux-qtdma.
+* <<< GP - 26/09/2007
+              MOVE wa_lips_aux-qtdma TO wa_alv_m-qtdma.
+            ENDIF.
+
+          ENDIF.
+
+        ELSE.
+*** Qtd não atendida
+          MOVE: 0                   TO wa_alv_m-qtdma,
+* >>> GP - 26/09/2007
+                wa_principal-bmeng TO wa_alv_m-qtdmn.
+* <<< GP - 26/09/2007
+        ENDIF.
+
+      ENDIF.
+
+*** Ler o total de estoque físico para o material e centro
+      CLEAR wa_estoq.
+      READ TABLE t_estoque INTO wa_estoque WITH KEY matnr =  wa_principal-matnr
+                                                    werks =  wa_principal-werks.
+      MOVE wa_estoque-labst  TO wa_alv_m-labst.
+
+*** Ler estoque especial
+      CLEAR wa_mska.
+      READ TABLE t_mska INTO wa_mska WITH KEY matnr = wa_principal-matnr
+                                              werks = wa_principal-werks
+                                              vbeln = wa_principal-vbeln
+                                              posnr = wa_principal-posnr BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        MOVE wa_mska-kalab TO wa_alv_m-kalab.
+
+        IF p_produc = c_x.
+          MOVE: wa_mska-kalab TO wa_alv_m-qtdma.   " Quantidade Atendida
+          wa_alv_m-qtdmn = wa_principal-bmeng - wa_alv_m-qtdma.   " Quantidade Não Atendida
+*                0             TO wa_alv_m-qtdmn.   " Quantidade não atendida
+        ENDIF.
+
+      ELSE.
+
+        IF p_produc = c_x.
+
+          READ TABLE t_param TRANSPORTING NO FIELDS WITH KEY ds_valor_1 = wa_principal-pstyv BINARY SEARCH.
+
+          IF NOT sy-subrc IS INITIAL.
+            READ TABLE t_consumo INTO wa_consumo WITH KEY matnr = wa_principal-matnr
+                                                          werks = wa_principal-werks BINARY SEARCH.
+            IF sy-subrc IS INITIAL.
+* >>> GP - 26/09/2007
+              IF wa_consumo-labst GE wa_principal-bmeng.
+
+                MOVE: wa_principal-bmeng TO wa_alv_m-qtdma,   " Quantidade Atendida
+* <<< GP - 26/09/2007
+                      0                  TO wa_alv_m-qtdmn.   " Quantidade não atendida
+              ELSE.
+
+                IF wa_consumo-labst GT 0.
+
+*                 Verifica se a quantidade da ordem foi atendida com remessa
+* >>> GP - 26/09/2007
+                  IF wa_principal-bmeng LE wa_lips_aux-qtdma.
+
+                    wa_alv_m-qtdma = wa_principal-bmeng.   " Quantidade Atendida
+* <<< GP - 26/09/2007
+                    wa_alv_m-qtdmn = 0.                    " Quantidade Não Atendida
+
+                  ELSE.
+
+                    wa_alv_m-qtdma = wa_lips_aux-qtdma + wa_consumo-labst. " Quantidade atendida
+* >>> GP - 26/09/2007
+                    IF wa_alv_m-qtdma GE wa_principal-bmeng.
+
+                      wa_alv_m-qtdma = wa_principal-bmeng.   " Quantidade Atendida
+* <<< GP - 26/09/2007
+                      wa_alv_m-qtdmn = 0.                    " Quantidade Não Atendida
+
+                    ELSE.
+* >>> GP - 26/09/2007
+                      wa_alv_m-qtdmn = wa_principal-bmeng - wa_alv_m-qtdma.     " Quantidade Não Atendida
+* <<< GP - 26/09/2007
+
+                    ENDIF.
+
+                  ENDIF.
+
+                ELSE.
+* >>> GP - 26/09/2007
+                  IF wa_principal-bmeng LE wa_lips_aux-qtdma.
+
+                    wa_alv_m-qtdma = wa_principal-bmeng.  " Quantidade Atendida
+* <<< GP - 26/09/2007
+                    wa_alv_m-qtdmn = 0.                    " Quantidade Não Aten
+
+                  ELSE.
+
+                    wa_alv_m-qtdma = wa_lips_aux-qtdma.                     " Quantidade Atendida
+* >>> GP - 26/09/2007
+                    wa_alv_m-qtdmn = wa_principal-bmeng - wa_alv_m-qtdma.  " Quantidade Não Atendida
+* <<< GP - 26/09/2007
+
+                  ENDIF.
+                ENDIF.
+
+              ENDIF.
+
+            ENDIF.
+* >>> GP - 26/09/2007
+            wa_consumo-labst = wa_consumo-labst - wa_principal-bmeng.
+* <<< GP - 26/09/2007
+            MODIFY t_consumo FROM wa_consumo INDEX sy-tabix.
+
+          ELSE.
+* >>> GP - 26/09/2007
+            IF wa_principal-bmeng LE wa_lips_aux-qtdma.
+
+              wa_alv_m-qtdma = wa_principal-bmeng.  " Quantidade Atendida
+* <<< GP - 26/09/2007
+              wa_alv_m-qtdmn = 0.                    " Quantidade Não Aten
+
+            ELSE.
+
+              wa_alv_m-qtdma = wa_lips_aux-qtdma.                     " Quantidade Atendida
+* >>> GP - 26/09/2007
+              wa_alv_m-qtdmn = wa_principal-bmeng - wa_alv_m-qtdma.  " Quantidade Não Atendida
+* <<< GP - 26/09/2007
+
+            ENDIF.
+
+          ENDIF.
+
+        ENDIF.
+
+      ENDIF.
+
+*** Calcula o total das qtds
+      ADD:  wa_alv_m-qtdma TO v_qtdma,
+            wa_alv_m-qtdmn TO v_qtdmn.
+
+*>>> GP - 26/09/2007
+      IF wa_principal-bmeng IS INITIAL.
+        wa_alv_m-porcma = wa_principal-bmeng - wa_alv_m-qtdmn.
+      ELSE.
+        wa_alv_m-porcma = ( wa_alv_m-bmeng - wa_alv_m-qtdmn )
+                           / wa_principal-bmeng * 100.
+      ENDIF.
+*<<< GP - 26/09/2007
+      APPEND wa_alv_m TO t_alv_m.
+      CLEAR  wa_alv_m.
+
+*** Se a opção for ordem
+    ELSE.
+
+      IF wa_principal-werks NE wa_alv_o-werks OR
+         wa_principal-lgpro NE wa_alv_o-lgpro OR
+         wa_principal-vbeln NE wa_alv_o-vbeln.
+
+        IF NOT wa_alv_o IS INITIAL.
+          IF wa_alv_o-qtdin IS INITIAL.
+            MOVE: 100 TO wa_alv_o-porcia.
+          ELSE.
+            MOVE:  0  TO wa_alv_o-porcia.
+          ENDIF.
+
+          APPEND wa_alv_o TO t_alv_o.
+          CLEAR  wa_alv_o.
+        ENDIF.
+
+        MOVE: wa_principal-werks TO wa_alv_o-werks,
+              wa_principal-lgpro TO wa_alv_o-lgpro,
+              wa_principal-vbeln TO wa_alv_o-vbeln.
+
+      ENDIF.
+
+*** Calcula qtd de itens não atendidos
+      IF sy-datum GT wa_principal-wadat AND wa_principal-lfsta EQ c_a.
+        ADD 1 TO wa_alv_o-qtdin.
+      ELSE.
+*** Calcula qtd de itens não atendidos
+        CLEAR wa_lips_aux .
+        READ TABLE t_lips_aux INTO wa_lips_aux WITH KEY matnr = wa_principal-matnr
+                                                        vgbel = wa_principal-vbeln
+                                                        vgpos = wa_principal-posnr BINARY SEARCH.
+
+        CLEAR v_soma_qt.
+        v_soma_qt = wa_lips_aux-qtdma + wa_lips_aux-qtdmn.
+
+* >>> GP - 26/09/2007
+        IF v_soma_qt EQ wa_principal-bmeng.
+* <<< GP - 26/09/2007
+
+          IF wa_lips_aux-qtdmn NE 0.
+            ADD 1 TO wa_alv_o-qtdin.
+          ELSE.
+            ADD 1 TO wa_alv_o-qtdia.
+          ENDIF.
+
+        ELSE.
+
+          ADD 1 TO wa_alv_o-qtdin.
+
+        ENDIF.
+
+      ENDIF.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  IF p_mat EQ c_x.
+*** Calcula porcentagem total de qtd atendida
+    v_calc = ( v_qtdma / ( v_qtdma + v_qtdmn ) ) * 100.
+
+  ELSE.
+    IF wa_alv_o-qtdin IS INITIAL.
+      MOVE: 100 TO wa_alv_o-porcia.
+    ELSE.
+      MOVE:  0  TO wa_alv_o-porcia.
+    ENDIF.
+    APPEND wa_alv_o TO t_alv_o.
+    CLEAR  wa_alv_o.
+  ENDIF.
+
+ENDFORM.                    " zf_calcula_quantidades
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_append_estoque
+*&      Inserir Registro na Tabela T_ESTOQUE
+*&---------------------------------------------------------------------*
+FORM zf_append_tabela  USING    p_wa   TYPE any  "Work Area
+                       CHANGING p_tab  TYPE table. "Tabela Interna
+  APPEND p_wa TO p_tab.
+ENDFORM.                    " zf_append_estoque
+
+*----------------------------------------------------------------------*
+*  MODULE status_0100 OUTPUT
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+MODULE status_0100 OUTPUT.
+
+  SET PF-STATUS 'STATUS_0100'.
+  SET TITLEBAR 'TITLE_0100'.
+
+* >>> GP - 02/10/2007
+  PERFORM zf_monta_layout.
+  PERFORM zf_monta_sort.
+  PERFORM zf_monta_fieldcat.
+  PERFORM zf_mostra_alv.
+* <<< GP - 02/10/2007
+
+ENDMODULE.                    "status_0100 OUTPUT
+
+*----------------------------------------------------------------------*
+*  MODULE user_command_0100 INPUT
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+MODULE user_command_0100 INPUT.
+
+  ok_code = sy-ucomm.
+
+  CASE ok_code.
+    WHEN 'BACK'.
+      SET SCREEN 0.
+    WHEN 'EXIT' .
+      SET SCREEN 0.
+    WHEN 'CANCEL' .
+      LEAVE PROGRAM.
+  ENDCASE.
+
+  CALL METHOD go_alv->check_changed_data.
+  CALL METHOD go_alv->refresh_table_display.
+
+ENDMODULE.                 " USER_COMMAND_0100  INPUT
+
+*----------------------------------------------------------------------*
+* Form zf_monta_layout
+*----------------------------------------------------------------------*
+* Rotina para montar o Layout de saida.
+*----------------------------------------------------------------------*
+FORM zf_monta_layout .
+
+*Imprimir linha clara e escura alternadamente
+  wa_layout-zebra      = c_x.
+
+*Abre a lista com as colunas do tamanho necessário para mostragem
+  wa_layout-cwidth_opt = c_x.
+
+ENDFORM.                    " zf_monta_layout
+
+*----------------------------------------------------------------------*
+* Form zf_monta_sort
+*----------------------------------------------------------------------*
+* Rotina para ordenar os campos abaixo.
+*----------------------------------------------------------------------*
+FORM zf_monta_sort .
+
+  DATA: spos TYPE i VALUE 0.
+
+*Ordenação do Relatório com opção material
+  IF p_mat EQ c_x.
+
+    ADD 1 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_werks.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+    ADD 2 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_lgpro.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+    ADD 3 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_matnr.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+    ADD 4 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_vbeln.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+    ADD 5 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_posnr.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+*Ordenação do Relatório com opção Ordem de venda
+  ELSEIF p_ordem EQ c_x.
+
+    ADD 1 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_werks.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+    ADD 2 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_lgpro.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+    ADD 3 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_vbeln.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+*Ordenação do Relatório com opção Ordem de venda mensal
+  ELSEIF p_mensal EQ c_x.
+
+    ADD 1 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_werks.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+    ADD 2 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_lgort.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+    ADD 3 TO spos.
+    CLEAR wa_sort.
+    wa_sort-spos = spos.
+    wa_sort-fieldname = c_vbeln.
+    wa_sort-up = c_x .
+    APPEND wa_sort TO t_sort .
+
+  ENDIF.
+
+ENDFORM.                    " zf_monta_sort
+
+*----------------------------------------------------------------------*
+* Form zf_monta_fieldcat
+*----------------------------------------------------------------------*
+* Rotina para Montar a Tabela Fieldcat.
+*----------------------------------------------------------------------*
+FORM zf_monta_fieldcat .
+
+  IF p_mat EQ c_x.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_werks.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-006.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_lgpro.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-007.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_matnr.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-008.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_maktg.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-009.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_vbeln.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-010.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_posnr.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-011.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_etenr.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-037.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_bmeng.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-012.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_labst.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-013.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_kalab.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-025.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_qtdma.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-014.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_qtdmn.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-015.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_porcma.
+    wa_fcat-tabname   = c_alv_m.
+    wa_fcat-scrtext_l = text-016.
+    APPEND wa_fcat TO t_fcat.
+
+  ELSEIF p_ordem EQ c_x.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_werks.
+    wa_fcat-tabname   = c_alv_o.
+    wa_fcat-scrtext_l = text-006.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_lgpro.
+    wa_fcat-tabname   = c_alv_o.
+    wa_fcat-scrtext_l = text-007.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_vbeln.
+    wa_fcat-tabname   = c_alv_o.
+    wa_fcat-scrtext_l = text-010.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_qtdia.
+    wa_fcat-tabname   = c_alv_o.
+    wa_fcat-scrtext_l = text-017.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_qtdin.
+    wa_fcat-tabname   = c_alv_o.
+    wa_fcat-scrtext_l = text-018.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_porcia.
+    wa_fcat-tabname   = c_alv_o.
+    wa_fcat-scrtext_l = text-019.
+    APPEND wa_fcat TO t_fcat.
+
+  ELSEIF p_mensal EQ c_x.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_werks.
+    wa_fcat-tabname   = c_alv_ovm.
+    wa_fcat-scrtext_l = text-006.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_lgort.
+    wa_fcat-tabname   = c_alv_ovm.
+    wa_fcat-scrtext_l = text-007.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_vbeln.
+    wa_fcat-tabname   = c_alv_ovm.
+    wa_fcat-scrtext_l = text-010.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_qtdia.
+    wa_fcat-tabname   = c_alv_ovm.
+    wa_fcat-scrtext_l = text-017.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_qtdin.
+    wa_fcat-tabname   = c_alv_ovm.
+    wa_fcat-scrtext_l = text-018.
+    APPEND wa_fcat TO t_fcat.
+
+    CLEAR wa_fcat.
+    wa_fcat-fieldname = c_porcia.
+    wa_fcat-tabname   = c_alv_ovm.
+    wa_fcat-scrtext_l = text-019.
+    APPEND wa_fcat TO t_fcat.
+
+  ENDIF.
+
+ENDFORM.                    " zf_monta_fieldcat
+
+*----------------------------------------------------------------------*
+* Form zf_mostra_alv
+*----------------------------------------------------------------------*
+* Rotina para mostrar o relatório no formato ALV
+*----------------------------------------------------------------------*
+FORM zf_mostra_alv .
+
+  IF go_splitter IS INITIAL.
+* Cria o objeto Split Container para inserir o ALV,
+* utilizando duas linhas para colocar o cabeçalho na primeira
+    CREATE OBJECT go_splitter
+      EXPORTING
+        parent  = cl_gui_container=>default_screen
+        rows    = 2
+        columns = 1
+        metric  = c_metric.
+
+* Define o tamanho da linha 1
+    CALL METHOD go_splitter->set_row_height
+      EXPORTING
+        id                = 1
+        height            = 16
+      EXCEPTIONS
+        cntl_error        = 1
+        cntl_system_error = 2
+        OTHERS            = 3.
+  ENDIF.
+
+* Define o go_container_cab com o container de row = 1 e col = 1 do splitter para inserir o cabeçalho
+  go_container_cab = go_splitter->get_container( row = 1 column = 1 ).
+
+* Define o go_container com o container de row = 2 e col = 1 do splitter para inserir o ALV
+  go_container = go_splitter->get_container( row = 2 column = 1 ).
+
+* Divide o Container do cabeçalho em dois
+* Para inserir o texto e uma imagem
+  IF go_splitter_cab IS INITIAL.
+    CREATE OBJECT go_splitter_cab
+      EXPORTING
+        parent  = go_container_cab
+        rows    = 1
+        columns = 1
+        metric  = c_metric.
+  ENDIF.
+
+* Define os containers do cabeçalho
+  go_cont_cab_txt = go_splitter_cab->get_container( row = 1 column = 1 ).
+
+*   Gera os dados do cabeçalho
+* >>> GP - 03/10/2007
+  PERFORM zf_top_of_page.
+* <<< GP - 03/10/2007
+
+* Variável para o conteúdo do cabeçalho
+  DATA: lr_content TYPE REF TO cl_salv_form_element.
+
+  lr_content = cl_salv_form_content=>get( ).
+
+* Objeto HTML Viewer
+  DATA go_html TYPE REF TO cl_gui_html_viewer.
+
+  CREATE OBJECT go_html
+    EXPORTING
+      parent             = go_cont_cab_txt
+    EXCEPTIONS
+      cntl_error         = 1
+      cntl_install_error = 2
+      dp_install_error   = 3
+      dp_error           = 4
+      OTHERS             = 5.
+
+* Objeto para gerar o código html
+  DATA go_dydos TYPE REF TO cl_salv_form_dydos.
+
+  CREATE OBJECT go_dydos
+    EXPORTING
+      r_container = go_cont_cab_txt " Container onde será gerado o HTML
+      r_html_view = go_html         " Objeto da classe HTML Viewer
+      r_content   = lr_content.       " Conteúdo formatado para exibição
+
+* Mostra o HTML no Container selecionado
+  CALL METHOD go_dydos->if_salv_form_abstract~display.
+
+  IF go_alv IS INITIAL .
+* Cria o objeto para adicionar o ALV
+    CREATE OBJECT go_alv
+      EXPORTING
+        i_parent = go_container.
+
+    IF p_mat EQ c_x.
+
+*     Define o ALV no objeto go-grid
+      CALL METHOD go_alv->set_table_for_first_display
+        EXPORTING
+          is_variant                    = v_variant
+          is_layout                     = wa_layout
+        CHANGING
+          it_outtab                     = t_alv_m
+          it_fieldcatalog               = t_fcat
+          it_sort                       = t_sort
+        EXCEPTIONS
+          invalid_parameter_combination = 1
+          program_error                 = 2
+          too_many_lines                = 3
+          OTHERS                        = 4.
+
+    ELSEIF p_ordem EQ c_x.
+
+*     Define o ALV no objeto go-grid
+      CALL METHOD go_alv->set_table_for_first_display
+        EXPORTING
+          is_variant                    = v_variant
+          is_layout                     = wa_layout
+        CHANGING
+          it_outtab                     = t_alv_o
+          it_fieldcatalog               = t_fcat
+          it_sort                       = t_sort
+        EXCEPTIONS
+          invalid_parameter_combination = 1
+          program_error                 = 2
+          too_many_lines                = 3
+          OTHERS                        = 4.
+
+    ELSEIF p_mensal EQ c_x.
+
+*     Define o ALV no objeto go-grid
+      CALL METHOD go_alv->set_table_for_first_display
+        EXPORTING
+          is_variant                    = v_variant
+          is_layout                     = wa_layout
+        CHANGING
+          it_outtab                     = t_alv_ovm_aux
+          it_fieldcatalog               = t_fcat
+          it_sort                       = t_sort
+        EXCEPTIONS
+          invalid_parameter_combination = 1
+          program_error                 = 2
+          too_many_lines                = 3
+          OTHERS                        = 4.
+
+    ENDIF.
+
+
+*     Define os handlers para o ALV
+    DATA gr_event_handler TYPE REF TO lcl_event_handler .
+
+    CREATE OBJECT gr_event_handler .
+
+*     Registrando os eventos
+    SET HANDLER gr_event_handler->handle_print_top_of_list FOR go_alv.
+  ELSE.
+
+    CALL METHOD go_alv->refresh_table_display.
+
+  ENDIF .
+
+ENDFORM.                    " zf_mostra_alv
+
+*----------------------------------------------------------------------*
+* Form zf_top_of_page
+*----------------------------------------------------------------------*
+* Rotina para montar o cabeçalho.
+*----------------------------------------------------------------------*
+FORM zf_top_of_page .
+
+  DATA: vl_datum_1(10)  TYPE c,     "Data do Processamento
+        vl_datum_2(10)  TYPE c,     "Data de seleção
+        vl_datum_3(10)  TYPE c.     "Data de seleção
+
+
+  REFRESH t_top_of_page.
+
+  vl_datum_1 = sy-datum.
+  vl_datum_2 = s_data-low.
+  vl_datum_3 = s_data-high.
+
+* Data
+* Convertendo a Data
+  CONCATENATE: vl_datum_1+6(02)
+               vl_datum_1+4(02)
+               vl_datum_1(04)
+               INTO vl_datum_1 SEPARATED BY c_caracter4.
+
+  CONCATENATE: vl_datum_2+6(02)
+               vl_datum_2+4(02)
+               vl_datum_2(04)
+               INTO vl_datum_2 SEPARATED BY c_caracter4.
+
+  CONCATENATE: vl_datum_3+6(02)
+               vl_datum_3+4(02)
+               vl_datum_3(04)
+               INTO vl_datum_3 SEPARATED BY c_caracter4.
+
+* Transformando '.' por '/'.
+  TRANSLATE: vl_datum_1 USING c_caracter2,
+             vl_datum_2 USING c_caracter2,
+             vl_datum_3 USING c_caracter2.
+
+* Data do Processamento
+  wa_top_of_page-typ = c_s.
+  CONCATENATE text-020 vl_datum_1 text-028 sy-uzeit INTO wa_top_of_page-info SEPARATED BY space.
+  APPEND wa_top_of_page TO t_top_of_page.
+  CLEAR  wa_top_of_page.
+
+* Nome da Empresa
+  wa_top_of_page-typ = c_s.
+  wa_top_of_page-info = text-021.
+  APPEND  wa_top_of_page TO t_top_of_page.
+  CLEAR wa_top_of_page.
+
+*Período de Planejamento
+  wa_top_of_page-typ = c_s.
+  CONCATENATE text-022 text-023 vl_datum_2 text-024 vl_datum_3 INTO wa_top_of_page-info SEPARATED BY space.
+  APPEND wa_top_of_page TO t_top_of_page.
+  CLEAR  wa_top_of_page.
+
+
+  wa_top_of_page-typ = c_s.
+  wa_top_of_page-info = text-029.
+  APPEND wa_top_of_page TO t_top_of_page.
+  CLEAR  wa_top_of_page.
+
+* Caso a opção marcada seja P_Material imprimir nesse lay-out o cabeçalho.
+  IF p_mat EQ c_x.
+*Percentual Geral de Materiais Atendidos
+    wa_top_of_page-typ = c_s.
+    MOVE v_calc TO v_tcalc.
+    CONCATENATE text-026 v_tcalc c_% INTO wa_top_of_page-info SEPARATED BY space.
+    APPEND wa_top_of_page TO t_top_of_page.
+    CLEAR  wa_top_of_page.
+  ENDIF.
+
+  EXPORT alv_form_html FROM abap_true
+         TO MEMORY ID 'ALV_FORM_HTML'.
+
+* Monta a estrutura de dados na memória
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = t_top_of_page
+      i_alv_form         = 'X'
+      i_logo             = c_logo.
+
+
+ENDFORM.                    " zf_top_of_page
+
+*----------------------------------------------------------------------*
+* Form zf_liberar_memoria
+*----------------------------------------------------------------------*
+* text
+*----------------------------------------------------------------------*
+FORM zf_liberar_memoria .
+
+  FREE: t_principal, t_sel_lips, t_sel_lips_aux, t_lips, t_alv_m,
+        t_alv_o, t_fcat, t_top_of_page, t_param.
+
+ENDFORM.                    " zf_liberar_memoria
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CHECK_ATENDIMENTO
+*&---------------------------------------------------------------------*
+*       Travar o campo data
+*----------------------------------------------------------------------*
+FORM zf_check_atendimento .
+
+  DATA: wa_data LIKE LINE OF s_data.
+
+  IF p_int = c_x AND p_mat = c_x AND p_produc = c_x.
+    PERFORM zf_trava_data.
+
+  ELSEIF p_ext = c_x AND p_mat = c_x AND p_produc = c_x.
+    PERFORM zf_trava_data.
+
+  ELSEIF p_todos = c_x AND p_mat = c_x AND p_produc = c_x.
+    PERFORM zf_trava_data.
+
+  ELSEIF p_int = c_x AND p_ordem = c_x AND p_produc = c_x.
+    PERFORM zf_trava_data.
+
+  ELSEIF p_ext = c_x AND p_ordem = c_x AND p_produc = c_x.
+    PERFORM zf_trava_data.
+
+  ELSEIF p_todos = c_x AND p_ordem = c_x AND p_produc = c_x.
+    PERFORM zf_trava_data.
+
+  ENDIF.
+
+
+ENDFORM.                    " ZF_CHECK_ATENDIMENTO
+*&---------------------------------------------------------------------*
+*&      Form  ZF_ESTOQUE_ESPECIAL
+*&---------------------------------------------------------------------*
+*       Selecionar estoque especial
+*----------------------------------------------------------------------*
+FORM zf_estoque_especial .
+
+* Seleciona dados de constantes de PP de acordo com o Centro, Programa e
+* nome da constante.
+  SELECT ds_nome id_range id_operacao ds_valor_1
+  FROM ztbpp_tp01
+  INTO TABLE t_param
+  WHERE cd_programa = sy-repid
+    AND ds_nome     = c_nome
+    AND id_operacao = c_i
+    AND id_range    = c_igual.
+
+  CHECK sy-subrc IS INITIAL.
+  SORT t_param BY ds_valor_1.
+
+    LOOP AT t_principal INTO wa_principal.
+
+      CLEAR wa_param.
+      READ TABLE t_param INTO wa_param WITH KEY ds_valor_1 = wa_principal-auart
+                                                                      BINARY SEARCH.
+
+      IF sy-subrc IS NOT INITIAL.
+
+        DELETE t_principal.
+
+      ENDIF.
+
+    ENDLOOP.
+
+*  Selecionar estoque de utilização livre
+  SELECT a~matnr a~werks a~vbeln a~posnr a~kalab b~pstyv
+    FROM mska AS a
+   INNER JOIN vbap AS b
+      ON a~vbeln = b~vbeln
+     AND a~posnr = b~posnr
+    INTO TABLE t_mska
+     FOR ALL ENTRIES IN t_principal
+   WHERE a~matnr = t_principal-matnr
+     AND a~vbeln = t_principal-vbeln
+     AND a~posnr = t_principal-posnr.
+
+  IF sy-subrc IS INITIAL.
+    SORT t_mska BY matnr werks vbeln posnr.
+  ENDIF.
+
+ENDFORM.                    " ZF_ESTOQUE_ESPECIAL
+*&---------------------------------------------------------------------*
+*&  FORM zf_seleciona_mercado .
+*&---------------------------------------------------------------------*
+*& Seleciona dados do Mercado caso opção ordem de vendas
+*& mensal esteja marcada.
+*&---------------------------------------------------------------------*
+FORM zf_seleciona_mercado .
+
+* Se o mercado for interno
+  IF p_int IS NOT INITIAL.
+
+* Seleciona os dados de constantes de PP
+    SELECT ds_nome id_range id_operacao ds_valor_1
+    FROM ztbpp_tp01
+    INTO TABLE t_mercado
+    WHERE cd_programa = sy-repid
+      AND ds_nome     = c_mint
+      AND id_operacao = c_i
+      AND id_range    = c_igual.
+
+    CHECK sy-subrc IS INITIAL.
+    SORT t_mercado BY ds_valor_1.
+
+    LOOP AT t_alv_ovm INTO wa_alv_ovm.
+
+      CLEAR wa_mercado.
+      READ TABLE t_mercado INTO wa_mercado WITH KEY ds_valor_1 = wa_alv_ovm-auart
+                                                                      BINARY SEARCH.
+
+      IF sy-subrc IS NOT INITIAL.
+
+        DELETE t_alv_ovm.
+
+      ENDIF.
+
+      wa_alv_ovm_aux-werks  = wa_alv_ovm-werks.
+      wa_alv_ovm_aux-lgort  = wa_alv_ovm-lgort.
+      wa_alv_ovm_aux-vbeln  = wa_alv_ovm-vbeln.
+      wa_alv_ovm_aux-qtdia  = wa_alv_ovm-qtdia.
+      wa_alv_ovm_aux-qtdin  = wa_alv_ovm-qtdin.
+      wa_alv_ovm_aux-porcia = wa_alv_ovm-porcia.
+      APPEND wa_alv_ovm_aux TO t_alv_ovm_aux.
+
+    ENDLOOP.
+
+* Se for mercado externo
+  ELSEIF p_ext IS NOT INITIAL.
+
+*   Seleciona dados na tabela de constantes
+    SELECT ds_nome id_range id_operacao ds_valor_1
+    FROM ztbpp_tp01
+    INTO TABLE t_mercado
+    WHERE cd_programa = sy-repid
+      AND ds_nome     = c_mex
+      AND id_operacao = c_i
+      AND id_range    = c_igual.
+
+    CHECK sy-subrc IS INITIAL.
+    SORT t_mercado by ds_valor_1.
+
+    LOOP AT t_alv_ovm INTO wa_alv_ovm.
+
+      CLEAR wa_mercado.
+      READ TABLE t_mercado INTO wa_mercado WITH KEY ds_valor_1 = wa_alv_ovm-auart
+                                                                      BINARY SEARCH.
+
+      IF wa_mercado-ds_valor_1 IS NOT INITIAL.
+
+        DELETE t_alv_ovm.
+
+      ENDIF.
+
+      wa_alv_ovm_aux-werks  = wa_alv_ovm-werks.
+      wa_alv_ovm_aux-lgort  = wa_alv_ovm-lgort.
+      wa_alv_ovm_aux-vbeln  = wa_alv_ovm-vbeln.
+      wa_alv_ovm_aux-qtdia  = wa_alv_ovm-qtdia.
+      wa_alv_ovm_aux-qtdin  = wa_alv_ovm-qtdin.
+      wa_alv_ovm_aux-porcia = wa_alv_ovm-porcia.
+      APPEND wa_alv_ovm_aux TO t_alv_ovm_aux.
+
+    ENDLOOP.
+
+* Se for todos
+  ELSEIF p_todos IS NOT INITIAL.
+
+    LOOP AT t_alv_ovm INTO wa_alv_ovm.
+      wa_alv_ovm_aux-werks  = wa_alv_ovm-werks.
+      wa_alv_ovm_aux-lgort  = wa_alv_ovm-lgort.
+      wa_alv_ovm_aux-vbeln  = wa_alv_ovm-vbeln.
+      wa_alv_ovm_aux-qtdia  = wa_alv_ovm-qtdia.
+      wa_alv_ovm_aux-qtdin  = wa_alv_ovm-qtdin.
+      wa_alv_ovm_aux-porcia = wa_alv_ovm-porcia.
+      APPEND wa_alv_ovm_aux TO t_alv_ovm_aux.
+    ENDLOOP.
+
+    EXIT.
+
+  ENDIF.
+
+ENDFORM.                    " zf_seleciona_mercado
+
+*&---------------------------------------------------------------------*
+*&     FORM zf_insert_tabela_mat .
+*&---------------------------------------------------------------------*
+*&     Insere os dados do relatório na tabela ZTBPP_022
+*&---------------------------------------------------------------------*
+FORM zf_insert_tabela_mat .
+
+  SORT: t_principal BY vbeln posnr matnr.
+
+  CALL FUNCTION 'FITP_POPUP_TO_CONFIRM'
+    EXPORTING
+      TEXT_QUESTION         = text-032
+      DISPLAY_CANCEL_BUTTON = c_x.
+
+  CASE sy-ucomm.
+    WHEN 'OPT1'.
+      PERFORM zf_seleciona_dados.
+
+      LOOP AT t_alv_m INTO wa_alv_m.
+
+        CLEAR wa_principal.
+        READ TABLE t_principal INTO wa_principal WITH KEY vbeln = wa_alv_m-vbeln
+                                                          posnr = wa_alv_m-posnr
+                                                          matnr = wa_alv_m-matnr BINARY SEARCH.
+
+        wa_ztbpp_022-mandt            = sy-mandt.
+        wa_ztbpp_022-cd_centro        = wa_alv_m-werks.
+        wa_ztbpp_022-cd_deposito      = wa_alv_m-lgpro.
+        wa

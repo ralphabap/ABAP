@@ -1,0 +1,2 @@
+   SUBMIT z_rsbdcsub WITH mappe = htab-mnam1
+    AND RETURN.

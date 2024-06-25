@@ -1,0 +1,15 @@
+[System]
+Name=DEV
+Description=WEG - ECC Desenvolvimento
+Client=601
+[User]
+Name=TER-FABSW03
+Language=PT
+[Function]
+Title=Editor ABAP: Include LZRQM_MT_ATIVIDADEF01 exibir
+Command=/H
+Type=SystemCommand
+[Configuration]
+WorkDir=C:\Documents and Settings\ralph.nova\Desktop
+[Options]
+Reuse=1

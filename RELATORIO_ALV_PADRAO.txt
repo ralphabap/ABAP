@@ -1,0 +1,484 @@
+*---------------------------------------------------------------------------
+* Programa : ZPFIR_076
+* Cliente  : Gafisa
+* Módulo   : FI
+* Transação:
+* Descrição: Painel dos Arquivos de Cobrança Importados SAP
+* Autor    : Ralph Nova          Data: 03/02/2009
+*---------------------------------------------------------------------------
+* Histórico de Alterações:
+*---------------------------------------------------------------------------
+* Data       |Change #   | Autor            |Alteração
+*---------------------------------------------------------------------------
+* 03/02/2009 |DEVK924618 | Ralph Nova       |Desenvolvimeno Inicial
+*---------------------------------------------------------------------------
+ REPORT  zpfir_076.
+
+*----------------------------------------------------------------------*
+*  Tabelas
+*----------------------------------------------------------------------*
+ TABLES:
+   ztbfi_arq_cobr,
+   febko.
+
+*----------------------------------------------------------------------*
+*  Type Pools
+*----------------------------------------------------------------------*
+ TYPE-POOLS:
+   icon,
+   slis.
+
+*-----------------------------------------------------------------------
+*  Tipos
+*-----------------------------------------------------------------------
+ TYPES:
+   BEGIN OF y_saida,
+     bukrs        TYPE febko-bukrs,
+     hbkid        TYPE febko-hbkid,
+     hktid        TYPE febko-hktid,
+     bankl        TYPE febvw-bankl,
+     ktonr        TYPE febko-ktonr,
+     aznum        TYPE febko-aznum,
+     kukey        TYPE febko-kukey,
+     azdat        TYPE febko-azdat,
+     astat_farol  TYPE char4,
+     astat(30)    TYPE c,
+     euser        TYPE febko-euser,
+     edate        TYPE febko-edate,
+     etime        TYPE febko-etime,
+   END OF y_saida.
+
+*-----------------------------------------------------------------------
+*  Tabelas Internas
+*-----------------------------------------------------------------------
+ DATA:
+   t_t042z               TYPE TABLE OF t042z,
+   t_t042a               TYPE TABLE OF t042a,
+   t_t042a_fae           TYPE TABLE OF t042a,
+   t_t012k               TYPE TABLE OF t012k,
+   t_t012k_fae           TYPE TABLE OF t012k,
+   t_febko               TYPE TABLE OF febko,
+   t_febko_fae           TYPE TABLE OF febko,
+   t_febvw               TYPE TABLE OF febvw,
+   t_saida               TYPE TABLE OF y_saida,
+   t_fieldcat            TYPE slis_t_fieldcat_alv,
+   t_bdc                 TYPE STANDARD TABLE OF bdcdata,
+   t_messtab             TYPE STANDARD TABLE OF bdcmsgcoll.
+
+*-----------------------------------------------------------------------
+*  Work Áreas
+*-----------------------------------------------------------------------
+ DATA:
+   wa_t042z             TYPE t042z,
+   wa_saida             TYPE y_saida,
+   wa_febko             TYPE febko,
+   wa_febvw             TYPE febvw,
+   wa_fieldcat          TYPE LINE OF slis_t_fieldcat_alv,
+   wa_layout            TYPE slis_layout_alv,
+   wa_bdc               TYPE bdcdata,
+   wa_messtab           TYPE bdcmsgcoll,
+   wa_options           TYPE ctu_params.
+
+*-----------------------------------------------------------------------
+*  Ranges
+*-----------------------------------------------------------------------
+ DATA:
+   r_zlsch     TYPE RANGE OF t042z-zlsch,
+   wa_r_zlsch  LIKE LINE OF r_zlsch.
+
+*-----------------------------------------------------------------------
+*  Constantes
+*-----------------------------------------------------------------------
+ CONSTANTS:
+   c_br(02)             TYPE c VALUE 'BR'.
+
+*----------------------------------------------------------------------*
+*  Tela de Seleção
+*----------------------------------------------------------------------*
+ SELECTION-SCREEN BEGIN OF BLOCK a WITH FRAME TITLE text-001.
+ SELECT-OPTIONS: s_bukrs    FOR febko-bukrs OBLIGATORY,
+                 s_hbkid    FOR febko-hbkid,
+                 s_hktid    FOR febko-hktid,
+                 s_azdat    FOR febko-azdat,
+                 s_aznum    FOR febko-aznum,
+                 s_astat    FOR febko-astat.
+*                 s_arq      FOR ztbfi_arq_cobr-zdiretorig.
+ SELECTION-SCREEN END OF BLOCK a.
+
+*----------------------------------------------------------------------*
+*  Processamento
+*----------------------------------------------------------------------*
+ START-OF-SELECTION.
+
+* Seleção dos Dados
+   PERFORM zf_selecao_dados.
+
+* Processa os dados
+   PERFORM zf_processa_dados.
+
+   IF NOT t_saida[] IS INITIAL.
+
+* Mostra os dados processados
+     PERFORM zf_mostra_dados.
+
+   ELSE.
+
+* Nenhum registro selecionado para esta seleção
+     MESSAGE text-005 TYPE 'S' DISPLAY LIKE 'E'.
+
+   ENDIF.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SELECAO_DADOS
+*&---------------------------------------------------------------------*
+*       Seleção dos dados
+*----------------------------------------------------------------------*
+ FORM zf_selecao_dados .
+
+   REFRESH t_t042z.
+
+* Selecionar os meios de pagamento que são de cobrança
+   SELECT *
+     FROM t042z
+     INTO TABLE t_t042z
+     WHERE land1 = c_br
+       AND xeinz = 'X'.
+
+   IF NOT sy-subrc IS INITIAL.
+
+* Nenhum meio de pagamento de cobrança encontrado
+     MESSAGE text-003 TYPE 'S' DISPLAY LIKE 'E'.
+
+   ENDIF.
+
+   REFRESH r_zlsch.
+
+   LOOP AT t_t042z INTO wa_t042z.
+
+* Monta range com os meios de pagamento de cobrança encontrados
+     CLEAR wa_r_zlsch.
+     wa_r_zlsch-option = 'EQ'.
+     wa_r_zlsch-sign   = 'I'.
+     wa_r_zlsch-low    = wa_t042z-zlsch.
+     APPEND wa_r_zlsch TO r_zlsch.
+
+   ENDLOOP.
+
+
+   REFRESH t_t042a.
+
+* Selecionar os Bancos Empresa que possuem os meios de pagamento de cobrança
+   SELECT *
+     FROM t042a
+     INTO TABLE t_t042a
+     WHERE zbukr IN s_bukrs
+       AND zlsch IN r_zlsch
+       AND hbkid IN s_hbkid.
+
+   REFRESH t_t042a_fae.
+   t_t042a_fae[] = t_t042a[].
+   SORT t_t042a_fae BY zbukr hbkid.
+   DELETE ADJACENT DUPLICATES FROM t_t042a_fae COMPARING zbukr hbkid.
+
+   IF NOT t_t042a_fae[] IS INITIAL.
+
+     REFRESH t_t012k.
+
+* Selecionar as contas corrrete
+     SELECT *
+       FROM t012k
+       INTO TABLE t_t012k
+       FOR ALL ENTRIES IN t_t042a_fae
+       WHERE bukrs = t_t042a_fae-zbukr
+         AND hbkid = t_t042a_fae-hbkid
+         AND hktid IN s_hktid.
+
+   ENDIF.
+
+   REFRESH t_t012k_fae.
+   t_t012k_fae[] = t_t012k[].
+   SORT t_t012k_fae BY bukrs hbkid hktid.
+   DELETE ADJACENT DUPLICATES FROM t_t012k_fae COMPARING bukrs hbkid hktid.
+
+   IF NOT t_t012k_fae[] IS INITIAL.
+
+     REFRESH t_febko.
+
+* Seleciona Registros de cabeçalho do extrato de conta eletrônico
+     SELECT *
+       FROM febko
+       INTO TABLE t_febko
+       FOR ALL ENTRIES IN t_t012k_fae
+       WHERE bukrs = t_t012k_fae-bukrs
+         AND hbkid = t_t012k_fae-hbkid
+         AND hktid = t_t012k_fae-hktid
+         AND azdat IN s_azdat
+         AND aznum IN s_aznum
+         AND astat IN s_astat.
+
+
+   ENDIF.
+
+   REFRESH t_febko_fae.
+   t_febko_fae[] = t_febko[].
+   SORT t_febko_fae BY anwnd absnd azidt.
+   DELETE ADJACENT DUPLICATES FROM t_febko_fae COMPARING anwnd absnd azidt.
+
+   IF NOT t_febko_fae[] IS INITIAL.
+
+     REFRESH t_febvw.
+
+* Seleciona chave do banco
+     SELECT *
+       FROM febvw
+       INTO TABLE t_febvw
+       FOR ALL ENTRIES IN t_febko_fae
+       WHERE anwnd = t_febko_fae-anwnd
+         AND absnd = t_febko_fae-absnd
+         AND azidt = t_febko_fae-azidt.
+
+   ENDIF.
+
+ ENDFORM.                    " ZF_SELECAO_DADOS
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_PROCESSA_DADOS
+*&---------------------------------------------------------------------*
+*       Processa os dados montando a tabela de saída
+*----------------------------------------------------------------------*
+ FORM zf_processa_dados .
+
+   SORT t_febvw BY anwnd absnd azidt.
+
+   REFRESH t_saida.
+
+* Loop para preencher a tabela de saída
+   LOOP AT t_febko INTO wa_febko.
+
+* Preenche os campos do ALV
+     CLEAR wa_saida.
+     wa_saida-bukrs        = wa_febko-bukrs.
+     wa_saida-hbkid        = wa_febko-hbkid.
+     wa_saida-hktid        = wa_febko-hktid.
+     wa_saida-ktonr        = wa_febko-ktonr.
+     wa_saida-aznum        = wa_febko-aznum.
+     wa_saida-kukey        = wa_febko-kukey.
+     wa_saida-azdat        = wa_febko-azdat.
+     wa_saida-euser        = wa_febko-euser.
+     wa_saida-edate        = wa_febko-edate.
+     wa_saida-etime        = wa_febko-etime.
+
+* Preenche a Chave do Banco
+     CLEAR wa_febvw.
+     READ TABLE t_febvw INTO wa_febvw WITH KEY anwnd = wa_febko-anwnd
+                                               absnd = wa_febko-absnd
+                                               azidt = wa_febko-azidt
+                                               BINARY SEARCH.
+     IF sy-subrc IS INITIAL.
+
+       wa_saida-bankl        = wa_febvw-bankl.
+
+     ENDIF.
+
+* Status Farol
+     IF wa_febko-astat = '7'.
+
+       wa_saida-astat_farol  = icon_red_light.
+       wa_saida-astat        = text-002.
+
+     ELSE.
+
+       wa_saida-astat_farol  = icon_green_light.
+       wa_saida-astat        = text-004.
+
+     ENDIF.
+
+     APPEND wa_saida TO t_saida.
+
+   ENDLOOP.
+
+ ENDFORM.                    " ZF_PROCESSA_DADOS
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_MOSTRA_DADOS
+*&---------------------------------------------------------------------*
+*       Mostra dados processados
+*----------------------------------------------------------------------*
+ FORM zf_mostra_dados .
+
+* Carrega os campos do fieldcat
+   PERFORM zf_carrega_fieldcat USING:
+     'BUKRS'         'T_SAIDA' text-021 '' '' '' '' '' ''  '',
+     'HBKID'         'T_SAIDA' text-006 '' '' '' '' '' ''  '',
+     'HKTID'         'T_SAIDA' text-007 '' '' '' '' '' ''  '',
+     'BANKL'         'T_SAIDA' text-008 '' '' '' '' '' ''  '',
+     'KTONR'         'T_SAIDA' text-009 '' '' '' '' '' ''  '',
+     'AZNUM'         'T_SAIDA' text-010 '' '' '' '' '' ''  '',
+     'KUKEY'         'T_SAIDA' text-011 '' '' '' '' '' ''  '',
+     'AZDAT'         'T_SAIDA' text-012 '' '' '' '' '' ''  '',
+     'ASTAT_FAROL'   'T_SAIDA' text-013 '' '' '' '' '' 'X' '',
+     'ASTAT'         'T_SAIDA' text-014 '' '' '' '' '' ''  '',
+     'EUSER'         'T_SAIDA' text-015 '' '' '' '' '' ''  '',
+     'EDATE'         'T_SAIDA' text-016 '' '' '' '' '' ''  '',
+     'ETIME'         'T_SAIDA' text-017 '' '' '' '' '' ''  ''.
+
+   CLEAR wa_layout.
+   wa_layout-zebra = 'X'.
+
+* Chama o ALV
+   CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+     EXPORTING
+       i_callback_program       = sy-repid
+       i_callback_user_command  = 'ZF_ALV_UCOMM'
+       i_callback_top_of_page   = 'ZF_TOP_OF_PAGE'
+       i_callback_pf_status_set = ''
+       is_layout                = wa_layout
+       it_fieldcat              = t_fieldcat
+     TABLES
+       t_outtab                 = t_saida
+     EXCEPTIONS
+       program_error            = 1
+       OTHERS                   = 2.
+
+ ENDFORM.                    " ZF_MOSTRA_DADOS
+
+*----------------------------------------------------------------------*
+*  Form  zf_carrega_fieldcat
+*----------------------------------------------------------------------*
+*    Carrega o Field Catalog
+*----------------------------------------------------------------------*
+ FORM zf_carrega_fieldcat USING  p_fieldname TYPE    c
+                                 p_tabname   TYPE    c
+                                 p_texto     TYPE    c
+                                 p_tab       TYPE    c
+                                 p_campo     TYPE    c
+                                 p_edit      TYPE    c
+                                 p_hotspot   TYPE    c
+                                 p_chave     TYPE    c
+                                 p_icone     TYPE    c
+                                 p_tamanho   TYPE    c.
+
+   CLEAR wa_fieldcat.
+
+   wa_fieldcat-fieldname        = p_fieldname.
+   wa_fieldcat-tabname          = p_tabname.
+   wa_fieldcat-reptext_ddic     = p_texto.
+   wa_fieldcat-seltext_l        = p_texto.
+   wa_fieldcat-seltext_m        = p_texto.
+   wa_fieldcat-seltext_s        = p_texto.
+   wa_fieldcat-ref_tabname      = p_tab.
+   wa_fieldcat-ref_fieldname    = p_campo.
+   wa_fieldcat-edit             = p_edit.
+   wa_fieldcat-hotspot          = p_hotspot.
+   wa_fieldcat-key              = p_chave.
+   wa_fieldcat-icon             = p_icone.
+   wa_fieldcat-outputlen        = p_tamanho.
+
+   APPEND wa_fieldcat TO t_fieldcat.
+   CLEAR  wa_fieldcat.
+
+ ENDFORM.                    "zf_carrega_fieldcat
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_TOP_OF_PAGE
+*&---------------------------------------------------------------------*
+*       Cabeçalho do relatório
+*----------------------------------------------------------------------*
+ FORM zf_top_of_page.                                       "#EC CALLED
+
+* Variáveis para o cabeçalho do ALV
+   DATA: lw_header TYPE slis_t_listheader,
+         ls_header TYPE slis_listheader.
+
+* Nome do report
+   ls_header-typ  = 'H'.
+   ls_header-info = text-018.      "Título do Relatório
+   APPEND ls_header TO lw_header.
+   CLEAR ls_header.
+
+* Usuário
+   ls_header-typ  = 'S'.
+   ls_header-key = text-019. "Usuário
+   ls_header-info = sy-uname.
+   APPEND ls_header TO lw_header.
+   CLEAR ls_header.
+
+* Data do processamento
+   ls_header-typ  = 'S'.
+   ls_header-key = text-020. "Data do processamento
+   WRITE sy-datum TO ls_header-info.
+   APPEND ls_header TO lw_header.
+   CLEAR ls_header.
+
+   CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+     EXPORTING
+       it_list_commentary = lw_header
+       i_logo             = 'ZLOGO_GAFISA'.
+
+ ENDFORM.                    " zf_top_of_page
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_ALV_UCOMM
+*&---------------------------------------------------------------------*
+*       Controla click no ALV
+*----------------------------------------------------------------------*
+ FORM zf_alv_ucomm USING p_ucomm    TYPE sy-ucomm
+                        p_selfield TYPE slis_selfield.      "#EC *
+
+   READ TABLE t_saida INTO wa_saida INDEX p_selfield-tabindex.
+
+   IF sy-subrc IS INITIAL.
+
+     REFRESH t_bdc.
+
+     PERFORM zf_insere_bdcdata USING:
+       'X'       'SAPLNEW_FEBA'     '0060',
+       ' '       'BDC_OKCODE'       '=CRET',
+       ' '       'SL_BUKRS-LOW'     wa_saida-bukrs,
+       ' '       'SL_HBKID-LOW'     wa_saida-hbkid,
+       ' '       'SL_HKTID-LOW'     wa_saida-hktid,
+       ' '       'SL_AZNUM-LOW'     wa_saida-aznum.
+
+* Opções para o SHDB
+     CLEAR: wa_options.
+     wa_options-dismode = 'E'.
+     wa_options-updmode = 'S'.
+
+     CALL TRANSACTION 'FEBA_BANK_STATEMENT'
+       USING t_bdc
+       OPTIONS FROM wa_options
+       MESSAGES INTO t_messtab.
+
+   ENDIF.
+
+ ENDFORM.                    "zf_alv_ucomm
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_INSERE_BDCDATA
+*&---------------------------------------------------------------------*
+*       Monta BDC data
+*----------------------------------------------------------------------*
+ FORM zf_insere_bdcdata USING pc_inicio
+                              pc_nome
+                              pc_valor.                     "#EC *
+
+
+   CLEAR wa_bdc.
+
+   IF pc_inicio IS INITIAL.
+
+     MOVE: pc_nome   TO wa_bdc-fnam,
+           pc_valor  TO wa_bdc-fval.
+
+   ELSE.
+
+     MOVE: pc_inicio TO wa_bdc-dynbegin,
+           pc_nome   TO wa_bdc-program,
+           pc_valor  TO wa_bdc-dynpro.
+
+   ENDIF.
+
+   APPEND wa_bdc TO t_bdc.
+   CLEAR wa_bdc.
+
+ ENDFORM.                    " ZF_INSERE_BDCDATA

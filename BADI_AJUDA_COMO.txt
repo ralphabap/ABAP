@@ -1,0 +1,9 @@
+BADI seria um substituto de uma exit.
+P/ achar uma BADI, procurar no programa IF_EX*
+
+se18: procura BADI
+se19: cria BADI
+
+Claudinei de Mel...    se24 .....
+Claudinei de Mel...    ai vc coloca a classe CL_EXITHANDLER
+Claudinei de Mel...    ai vc coloca um break dentro do metodo getinstance

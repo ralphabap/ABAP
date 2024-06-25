@@ -1,0 +1,55 @@
+*&---------------------------------------------------------------------*
+*&      Form  zf_listbox
+*&---------------------------------------------------------------------*
+*       Define tabela pra drill down
+*----------------------------------------------------------------------*
+FORM zf_listbox.
+* Definiçãod e variaveis locais
+  FIELD-SYMBOLS: <fs_tq80> TYPE ANY.
+  DATA: tl_dropdown TYPE lvc_t_drop,
+        wa_dropdown TYPE lvc_s_drop,
+        wa_tq80     TYPE tq80,
+        wa_tpart    TYPE y_tpart,
+        tl_tpaer    TYPE TABLE OF y_tpaer,
+        tl_tpart    TYPE TABLE OF y_tpart.
+
+* Busca o tipo de nota do programa standard para seleção de dados no
+* drill down
+  ASSIGN (c_saptq80) TO <fs_tq80>.
+  CHECK sy-subrc IS INITIAL.
+* Move para tabela interna
+  MOVE <fs_tq80> TO wa_tq80.
+  CHECK NOT wa_tq80-pargr IS INITIAL.
+
+* Busca com o tipo de nota os parceios possiveis
+  SELECT pargr  parvw
+         FROM tpaer
+         INTO TABLE tl_tpaer
+         WHERE pargr EQ wa_tq80-pargr.
+
+  CHECK sy-subrc IS INITIAL.
+  SORT tl_tpaer BY parvw.
+  DELETE ADJACENT DUPLICATES FROM tl_tpaer COMPARING parvw.
+* Busca a descrição do parceiro
+  SELECT  parvw vtext
+    FROM  tpart
+    INTO TABLE tl_tpart
+    FOR  ALL ENTRIES IN tl_tpaer
+    WHERE parvw = tl_tpaer-parvw
+    AND   spras = sy-langu.
+
+* Grava em tabela os campos que serão exibidos no drill down
+  LOOP AT tl_tpart INTO wa_tpart.
+
+    wa_dropdown-handle    = c_1.
+    wa_dropdown-value     = wa_tpart-parvw.
+    APPEND wa_dropdown TO tl_dropdown.
+
+  ENDLOOP.
+* Registra com a chamda do método a tabela e que aparecerá com
+* o dril down
+  CALL METHOD o_grid->set_drop_down_table
+    EXPORTING
+      it_drop_down = tl_dropdown.
+
+ENDFORM.                    " zf_listbox

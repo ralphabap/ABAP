@@ -1,0 +1,88 @@
+FUNCTION zfpp_check_workday.
+*"----------------------------------------------------------------------
+*"*"Interface local:
+*"  IMPORTING
+*"     REFERENCE(I_DATA) TYPE  SCAL-DATE
+*"     REFERENCE(I_CENTRO) TYPE  VBAP-WERKS
+*"  EXPORTING
+*"     REFERENCE(E_ID_WORKDAY) TYPE  SCAL-INDICATOR
+*"----------------------------------------------------------------------
+************************************************************************
+*-----------------------------------------------------------------------
+* WEG EQUIPAMENTOS ELÉTRICOS S.A.
+* Implementador: Procwork Informática Ltda.
+*
+* ID   Request     Data        Nome
+* WEG  ED0K906092  11/07/2007  Eduardo Magueta Forgacs
+*
+*Descrição: - Esta função irá checar se é feriado ou dia útil.
+*-----------------------------------------------------------------------
+*-----------------------------------------------------------------------
+* Contantes
+  CONSTANTS: c_sabado(01)  TYPE c   VALUE '6', " 6 - Sabado
+             c_domingo(01) TYPE c   VALUE '7', " 7 - Domingo
+             c_plus(01)    TYPE c   VALUE '+'. " + - Sinal de positivo
+
+*-----------------------------------------------------------------------
+* Variáveis
+  DATA: v_fabkl     TYPE t001w-fabkl,    " Variável com Chave do calendário de fábrica
+        v_day_week  TYPE scal-indicator. " Variável retorna o dia da semana
+
+*-----------------------------------------------------------------------
+* Processamento
+
+  CLEAR: e_id_workday, v_fabkl, v_day_week.
+
+  CHECK NOT i_data IS INITIAL.
+
+* Seleciona Chave do calendário de fábrica
+  SELECT SINGLE fabkl
+    FROM t001w
+    INTO v_fabkl
+    WHERE werks = i_centro.
+  CHECK sy-subrc IS INITIAL.
+
+
+* Verifica se é feriado
+* Chama Função para Verificação do Dia Útil
+  CALL FUNCTION 'DATE_CONVERT_TO_FACTORYDATE'
+    EXPORTING
+      date                         = i_data
+      factory_calendar_id          = v_fabkl
+    IMPORTING
+      workingday_indicator         = e_id_workday
+    EXCEPTIONS
+      calendar_buffer_not_loadable = 1
+      correct_option_invalid       = 2
+      date_after_range             = 3
+      date_before_range            = 4
+      date_invalid                 = 5
+      factory_calendar_not_found   = 6
+      OTHERS                       = 7.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+* Se não for feriado verifica se é final de semana
+  IF e_id_workday IS INITIAL.
+
+*   Verificar qual o dia da semana referente a esta data
+    CALL FUNCTION 'DATE_COMPUTE_DAY'
+      EXPORTING
+        date = i_data
+      IMPORTING
+        day  = v_day_week.
+    CHECK NOT v_day_week IS INITIAL.
+
+*   Verificar se é SÁBADO ou DOMINGO
+    IF v_day_week EQ c_sabado
+      OR v_day_week EQ c_domingo.
+
+      e_id_workday = c_plus.
+
+    ENDIF.
+  ENDIF.
+
+ENDFUNCTION.

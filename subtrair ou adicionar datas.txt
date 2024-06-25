@@ -1,0 +1,89 @@
+FUNCTION ZFPP_ADDWORKDAY.
+*"----------------------------------------------------------------------
+*"*"Interface local:
+*"  IMPORTING
+*"     REFERENCE(I_CENTRO) TYPE  VBAP-WERKS
+*"     REFERENCE(I_DATA) TYPE  SY-DATUM
+*"     REFERENCE(I_NUM_DIAS) TYPE  NUMC2
+*"     REFERENCE(I_SINAL) TYPE  CHAR1 DEFAULT '+'
+*"  EXPORTING
+*"     REFERENCE(E_DT_FINAL) TYPE  SY-DATUM
+*"----------------------------------------------------------------------
+*-----------------------------------------------------------------------
+* WEG EQUIPAMENTOS ELÉTRICOS S.A.
+* Implementador: Procwork Informática Ltda.
+*
+* ID   Request     Data        Nome
+* EMF  ED0K912472  09/10/2007  Eduardo Magueta Forgacs
+*
+*Descrição: - Esta função irá adicionar ou subtrair dias de uma data.
+*-----------------------------------------------------------------------
+*-----------------------------------------------------------------------
+* Constantes
+  DATA: c_minus(1) TYPE c VALUE '-', " Constante com o valor do Sinal "-"
+        c_plus(1)  TYPE c VALUE '+', " Constante com o valor do Sinal "+"
+        c_01(2)    TYPE c VALUE '01'." Constante com Valor Inicial '01'
+
+*-----------------------------------------------------------------------
+* Variáveis
+  DATA:
+        v_contador    TYPE zdepp_dias_tolerancia1," Variável com Acumulador de dias
+        v_add_dias(2) TYPE n,                     " Variável com Acumulador para cálculo de dias
+        v_id_workday  TYPE scal-indicator.        " Variável com Indicação se é dia útil ou não
+
+*-----------------------------------------------------------------------
+* Processamento
+
+  CLEAR:  v_add_dias,
+          v_contador.
+
+  v_contador = c_01.
+  v_add_dias = c_01.
+
+ IF I_NUM_DIAS IS NOT INITIAL.
+
+  WHILE v_contador LE i_num_dias.
+
+    IF i_sinal = c_plus.
+
+*     Retorno da Nova Data de Preparação do Material -> E_NEW_DT_PREP_MAT
+      e_dt_final = i_data + v_add_dias.
+
+    ELSE.
+
+*     Retorno da Nova Data de Preparação do Material -> E_NEW_DT_PREP_MAT
+      e_dt_final = i_data - v_add_dias.
+
+    ENDIF.
+
+    CLEAR v_id_workday.
+
+*   Chama função para validar se o dia em questão é Dia Útil
+    CALL FUNCTION 'ZFPP_CHECK_WORKDAY'
+      EXPORTING
+        i_data       = e_dt_final
+        i_centro     = i_centro
+      IMPORTING
+        e_id_workday = v_id_workday.
+
+    IF v_id_workday IS NOT INITIAL.
+
+      ADD 1 TO v_add_dias.
+
+    ELSE.
+
+      ADD 1 TO v_add_dias.
+      ADD 1 TO v_contador.
+
+    ENDIF.
+
+  ENDWHILE.
+
+  ELSE.
+
+* Retorno da Nova Data de Preparação do Material -> E_NEW_DT_PREP_MAT
+      e_dt_final = i_data.
+
+  ENDIF.
+
+ENDFUNCTION.

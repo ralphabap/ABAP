@@ -1,0 +1,25 @@
+* Tabelas e estruturas
+  DATA: t_return  TYPE TABLE OF bapiret2 WITH HEADER LINE.
+  DATA: e_address TYPE bapiaddr3.
+  DATA: vl_uname  TYPE bapibname-bapibname.
+
+  MOVE uname TO vl_uname.
+
+* Retorna e-mail cadastrado na SU01
+  CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+    EXPORTING
+      username = vl_uname
+    IMPORTING
+      address  = e_address
+    TABLES
+      return   = t_return.
+
+  IF e_address-e_mail IS INITIAL.
+*   Se não encontrou e-mail cadastrado, concatenar logon com domínio
+*    CONCATENATE vl_uname '@visanet.com.br'
+    CONCATENATE vl_uname '@cielo.com.br'
+      INTO e_address-e_mail.
+    TRANSLATE e_address-e_mail TO LOWER CASE.
+  ENDIF.
+  MOVE e_address-e_mail TO e_mail.
+ENDFUNCTION.

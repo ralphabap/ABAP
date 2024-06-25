@@ -1,0 +1,304 @@
+*&---------------------------------------------------------------------*
+*& Report  ZBUSCA_BADI                                                 *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+*&                                                                     *
+*&                                                                     *
+*&---------------------------------------------------------------------*
+
+REPORT  ZBUSCA_BADI                             .
+
+                             .
+
+TABLES :
+  tstc,      " Códigos transação SAP
+  tstct,     " Textos das transações
+  tadir,     " Catálogo de objetos repository
+  trdir,     " Programas com seus atributos
+  tfdir,     " Módulos de funções
+  sxs_attrt, " Textos breves BADIções SAP
+  modact,  " Vínculo entre Ampliações e Projetos
+  modtext, " Textos de projetos
+  modsap,  " Vínculo entre Funções e Projetos
+  tftit,   " Textos de funções
+  enlfdir. " Atributos adicionais das funções
+
+DATA: BEGIN OF mylist OCCURS 50.       " Internal table hierarchy
+        INCLUDE STRUCTURE snodetext.
+DATA: END OF mylist.
+
+DATA:
+  TP LIKE TEXTPOOL OCCURS 0 with header line,
+
+  t_objetos LIKE tadir OCCURS 0 WITH HEADER LINE,
+  f15       TYPE c,
+  v_cursor(30),
+  v_classe  LIKE tadir-devclass.
+
+PARAMETERS : p_tcode LIKE tstc-tcode OBLIGATORY MODIF ID abc.
+PARAMETERS : p_langu LIKE sy-langu OBLIGATORY DEFAULT sy-langu.
+
+AT SELECTION-SCREEN OUTPUT.
+  LOOP AT SCREEN.
+    IF screen-group1 = 'ABC'.
+      screen-intensified = '1'.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+START-OF-SELECTION.
+*  SET PF-STATUS 'TELA'.
+  READ TEXTPOOL sy-repid INTO tp LANGUAGE sy-langu.
+  LOOP AT tp WHERE id = 'R'.
+    SET TITLEBAR '001' WITH tp-entry.
+    EXIT.
+  ENDLOOP.
+
+  PERFORM monta_tabela.
+  CHECK NOT t_objetos[] IS INITIAL.
+  PERFORM monta_arvore.
+  PERFORM lista_arvore.
+
+TOP-OF-PAGE.
+  FORMAT COLOR COL_POSITIVE INTENSIFIED OFF.
+  WRITE:/(19) 'Codigo Transação - ',
+       20(20) p_tcode,
+       45(50) tstct-ttext.
+  SKIP.
+
+*---------------------------------------------------------------------*
+*       FORM Monta_arvore                                             *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM monta_arvore.
+
+  CALL FUNCTION 'RS_TREE_CONSTRUCT'
+    TABLES
+      nodetab      = mylist
+    EXCEPTIONS
+      tree_failure = 1.
+
+ENDFORM.                    "monta_arvore
+
+*---------------------------------------------------------------------*
+*       FORM Lista_arvore                                             *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM lista_arvore.
+
+  sy-lsind = 0.
+  CALL FUNCTION 'RS_TREE_LIST_DISPLAY'
+    EXPORTING
+      callback_program      = sy-cprog
+      callback_user_command = 'USER_COMMAND'
+    IMPORTING
+      f15                   = f15.
+
+ENDFORM.                    "lista_arvore
+
+*&---------------------------------------------------------------------*
+*&      Form  monta_tabela
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM monta_tabela.
+
+  SELECT SINGLE * FROM tstc WHERE tcode EQ p_tcode.
+
+  IF sy-subrc EQ 0.
+
+    SELECT SINGLE * FROM tadir
+      WHERE pgmid   = 'R3TR'
+      AND  object   = 'PROG'
+      AND  obj_name = tstc-pgmna.
+
+    MOVE  tadir-devclass TO v_classe.
+
+    IF sy-subrc NE 0.
+      SELECT SINGLE * FROM trdir WHERE name = tstc-pgmna.
+      IF trdir-subc EQ 'F'.
+        SELECT SINGLE * FROM tfdir
+          WHERE pname = tstc-pgmna.
+
+        SELECT SINGLE * FROM enlfdir
+          WHERE funcname = tfdir-funcname.
+
+        SELECT SINGLE * FROM tadir
+          WHERE pgmid    = 'R3TR'
+          AND   object   = 'FUGR'
+          AND   obj_name = enlfdir-area.
+
+        MOVE : tadir-devclass TO v_classe.
+      ENDIF.
+    ENDIF.
+
+*   Seleciona as BADIS vinculadas à transação
+    SELECT * FROM tadir INTO TABLE t_objetos
+      WHERE pgmid  = 'R3TR'
+      AND object   = 'SXSD'
+      AND devclass = v_classe.
+
+    SELECT SINGLE *
+      FROM tstct
+      WHERE sprsl = p_langu
+      AND   tcode = p_tcode.
+
+
+    IF NOT t_objetos[] IS INITIAL.
+      mylist-name = tstct-ttext.
+      mylist-color = 3.
+      mylist-intensiv = '1'.
+      mylist-text = p_tcode.
+      mylist-tlength = 10.
+      mylist-tlevel = 1.
+      mylist-tcolor = 3.
+      mylist-tintensiv = '1'.
+      mylist-text1 = tstct-ttext. "TEXTO DA TRANSAÇÃO
+      mylist-tlength1 = 67.
+      mylist-tcolor1 = 3.
+      mylist-tintensiv1 = '2'.
+**      mylist-text3 = 'Projetos'.
+      mylist-tlength3 = 15.
+      APPEND mylist.
+      CLEAR mylist-text3.
+
+      LOOP AT t_objetos.
+
+*       Obtém descrição da BADI
+        SELECT SINGLE text
+          INTO sxs_attrt-text
+          FROM sxs_attrt
+         WHERE exit_name = t_objetos-obj_name
+           AND sprsl = sy-langu.
+
+**        select single * from modsapt
+**          where sprsl = p_langu
+**          and   name  = t_objetos-obj_name.
+*        Verifica se há algum projeto vinculado
+        SELECT name INTO modact-name
+          FROM modact  UP TO 1 ROWS
+          WHERE member = t_objetos-obj_name
+          AND   name   NE space.
+        ENDSELECT.
+        IF sy-subrc = 0.
+*         Localiza a descrição do projeto
+          SELECT SINGLE modtext INTO modtext-modtext
+            FROM modtext
+*           where  sprsl    = p_langu
+******      A descrição do projeto neste ambiente não foi traduzida para
+******      outro idioma, portanto mostro o primeiro que encontrar. JRR
+            WHERE  name     = modact-name.
+          IF sy-subrc = 0.
+            mylist-text3 = modtext-modtext.
+            mylist-tlength3 = 25.
+            mylist-tcolor3 = 2.
+            mylist-tintensiv3 = '2'.
+          ELSE.
+            CLEAR: mylist-text3.
+          ENDIF.
+        ELSE.
+          modact-name = '_______________'.
+        ENDIF.
+
+        mylist-name = 'BADIs'.
+        mylist-color = 4.
+        mylist-intensiv = '1'.
+        mylist-text = t_objetos-obj_name.
+        mylist-tlength = 75.
+        mylist-tlevel = 2.
+        mylist-tcolor = 4.
+        mylist-tintensiv = '1'.
+        mylist-text1 = sxs_attrt-text. "Descrição da BADI
+        mylist-tlength1 = 60.
+        mylist-tcolor1 = 4.
+        mylist-tintensiv1 = '2'.
+
+        mylist-text2 = modact-name.
+        mylist-tlength2 = 10.
+        mylist-tcolor2 = 6.
+        mylist-tintensiv2 = '2'.
+        APPEND mylist.
+        CLEAR: mylist-text3.
+
+*       Seleciona as FUNÇÕES vinculadas às BADIs
+        SELECT * FROM modsap
+          WHERE name = t_objetos-obj_name
+          AND   typ  = 'E'.
+          SELECT SINGLE * FROM  tftit
+                 WHERE  spras     = 'PT'
+                 AND    funcname  = modsap-member.
+          IF sy-subrc NE 0.
+            tftit-stext = space.
+          ENDIF.
+
+          mylist-name = 'Funções'.
+          mylist-color = 7.
+          mylist-intensiv = '1'.
+          mylist-text = modsap-member.
+          mylist-tlength = 30.
+          mylist-tlevel = 3.
+          mylist-tcolor = 7.
+          mylist-tintensiv = '1'.
+          mylist-text1 = tftit-stext.
+          mylist-tlength1 = 60.
+          mylist-tcolor1 = 7.
+          mylist-tintensiv1 = '2'.
+          CLEAR: mylist-text2, mylist-tlength2.
+          APPEND mylist.
+        ENDSELECT.
+
+      ENDLOOP.
+
+    ELSE.
+      FORMAT COLOR COL_NEGATIVE INTENSIFIED ON.
+      WRITE:/(95) 'Não existe BADI para esta transação'.
+    ENDIF.
+  ELSE.
+    FORMAT COLOR COL_NEGATIVE INTENSIFIED ON.
+    WRITE:/(95) 'Transação não existe'.
+  ENDIF.
+
+ENDFORM.                    " monta_tabela
+
+*---------------------------------------------------------------------*
+*       FORM user_command                                             *
+*---------------------------------------------------------------------*
+FORM user_command TABLES knoten STRUCTURE seucomm
+  USING command
+  CHANGING exit
+           list_refresh.
+
+  CHECK knoten-text NE p_tcode.
+  CASE command.
+    WHEN 'TRSL'.
+      GET CURSOR FIELD v_cursor.
+      IF knoten-name = 'BADIs'.
+        IF v_cursor = 'NODELIST-TEXT2' AND
+           knoten-text2 NE '________'.
+          SET PARAMETER ID 'MON_KUN' FIELD knoten-text2.
+          CALL TRANSACTION 'CMOD'.
+        ELSE.
+          SET PARAMETER ID 'EXN' FIELD knoten-text.
+          CALL TRANSACTION 'SE18' AND SKIP FIRST SCREEN.
+        ENDIF.
+        exit = ' '.
+      ENDIF.
+
+      IF knoten-name = 'Funções'.
+        SET PARAMETER ID 'LIB' FIELD knoten-text.
+        CALL TRANSACTION 'SE37'.
+        exit = ' '.
+      ENDIF.
+
+
+  ENDCASE.
+
+  list_refresh = 'X'.
+
+ENDFORM.                    "user_command
+

@@ -1,0 +1,463 @@
+TYPES: tbl_receiver TYPE TABLE OF zstsd_077.
+FUNCTION zfrsd_sendemail_attach.
+*"----------------------------------------------------------------------
+*"*"Interface local:
+*"  IMPORTING
+*"     REFERENCE(SIMPLE_MODE) TYPE  STRING OPTIONAL
+*"     REFERENCE(SUBJECT) TYPE  SOS33-OBJDES OPTIONAL
+*"  TABLES
+*"      MSGBODY STRUCTURE  SOLISTI1 OPTIONAL
+*"      RECEIVERS TYPE  ZSTSD_081 OPTIONAL
+*"      ATTACH TYPE  ZSTSD_079 OPTIONAL
+*"  EXCEPTIONS
+*"      SPOOL_NOT_FOUND
+*"      FILE_NOT_FOUND
+*"      CONVERT_TO_PDF_ERROR
+*"      ERROR_SENDING
+*"----------------------------------------------------------------------
+
+
+
+* Constants
+*-----------
+  CONSTANTS: c_atch_spool TYPE c VALUE '1',
+             c_atch_otf   TYPE c VALUE '2',
+             c_atch_file  TYPE c VALUE '3'.
+
+* Internal Tables
+*-----------------
+  DATA: t_receivers           TYPE TABLE OF somlreci1,  " List of all receivers.
+        t_packlist            TYPE TABLE OF sopcklsti1, " Packing List data.
+        t_objaux              TYPE TABLE OF solisti1.
+
+* Work areas
+*------------
+  DATA: wa_docdata            TYPE sodocchgi1,          " Email header data,
+        wa_packlist           TYPE sopcklsti1.          " Packing List Work Area.
+
+* Variables
+*-----------
+  DATA: v_file_size   TYPE i, "Number of bytes of the PDF file,
+        v_len(03)     TYPE n.
+
+*                  ===       START-OF-SELECTION       ===
+*-----------------------------------------------------------------------
+
+* Init Variables
+  CLEAR: wa_docdata, wa_packlist.
+
+* E-mail header data.
+  wa_docdata-obj_descr = subject.     " Subject of the e-mail.
+  wa_docdata-priority  = 'X'.
+
+* Add receivers
+  PERFORM add_receivers USING receivers[]
+                              simple_mode
+                     CHANGING t_receivers.
+
+* Regular e-mail (in text format).
+  wa_packlist-transf_bin = ' '.
+  wa_packlist-head_start = 1.
+  wa_packlist-head_num   = 0.
+  wa_packlist-body_start = 1.
+  wa_packlist-doc_type   = 'HTM'. "(HTM) Formato HTML (RAW) Formato Texto.
+  DESCRIBE TABLE msgbody LINES wa_packlist-body_num.
+  APPEND wa_packlist TO t_packlist.
+
+* Verify and process, by type of attached document.
+  LOOP AT attach.
+
+    CLEAR: wa_packlist.
+    wa_packlist-transf_bin  = 'X'.
+    wa_packlist-head_start  = 1.
+    wa_packlist-head_num    = 0.
+    wa_packlist-body_start  = 1.
+    wa_packlist-obj_descr   = attach-descr.
+
+* Define type of attachment
+    CASE attach-type.
+
+* Attach a Spool converted to PDF
+*-------
+      WHEN c_atch_spool.
+
+        wa_packlist-doc_type   = 'PDF'.
+        wa_packlist-obj_name   = attach-spool.
+        CONDENSE wa_packlist-obj_name.
+
+*   Convert Spool.
+        PERFORM convert_spool2pdf  USING  attach-spool
+                                CHANGING  t_objaux
+                                          v_file_size.
+
+
+* Attach an OTF Spool converted to PDF, from SScript or Smartform
+*-------
+      WHEN c_atch_otf.
+
+        wa_packlist-doc_type   = 'PDF'.
+        wa_packlist-obj_name   = attach-descr.
+        CONDENSE wa_packlist-obj_name.
+
+*   Convert OTF.
+        PERFORM convert_otf2pdf USING attach-otf
+                             CHANGING t_objaux
+                                      v_file_size.
+
+* Attach a File from Frontend or Server Side
+*-------
+      WHEN c_atch_file.
+
+        v_len = STRLEN( attach-filename ) - 3.
+
+        wa_packlist-doc_type   = attach-filename+v_len(3). "Extension
+        wa_packlist-obj_name   = attach-descr.
+        CONDENSE wa_packlist-obj_name.
+        TRANSLATE wa_packlist-doc_type TO UPPER CASE.
+
+* Convert file to binary mode
+        PERFORM convert_file  USING attach-filename
+                                    attach-local
+                           CHANGING t_objaux
+                                    v_file_size.
+
+    ENDCASE.
+
+    wa_docdata-doc_size   = v_file_size.
+    wa_docdata-sensitivty = 'F'.
+
+    wa_packlist-doc_size   = v_file_size.
+    wa_packlist-body_num   = v_file_size.
+    APPEND wa_packlist TO t_packlist.
+
+  ENDLOOP.
+
+* Send e-mail.
+  CALL FUNCTION 'SO_NEW_DOCUMENT_ATT_SEND_API1'
+    EXPORTING
+      document_data              = wa_docdata
+      put_in_outbox              = 'X'
+      commit_work                = 'X'
+    TABLES
+      packing_list               = t_packlist
+      contents_bin               = t_objaux
+      receivers                  = t_receivers
+      contents_txt               = msgbody
+    EXCEPTIONS
+      too_many_receivers         = 1
+      document_not_sent          = 2
+      document_type_not_exist    = 3
+      operation_no_authorization = 4
+      parameter_error            = 5
+      x_error                    = 6
+      enqueue_error              = 7
+      OTHERS                     = 8.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+            RAISING error_sending.
+  ENDIF.
+
+
+* Processar a transação SCOT, para concluir o envio do email
+  SUBMIT rsconn01 WITH mode = 'INT' AND RETURN.
+
+
+ENDFUNCTION.
+
+*---------------------------------------------------------------------*
+* Form  ADD_RECEIVERS
+*---------------------------------------------------------------------*
+* Add receivers to destination list
+*---------------------------------------------------------------------*
+FORM add_receivers    USING tp_rec_param   TYPE tbl_receiver
+                            ip_simple_mode TYPE string
+                   CHANGING tp_receivers   TYPE bubas_t_receiver.
+
+* Types
+  TYPES: BEGIN OF row_list,
+          name TYPE somlreci1-receiver,
+         END OF row_list.
+
+  DATA: t_list TYPE TABLE OF row_list.
+
+  DATA: wa_list      TYPE row_list,
+        wa_receiver  TYPE somlreci1,
+        wa_rec_param TYPE zstsd_077.
+
+* In Simple Mode, all receivers will be considered as "To" status and
+* if it contains the "@" will be considered as External e-mail, else as Internal email.
+  IF NOT ip_simple_mode IS INITIAL.
+
+    SPLIT ip_simple_mode AT ';' INTO TABLE t_list.
+
+*   Append all names as 'TO' Receiver Recipients
+    LOOP AT t_list INTO wa_list.
+
+      CLEAR wa_receiver.
+      wa_receiver-receiver = wa_list-name.
+
+      SEARCH wa_list-name FOR '@'.
+      IF sy-subrc = 0.
+        wa_receiver-rec_type = 'U'.   "Internet Address
+      ELSE.
+        wa_receiver-rec_type = 'B'.   "SAP Logon Name
+      ENDIF.
+
+      APPEND wa_receiver TO tp_receivers.
+
+    ENDLOOP.
+
+  ENDIF.
+
+* Instead of Simple Mode the User can details all Receiver in
+* parameter RECEIVERS, defining the status
+  LOOP AT tp_rec_param INTO wa_rec_param.
+
+    CLEAR wa_receiver.
+
+    wa_receiver-receiver = wa_rec_param-receiver.
+    wa_receiver-rec_type = wa_rec_param-rec_type.
+
+    CASE wa_rec_param-rec_status.
+      WHEN 'CC'.
+        wa_receiver-copy       = 'X'.
+      WHEN 'BCC'.
+        wa_receiver-blind_copy = 'X'.
+      WHEN 'EX'.
+        wa_receiver-express    = 'X'.
+    ENDCASE.
+
+    APPEND wa_receiver TO tp_receivers.
+
+  ENDLOOP.
+
+
+ENDFORM.                    " ADD_RECEIVERS
+
+*---------------------------------------------------------------------*
+* Form  convert_spool2pdf
+*---------------------------------------------------------------------*
+* Convert provided spool into PDF.
+*---------------------------------------------------------------------*
+FORM convert_spool2pdf    USING ip_rqident  TYPE tsp01-rqident
+                       CHANGING tp_objaux   TYPE soli_tab
+                                p_size     TYPE i.
+
+  DATA: t_pdf  TYPE bbpt_tline. " PDF Table Converted - 132
+
+  DATA: l_objtype   TYPE rststype-type,   "Spool Type
+        l_function  TYPE rs38l-name,      "Name of the functional module to convert spools
+        l_rqo1name  TYPE tsp01-rqo1name.  "Spool Object Name
+
+* Get type of Spool (OTF or TEXT).
+  SELECT SINGLE tsp01~rqo1name
+    INTO l_rqo1name
+    FROM tsp01
+    WHERE rqident = ip_rqident.
+
+  CALL FUNCTION 'RSTS_GET_ATTRIBUTES'
+    EXPORTING
+      name          = l_rqo1name
+    IMPORTING
+      objtype       = l_objtype
+    EXCEPTIONS
+      fb_error      = 1
+      fb_rsts_other = 2
+      no_object     = 3
+      no_permission = 4
+      OTHERS        = 5.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+            RAISING spool_not_found.
+  ENDIF.
+
+* Convert Spool into PDF format.
+  IF l_objtype(3) = 'OTF'.
+    l_function = 'CONVERT_OTFSPOOLJOB_2_PDF'.
+  ELSE.
+    l_function = 'CONVERT_ABAPSPOOLJOB_2_PDF'.
+  ENDIF.
+
+  CALL FUNCTION l_function
+    EXPORTING
+      src_spoolid              = ip_rqident
+      no_dialog                = 'X'
+    IMPORTING
+      pdf_bytecount            = p_size
+    TABLES
+      pdf                      = t_pdf
+    EXCEPTIONS
+      err_no_otf_spooljob      = 1
+      err_no_spooljob          = 2
+      err_no_permission        = 3
+      err_conv_not_possible    = 4
+      err_bad_dstdevice        = 5
+      user_cancelled           = 6
+      err_spoolerror           = 7
+      err_temseerror           = 8
+      err_btcjob_open_failed   = 9
+      err_btcjob_submit_failed = 10
+      err_btcjob_close_failed  = 11
+      OTHERS                   = 12.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING convert_to_pdf_error.
+  ENDIF.
+
+* Convert Result Table to 255
+  PERFORM convert_132_to_255 USING t_pdf tp_objaux.
+
+ENDFORM.                    " convert_spool2pdf
+
+*---------------------------------------------------------------------*
+* Form  convert_otf2pdf
+*---------------------------------------------------------------------*
+* Convert provided spool into PDF.
+*---------------------------------------------------------------------*
+FORM convert_otf2pdf    USING tp_otf_tab TYPE tsfotf
+                     CHANGING tp_objaux  TYPE soli_tab
+                              p_size     TYPE i.
+
+  DATA: t_pdf  TYPE bbpt_tline. " PDF Table Converted - 132
+
+*   Convert OTF.
+  CALL FUNCTION 'CONVERT_OTF'
+    EXPORTING
+      format                = 'PDF'
+    IMPORTING
+      bin_filesize          = p_size
+    TABLES
+      otf                   = tp_otf_tab
+      lines                 = t_pdf
+    EXCEPTIONS
+      err_max_linewidth     = 1
+      err_format            = 2
+      err_conv_not_possible = 3
+      err_bad_otf           = 4
+      OTHERS                = 5.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+    RAISING convert_to_pdf_error.
+  ENDIF.
+
+* Convert Result Table to 255
+  PERFORM convert_132_to_255 USING t_pdf tp_objaux.
+
+ENDFORM.                    " convert_otf2pdf
+
+*---------------------------------------------------------------------*
+* Form  convert_file
+*---------------------------------------------------------------------*
+* Convert file to Attach
+*---------------------------------------------------------------------*
+FORM convert_file     USING ip_filename  TYPE string
+                            ip_mode      TYPE char01
+                   CHANGING tp_objaux    TYPE soli_tab
+                            p_size      TYPE i.
+
+  DATA: wa_objaux TYPE solisti1. "Workare to upload PDF file.
+
+* File - Local
+  IF ip_mode = 'X'.
+
+    CALL FUNCTION 'GUI_UPLOAD'
+      EXPORTING
+        filename                = ip_filename
+        filetype                = 'BIN'
+      IMPORTING
+        filelength              = p_size
+      TABLES
+        data_tab                = tp_objaux
+      EXCEPTIONS
+        file_open_error         = 1
+        file_read_error         = 2
+        no_batch                = 3
+        gui_refuse_filetransfer = 4
+        invalid_type            = 5
+        no_authority            = 6
+        unknown_error           = 7
+        bad_data_format         = 8
+        header_not_allowed      = 9
+        separator_not_allowed   = 10
+        header_too_long         = 11
+        unknown_dp_error        = 12
+        access_denied           = 13
+        dp_out_of_memory        = 14
+        disk_full               = 15
+        dp_timeout              = 16
+        OTHERS                  = 17.
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+      RAISING file_not_found.
+    ENDIF.
+
+* File - Server
+  ELSE.
+
+    OPEN DATASET ip_filename FOR INPUT IN BINARY MODE.
+    IF sy-subrc = 0.
+      DO.
+        CLEAR wa_objaux.
+        READ DATASET ip_filename INTO wa_objaux.
+        IF sy-subrc = 0.
+          APPEND wa_objaux TO tp_objaux.
+        ELSE.
+          EXIT.
+        ENDIF.
+      ENDDO.
+
+      CLOSE DATASET ip_filename.
+    ELSE.
+      sy-msgv1 = ip_filename.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+      RAISING file_not_found.
+    ENDIF.
+
+
+  ENDIF.
+
+
+ENDFORM.                    " convert_file
+
+*---------------------------------------------------------------------*
+* Form  convert_132_to_255
+*---------------------------------------------------------------------*
+* Convert 132-long string to 255-long string to generate correct PDF.
+*---------------------------------------------------------------------*
+FORM convert_132_to_255 USING ip_pdf  TYPE bbpt_tline
+                              ip_soli TYPE soli_tab.
+
+  DATA: wa_pdf   TYPE tline,
+        wa_soli  TYPE soli.
+  DATA: l_buffer TYPE string.
+
+* Init Result Table
+  REFRESH ip_soli.
+
+* Transfer the 132-long strings to 255-long strings
+  LOOP AT ip_pdf INTO wa_pdf.
+    TRANSLATE wa_pdf USING ' ~'.
+    CONCATENATE l_buffer wa_pdf INTO l_buffer.
+  ENDLOOP.
+
+  TRANSLATE l_buffer USING '~ '.
+
+  DO.
+    wa_soli = l_buffer.
+    APPEND wa_soli TO ip_soli.
+    SHIFT l_buffer LEFT BY 255 PLACES.
+    IF l_buffer IS INITIAL.
+      EXIT.
+    ENDIF.
+  ENDDO.
+
+ENDFORM.                    " convert_132_to_255.

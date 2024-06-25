@@ -1,0 +1,21 @@
+REPORT ZKILL .
+*** Derruba usuário do R3 pelo unix
+
+data: begin of t_processar occurs 0,
+         line(136) type c,
+      end of t_processar.
+
+data: w_cmd_unix(50) type c.
+
+parameter: pid(10) type c.
+
+* Comando para listar os arquivos do diretório Unix
+  concatenate 'kill -9' pid into w_cmd_unix separated by space.
+
+  call 'SYSTEM' id 'COMMAND' field w_cmd_unix
+                id 'TAB' field t_processar-*sys*.
+
+  write: / t_processar-line.
+
+obs: No parâmetro do programa, informar o IDP, achado na SM50.
+	Não usar para operação com tabelas, pois pode danificar o banco de dados

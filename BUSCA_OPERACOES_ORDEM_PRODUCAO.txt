@@ -1,0 +1,21 @@
+* Função para limpar as tabelas da função abaixo (Não apagar a chamada desta função)
+  CALL FUNCTION 'CO_IT_SET_FLG_ITAB_NEW'.
+
+* Função utilizada para obter dados de sintese de componentes
+  CALL FUNCTION 'PM_ORDER_DATA_READ'
+    EXPORTING
+      order_number    = wa_aufk-aufnr
+    IMPORTING
+      wcaufvd         = wa_caufvd
+    TABLES
+      iafvgd          = t_iafvgd
+      iresbd          = t_resb
+    EXCEPTIONS
+      order_not_found = 1
+      OTHERS          = 2.
+
+
+
+[16:58:42] Sandra Oliveira diz : t_iafvgd essa preenche com as operações da OP
+ t_resb essa são os componentes da OP
+[16:59:11] Sandra Oliveira diz :e tem que usar com a função de cima senão dá dump a hora q executa a 2º função por mais de 1 vez

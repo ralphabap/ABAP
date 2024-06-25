@@ -1,0 +1,1146 @@
+*---------------------------------------------------------------------------
+* Programa : ZPFIR_073
+* Cliente  : Gafisa
+* MÃ³dulo   : LOANS
+* TransaÃ§Ã£o:
+* DescriÃ§Ã£o: RelatÃ³rio de recebiveis
+* Autor    : Marcio Costa               Data: 17/01/2009
+*---------------------------------------------------------------------------
+* HistÃ³rico de AlteraÃ§Ãµes:
+*---------------------------------------------------------------------------
+* Data       |Change #   |Autor               |AlteraÃ§Ã£o
+*---------------------------------------------------------------------------
+* 17/01/2008 | DEVK924224 |Marcio Costa       |Desenvolvimento Inicial
+*---------------------------------------------------------------------------
+
+REPORT  zpfir_073.
+
+
+*-----------------------------------------------------------------------
+* DefiniÃ§Ã£o de Tipos
+*-----------------------------------------------------------------------
+TYPE-POOLS:
+  slis. "Grupo de tipos alv
+
+***********************************************************************
+* Tabelas Transparentes
+***********************************************************************
+TABLES: vdarl,
+        vdbeki,
+        tzb0a,
+        vdbepp.
+
+***********************************************************************
+* Tipos
+***********************************************************************
+TYPES: BEGIN OF tp_zyfct131,
+        sgsart   TYPE /pws/zyfct131-sgsart,
+        sbktyp   TYPE /pws/zyfct131-sbktyp,
+       END OF tp_zyfct131,
+
+       BEGIN OF t001_type,
+        bukrs TYPE t001-bukrs,
+        waers TYPE t001-waers,
+       END OF t001_type.
+
+TYPES: BEGIN OF tp_saida,
+*        icon,
+        bukrs  TYPE vdbeki-bukrs,
+        gsber  TYPE vdbeki-gsber,
+        gtext  TYPE tgsbt-gtext,
+        ranl   TYPE vdbeki-ranl,
+        kunnr  TYPE vdbepi-kunnr,
+* Natureza da parcela
+        xkbez  TYPE tddgb-xkbez,
+* Vencimento
+        dfaell TYPE vdbepi-dfaell,
+* Vencimento Mes/Ano
+        mes_ano(7) TYPE c,
+        dbudat TYPE vdbeki-dbudat,
+        ruzbel TYPE vdbepi-ruzbel,
+        rklammer TYPE vdbeki-rklammer,
+        sbewart  TYPE vdbepi-sbewart,
+        valor_gafisa TYPE /pws/zyfce137_a-bhwbetr,
+
+
+        rfha         TYPE /pws/zyfce137_a-rfha,
+        rfhazu       TYPE /pws/zyfce137_a-rfhazu,
+        dcrdat       TYPE /pws/zyfce137_a-dcrdat,
+        tcrtim       TYPE /pws/zyfce137_a-tcrtim,
+        rfhazb       TYPE /pws/zyfce137_a-rfhazb,
+        sfhaart      TYPE /pws/zyfce137_b-sfhaart,
+        sgsart       TYPE /pws/zyfce137_b-sgsart,
+        ltxkurz(10)  TYPE c,
+        sfhazba      TYPE /pws/zyfce137_a-sfhazba,
+        zfluxo       TYPE /pws/zyfct001-item,
+        rahabki      TYPE /pws/zyfce137_a-rahabki,
+        bzbetr       TYPE /pws/zyfce137_a-bzbetr,
+        wzbetr       TYPE /pws/zyfce137_a-wzbetr,
+        bhwbetr      TYPE /pws/zyfce137_a-bhwbetr,
+        dzterm       TYPE /pws/zyfce137_a-dzterm,
+        zvalut       TYPE /pws/zyfct005-zvalut,
+        sgtxt(60)    TYPE c,
+        sbktyp       TYPE /pws/zyfce137_a-sbktyp,
+        sfgtyp       TYPE /pws/zyfce137_b-sfgtyp,
+        ntrans       TYPE vvntrans,
+END OF tp_saida,
+
+BEGIN OF tp_natureza,
+sgrp2 TYPE tddgb-sgrp2,
+xkbez TYPE tddgb-xkbez,
+END OF tp_natureza,
+
+BEGIN OF tp_vdarl,
+   bukrs     TYPE vdarl-bukrs,
+   ranl      TYPE vdarl-ranl,
+   sobjekt   TYPE vzsort-sobjekt,
+   sanlf     TYPE vdarl-sanlf,
+   sgr2      TYPE vdarl-sgr2,
+   hdn_kunnr TYPE vdarl-hdn_kunnr,
+   gsber     TYPE vdarl-gsber,
+END   OF tp_vdarl,
+
+BEGIN OF tp_vdbepp,
+   bukrs    TYPE vdbepp-bukrs,
+   ranl     TYPE vdbepp-ranl,
+   dtrans   TYPE vdbepp-dtrans,
+   ttrans   TYPE vdbepp-ttrans,
+   ntrans   TYPE vdbepp-ntrans,
+   sbewart  TYPE vdbepp-sbewart,
+   sbewziti TYPE vdbepp-sbewziti,
+   splanist TYPE vdbepp-splanist,
+   ssolhab  TYPE vdbepp-ssolhab,
+   sanlf    TYPE vdbepp-sanlf,
+   gsart    TYPE vdbepp-gsart,
+   bcwhr    TYPE vdbepp-bcwhr,
+   scwhr    TYPE vdbepp-scwhr,
+   dfaell   TYPE vdbepp-dfaell,
+   hbkid    TYPE vdbepp-hbkid,
+   bhwbetr  TYPE /pws/zyfce137_a-bhwbetr,
+   waers    TYPE t001-waers,
+END   OF tp_vdbepp,
+
+BEGIN OF tp_vdbeki,
+   bukrs    TYPE vdbeki-bukrs,
+   rbelkpfd TYPE vdbeki-rbelkpfd,
+   ranl     TYPE vdbeki-ranl,
+   rklammer TYPE vdbeki-rklammer,
+   dbudat   TYPE vdbeki-dbudat,
+   gsber    TYPE vdbeki-gsber,
+   sstorno  TYPE vdbeki-sstorno,
+   rvzblg   TYPE vdbeki-rvzblg,
+   ruzbel   TYPE vdbeki-ruzbel,
+END   OF tp_vdbeki,
+
+BEGIN OF tp_vdbepi,
+   bukrs    TYPE vdbepi-bukrs,
+   rbelkpfd TYPE vdbepi-rbelkpfd,
+   rposnr   TYPE vdbepi-rposnr,
+   sbewart  TYPE vdbepi-sbewart,
+   bhwhr    TYPE vdbepi-bhwhr,
+   dfaell   TYPE vdbepi-dfaell,
+   ruzbel   TYPE vdbepi-ruzbel,
+END   OF tp_vdbepi,
+
+BEGIN OF tp_vzsort,
+  sobjekt TYPE vzsort-sobjekt,
+  usr03   TYPE vzsort-usr03,
+END   OF tp_vzsort,
+
+BEGIN OF tp_vimi01,
+  bukrs   TYPE vimi01-bukrs,
+  swenr   TYPE vimi01-swenr,
+  smenr   TYPE vimi01-smenr,
+  intreno TYPE vimi01-intreno,
+END   OF tp_vimi01,
+
+BEGIN OF tp_vzgpo,
+  sobjekt TYPE vzgpo-sobjekt,
+  pbez    TYPE vzgpo-pbez,
+END   OF tp_vzgpo.
+
+
+***********************************************************************
+* Tabelas Internas
+***********************************************************************
+
+DATA: gw_ref_clas   TYPE TABLE OF ztbpwfc_ref_clas WITH HEADER LINE,
+      gw_zyfct131   TYPE TABLE OF /pws/zyfct131 WITH HEADER LINE,
+      gw_zyfct001   TYPE TABLE OF /pws/zyfct001 WITH HEADER LINE,
+*      gs_zyfct001   TYPE /pws/zyfct001,
+*      gw_vdbeki     TYPE TABLE OF vdbeki,
+      gw_vdbeki     TYPE TABLE OF tp_vdbeki,
+*      gw_vdbepi     TYPE TABLE OF vdbepi,
+      gw_vdbepi     TYPE TABLE OF tp_vdbepi,
+      gw_vdbepi_aux TYPE TABLE OF tp_vdbepi,
+      gw_natureza   TYPE TABLE OF tp_natureza,
+      gs_natureza   TYPE tp_natureza,
+      gw_vzsort     TYPE TABLE OF tp_vzsort,
+      gs_vzsort     TYPE tp_vzsort,
+      gw_vzgpo      TYPE TABLE OF tp_vzgpo,
+      gs_vzgpo      TYPE tp_vzgpo,
+      gw_vimi01     TYPE TABLE OF tp_vimi01,
+      gs_vimi01     TYPE tp_vimi01,
+      gw_vdarl      TYPE TABLE OF tp_vdarl WITH HEADER LINE,
+      gw_tgsbt      TYPE TABLE OF tgsbt.
+
+*DATA: BEGIN OF gw_vdbepp OCCURS 0.
+*        INCLUDE STRUCTURE vdbepp.
+*DATA: bhwbetr TYPE /pws/zyfce137_a-bhwbetr,
+*      waers   TYPE t001-waers.
+*DATA: END OF gw_vdbepp.
+DATA: gw_vdbepp TYPE TABLE OF tp_vdbepp WITH HEADER LINE.
+
+DATA:  gw_saida TYPE TABLE OF tp_saida  WITH HEADER LINE.
+DATA:  gs_saida TYPE tp_saida.
+
+DATA: gw_fieldcat   TYPE STANDARD TABLE OF slis_fieldcat_alv.
+*      gs_fieldcat   TYPE LINE OF lvc_t_fcat.
+
+CONSTANTS: cc_8140 TYPE vdbepi-sbewart VALUE '8140',
+           cc_3210 TYPE vdbepi-sbewart VALUE '3210',
+           cc_3325 TYPE vdbepi-sbewart VALUE '3325'.
+
+*** Constantes Utilizadas pela funÃ§Ã£o que gera o ALV
+CONSTANTS:
+  cc_zf_alv_ucomm     TYPE slis_formname VALUE 'ZF_ALV_UCOMM'.
+"ucomm
+***********************************************************************
+* FIELD-SYMBOLS
+***********************************************************************
+FIELD-SYMBOLS: <fs_t001> TYPE t001_type,
+               <fs_vdbepi_aux> TYPE tp_vdbepi,
+               <fs_vdbepi>     TYPE tp_vdbepi,
+               <fs_vdbeki>     TYPE tp_vdbeki,
+               <fs_tgsbt>      TYPE tgsbt.
+
+***********************************************************************
+* ESTRUTURAS
+***********************************************************************
+DATA: s_variante        LIKE disvariant.
+DATA: s_def_variante    LIKE disvariant.
+
+DATA: v_repid           LIKE sy-repid.
+DATA: v_variant_save(1) TYPE c.
+DATA: v_variant_exit(1) TYPE c.
+
+***********************************************************************
+* TELA DE SELECAO
+***********************************************************************
+SELECTION-SCREEN BEGIN OF BLOCK a WITH FRAME TITLE text-001.
+SELECT-OPTIONS: s_bukrs   FOR vdbepp-bukrs,
+                s_kunnr   FOR vdarl-hdn_kunnr,
+                s_sgsart  FOR vdbepp-gsart,
+                s_fhazba  FOR tzb0a-sbewart,
+                s_rklam   FOR vdbeki-rklammer,
+                s_rfha    FOR vdbepp-ranl,
+*                s_sbktyp  FOR vtbfhapo-sbktyp,
+                s_dfaell  FOR sy-datum DEFAULT sy-datum, " OBLIGATORY,
+                s_dbudat  FOR vdbeki-dbudat,
+                s_sgr2    FOR vdarl-sgr2.
+
+*SELECTION-SCREEN SKIP.
+*PARAMETERS:   p_kurst LIKE /pws/zyfct005-kurst DEFAULT 'M' OBLIGATORY.
+*
+SELECTION-SCREEN END OF BLOCK a.
+
+SELECTION-SCREEN BEGIN OF BLOCK b02 WITH FRAME  TITLE text-b02.
+
+PARAMETERS: p_vari LIKE disvariant-variant. "Layout
+
+SELECTION-SCREEN END OF BLOCK b02.
+
+
+*SELECTION-SCREEN BEGIN OF BLOCK b WITH FRAME TITLE text-002.
+*PARAMETERS: p_total  RADIOBUTTON GROUP b1,
+*            p_sem    RADIOBUTTON GROUP b1,
+*            p_repass RADIOBUTTON GROUP b1.
+*SELECTION-SCREEN END OF BLOCK b.
+
+*----------------------------------------------------------------------*
+* Controle F4 para campo variante                                      *
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_vari.
+
+  PERFORM f_f4_for_variant USING p_vari.
+
+
+***********************************************************************
+* Processamento
+***********************************************************************
+START-OF-SELECTION.
+
+  PERFORM zf_selecionar_planejadas.
+  PERFORM zf_consiste_planejadas.
+  PERFORM zf_selecionar_faturadas.
+  PERFORM zf_exibir_relatorio.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SELECIONAR_PLANEJADAS
+*&---------------------------------------------------------------------*
+FORM zf_selecionar_planejadas .
+
+  DATA: lc_tabix TYPE sy-tabix,
+        lw_t001  TYPE TABLE OF t001_type.   "Tabela Empresa
+
+
+  DATA: lw_vdbeki TYPE TABLE OF tp_vdbeki.
+
+*  RANGES: r_sanlf FOR vdarl-sanlf.
+*
+*  CLEAR r_sanlf.
+*  r_sanlf-sign   = 'I'.
+*  r_sanlf-option = 'EQ' .
+*  r_sanlf-low    = '300'.
+*  APPEND r_sanlf.
+*
+*  CLEAR r_sanlf.
+*  r_sanlf-sign   = 'I'.
+*  r_sanlf-option = 'EQ' .
+*  r_sanlf-low    = '330'.
+*  APPEND r_sanlf.
+
+  SELECT *
+  FROM ztbpwfc_ref_clas
+  INTO TABLE gw_ref_clas.
+
+  IF sy-subrc EQ 0.
+    SELECT bukrs ranl sobjekt sanlf sgr2 hdn_kunnr gsber
+    FROM vdarl
+    INTO TABLE gw_vdarl
+    FOR ALL ENTRIES IN gw_ref_clas
+    WHERE bukrs     IN s_bukrs
+      AND gsart     IN s_sgsart
+*      AND sanlf    IN r_sanlf
+      AND rrefkont  EQ gw_ref_clas-rrefkont
+      AND ranl      IN s_rfha
+      AND hdn_kunnr IN s_kunnr
+      AND sgr2      IN s_sgr2.
+
+    IF sy-subrc EQ 0.
+
+      SORT gw_vdarl    BY bukrs ranl.
+
+      PERFORM zf_selecionar_valor_gafisa.
+
+      SELECT bukrs ranl dtrans ttrans ntrans sbewart sbewziti splanist ssolhab
+             sanlf gsart bcwhr scwhr dfaell hbkid
+      FROM vdbepp
+      INTO TABLE gw_vdbepp
+      FOR ALL ENTRIES IN gw_vdarl
+      WHERE bukrs    =  gw_vdarl-bukrs
+        AND ranl     =  gw_vdarl-ranl.
+*        AND sbewart  IN s_fhazba
+*        AND dfaell   IN s_dfaell.
+
+      DELETE gw_vdbepp WHERE sbewart NOT IN s_fhazba.
+      DELETE gw_vdbepp WHERE dfaell  NOT IN s_dfaell.
+
+      SELECT bukrs rbelkpfd ranl rklammer dbudat gsber sstorno rvzblg ruzbel
+      FROM vdbeki
+      INTO TABLE gw_vdbeki
+      FOR ALL ENTRIES IN gw_vdarl
+      WHERE bukrs    =  gw_vdarl-bukrs
+        AND ranl     =  gw_vdarl-ranl
+        AND rklammer IN  s_rklam
+        AND dbudat   IN s_dbudat.
+
+      IF sy-subrc IS INITIAL.
+
+        lw_vdbeki[] = gw_vdbeki[].
+        SORT lw_vdbeki BY gsber.
+        DELETE ADJACENT DUPLICATES FROM lw_vdbeki COMPARING gsber.
+
+        SELECT *
+          FROM tgsbt
+          INTO TABLE gw_tgsbt
+          FOR ALL ENTRIES IN lw_vdbeki
+          WHERE spras = sy-langu
+            AND gsber = lw_vdbeki-gsber.
+
+        IF sy-subrc EQ 0.
+          SORT gw_tgsbt BY gsber.
+        ENDIF.
+
+        REFRESH gw_vdbepi.
+        SELECT bukrs rbelkpfd rposnr sbewart bhwhr dfaell ruzbel
+        FROM vdbepi
+        INTO TABLE gw_vdbepi
+        FOR ALL ENTRIES IN gw_vdbeki
+        WHERE bukrs = gw_vdbeki-bukrs
+          AND rbelkpfd = gw_vdbeki-rbelkpfd
+          AND dfaell IN s_dfaell.
+      ENDIF.
+
+      SORT: gw_vdbeki BY bukrs ranl,
+            gw_vdbepi BY bukrs rbelkpfd.
+
+      SELECT sgrp2 xkbez
+        FROM tddgb
+        INTO TABLE gw_natureza
+         FOR ALL ENTRIES IN gw_vdarl
+        WHERE spras = sy-langu
+          AND sgrp2 = gw_vdarl-sgr2.
+
+      SORT gw_natureza BY sgrp2.
+
+      IF sy-subrc EQ 0.
+        DELETE gw_vdbepp WHERE splanist NE 'P'.
+
+        SELECT *
+        FROM /pws/zyfct131
+        INTO TABLE gw_zyfct131
+        FOR ALL ENTRIES IN gw_vdbepp
+        WHERE sgsart = gw_vdbepp-gsart.
+
+        SORT gw_zyfct131 BY sgsart sbktyp.
+
+*** Seleciona moeda da empresa
+        REFRESH lw_t001.
+        SELECT bukrs waers
+          FROM t001
+          INTO TABLE lw_t001
+           FOR ALL ENTRIES IN gw_vdbepp
+         WHERE bukrs = gw_vdbepp-bukrs.
+
+        IF sy-subrc = 0.
+          SORT lw_t001 BY bukrs.
+        ENDIF.
+        LOOP AT gw_vdbepp.
+          lc_tabix = sy-tabix.
+          READ TABLE gw_zyfct131 WITH KEY sgsart = gw_vdbepp-gsart
+                                          sbktyp = gw_vdbepp-sbewart BINARY SEARCH.
+          IF sy-subrc EQ 0.
+            DELETE gw_vdbepp INDEX lc_tabix.
+            CONTINUE.
+          ENDIF.
+
+*** Insere moeda da empresa
+          UNASSIGN <fs_t001>.
+          READ TABLE lw_t001 ASSIGNING <fs_t001>
+                             WITH KEY bukrs = gw_vdbepp-bukrs
+                             BINARY SEARCH.
+          IF sy-subrc = 0.
+            gw_vdbepp-waers = <fs_t001>-waers.
+          ENDIF.
+
+
+          IF gw_vdbepp-ssolhab = 'S'.
+            IF gw_vdbepp-sanlf = '330'.
+              gw_vdbepp-bhwbetr = gw_vdbepp-bcwhr * -1.
+              MODIFY gw_vdbepp INDEX lc_tabix.
+            ELSE.
+              gw_vdbepp-bhwbetr = gw_vdbepp-bcwhr.
+              MODIFY gw_vdbepp INDEX lc_tabix.
+            ENDIF.
+          ELSE.
+            gw_vdbepp-bhwbetr = gw_vdbepp-bcwhr.
+            MODIFY gw_vdbepp INDEX lc_tabix.
+          ENDIF.
+
+        ENDLOOP.
+
+        SELECT *
+        FROM /pws/zyfct001
+        INTO TABLE gw_zyfct001
+        FOR ALL ENTRIES IN gw_vdbepp
+        WHERE produto = gw_vdbepp-gsart.
+
+        SORT gw_zyfct001 BY produto.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " ZF_SELECIONAR_PLANEJADAS
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CONSISTE_PLANEJADAS
+*&---------------------------------------------------------------------*
+FORM zf_consiste_planejadas .
+
+  LOOP AT gw_vdbepp.
+
+    CHECK gw_vdbepp-sbewart = '0110' OR gw_vdbepp-sbewart = '0125'.
+    CLEAR: gw_zyfct001.
+
+    gw_saida-bukrs = gw_vdbepp-bukrs.
+    gw_saida-sgsart = gw_vdbepp-gsart.
+    gw_saida-rfhazb = gw_vdbepp-sbewart.
+    gw_saida-sbktyp = gw_vdbepp-sbewziti.
+*    gw_saida-wzbetr = gw_vdbepp-scwhr.
+    gw_saida-wzbetr = gw_vdbepp-waers.  "Moeda da empresa
+    gw_saida-ntrans = gw_vdbepp-ntrans. "TransaÃ§Ã£o
+*    gw_saida-bhwbetr = gw_vdbepp-bhwbetr.
+    gw_saida-rahabki = gw_vdbepp-hbkid.
+    gw_saida-rfha = gw_vdbepp-ranl.
+
+    CALL FUNCTION 'DATE_CONVERT_TO_FACTORYDATE'
+      EXPORTING
+       correct_option                     = '+'
+       date                               = gw_vdbepp-dfaell
+       factory_calendar_id                = 'BR'
+     IMPORTING
+       date                               = gw_saida-dzterm
+*       FACTORYDATE                        =
+*       WORKINGDAY_INDICATOR               =
+     EXCEPTIONS
+       calendar_buffer_not_loadable       = 1
+       correct_option_invalid             = 2
+       date_after_range                   = 3
+       date_before_range                  = 4
+       date_invalid                       = 5
+       factory_calendar_not_found         = 6
+       OTHERS                             = 7.
+    IF sy-subrc <> 0.
+      gw_saida-dzterm = gw_vdbepp-dfaell.
+    ENDIF.
+
+    IF gw_vdbepp-scwhr <> gw_vdbepp-waers.
+
+      CALL FUNCTION 'CONVERT_TO_LOCAL_CURRENCY'
+        EXPORTING
+          client           = sy-mandt
+          date             = gw_saida-dzterm
+          foreign_amount   = gw_vdbepp-bhwbetr
+          foreign_currency = gw_vdbepp-scwhr
+          local_currency   = gw_vdbepp-waers
+          rate             = 0
+          type_of_rate     = 'M'
+          read_tcurr       = 'X'
+        IMPORTING
+          local_amount     = gw_saida-bhwbetr
+        EXCEPTIONS
+          no_rate_found    = 1
+          overflow         = 2
+          no_factors_found = 3
+          no_spread_found  = 4
+          derived_2_times  = 5
+          OTHERS           = 6.
+
+    ELSE.
+      gw_saida-bhwbetr = gw_vdbepp-bhwbetr.
+
+    ENDIF.
+
+    gw_saida-sfhazba = gw_vdbepp-sbewart.
+    gw_saida-sbewart = gw_vdbepp-sbewart.
+
+    IF gw_saida-dzterm < sy-datum.
+      READ TABLE gw_zyfct001 WITH KEY produto = gw_vdbepp-gsart BINARY SEARCH.
+*                                      transacao = gw_vdbepp-sanlf
+*** O movimento nÃ£o Ã© obrigatÃ³rio
+*                                      movimento = gw_vdbepp-sbewart.
+
+      IF sy-subrc EQ 0.
+        gw_saida-zfluxo = gw_zyfct001-item.
+*        gw_saida-icon = 1.
+        gw_saida-sgtxt = 'DOCUMEMENTO VENCIDO'.
+      ELSE.
+        gw_saida-zfluxo = 'ITEM NÃƒO CADASTRADO'.
+*        gw_saida-icon = 1.
+        gw_saida-sgtxt = 'DOCUMEMENTO VENCIDO'.
+      ENDIF.
+
+    ELSE.
+
+      READ TABLE gw_zyfct001 WITH KEY produto = gw_vdbepp-gsart BINARY SEARCH.
+*** O movimento nÃ£o Ã© obrigatÃ³rio
+*                                      movimento = gw_vdbepp-sbewart.
+
+      IF sy-subrc EQ 0.
+        gw_saida-zfluxo = gw_zyfct001-item.
+*        gw_saida-icon = 3.
+        gw_saida-sgtxt = 'Transferido com Sucesso'(036).
+      ELSE.
+        gw_saida-zfluxo = 'ITEM NÃƒO CADASTRADO'.
+*        gw_saida-icon = 2.
+        CONCATENATE 'Produto' gw_vdbepp-gsart
+                    'nÃ£o cadastrado na estrutura'
+                    INTO
+                    gw_saida-sgtxt
+                    SEPARATED BY space.
+      ENDIF.
+
+    ENDIF.
+
+    READ TABLE gw_vdarl WITH KEY bukrs = gw_vdbepp-bukrs
+                                 ranl  = gw_vdbepp-ranl BINARY SEARCH.
+
+    IF sy-subrc EQ 0.
+
+      PERFORM zf_buscar_valor_gafisa.
+      IF gw_saida-valor_gafisa EQ 0.
+        gw_saida-valor_gafisa = gw_saida-bhwbetr.
+      ENDIF.
+
+      gw_saida-sfhaart = gw_vdarl-sanlf.
+      gw_saida-kunnr   = gw_vdarl-hdn_kunnr.
+
+      READ TABLE gw_natureza INTO gs_natureza WITH KEY sgrp2 = gw_vdarl-sgr2 BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        gw_saida-xkbez = gs_natureza-xkbez.
+      ENDIF.
+
+    ENDIF.
+
+    SORT: gw_vdbeki BY bukrs ranl,
+          gw_vdbepi BY bukrs rbelkpfd.
+
+    READ TABLE gw_vdbeki ASSIGNING <fs_vdbeki> WITH KEY bukrs = gw_vdarl-bukrs
+                                                        ranl  = gw_vdarl-ranl BINARY SEARCH.
+    IF sy-subrc IS INITIAL.
+      gw_saida-gsber    = <fs_vdbeki>-gsber.
+      gw_saida-rklammer = <fs_vdbeki>-rklammer.
+      gw_saida-dbudat   = <fs_vdbeki>-dbudat.   "Data da contabilizaÃ§Ã£o
+
+      READ TABLE gw_vdbepi ASSIGNING <fs_vdbepi> WITH KEY bukrs    = gw_vdarl-bukrs
+                                                          rbelkpfd = <fs_vdbeki>-rbelkpfd BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+*        gw_saida-kunnr    = <fs_vdbepi>-kunnr.
+*        gw_saida-dfaell   = <fs_vdbepi>-dfaell.
+        gw_saida-ruzbel   = <fs_vdbepi>-ruzbel.
+*        gw_saida-SBEWART  = <fs_vdbepi>-SBEWART.
+      ENDIF.
+
+      READ TABLE gw_tgsbt ASSIGNING <fs_tgsbt> WITH KEY gsber = <fs_vdbeki>-gsber
+      BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        gw_saida-gtext =  <fs_tgsbt>-gtext.
+      ENDIF.
+    ENDIF.
+
+    gw_saida-ranl     = gw_vdbepp-ranl.
+
+    CONCATENATE gw_saida-dzterm(4) gw_saida-dzterm+4(2) INTO
+    gw_saida-mes_ano SEPARATED BY '/'.
+
+    APPEND gw_saida.
+    CLEAR: gw_saida.
+
+  ENDLOOP.
+
+
+ENDFORM.                    " ZF_CONSISTE_PLANEJADAS
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SELECIONAR_FATURADAS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM zf_selecionar_faturadas .
+  DATA: lw_vdbeki TYPE TABLE OF tp_vdbeki,
+        lw_vdarl  TYPE TABLE OF tp_vdarl.
+
+
+  REFRESH gw_vdbeki.
+  SELECT bukrs rbelkpfd ranl rklammer dbudat gsber sstorno rvzblg ruzbel
+  FROM vdbeki
+  INTO TABLE gw_vdbeki
+  WHERE bukrs IN s_bukrs
+    AND ranl IN s_rfha
+    AND rklammer IN s_rklam
+    AND dbudat   IN s_dbudat.
+
+  DELETE gw_vdbeki WHERE sstorno <> space.
+  CHECK NOT gw_vdbeki[] IS INITIAL.
+
+  lw_vdbeki[] = gw_vdbeki[].
+  SORT lw_vdbeki BY gsber.
+  DELETE ADJACENT DUPLICATES FROM lw_vdbeki COMPARING gsber.
+
+  REFRESH: gw_vdarl, gw_natureza.
+  SELECT bukrs ranl sobjekt sanlf sgr2 hdn_kunnr gsber
+    FROM vdarl
+    INTO TABLE gw_vdarl
+    FOR ALL ENTRIES IN gw_vdbeki
+    WHERE bukrs EQ gw_vdbeki-bukrs
+      AND ranl  EQ gw_vdbeki-ranl
+      AND hdn_kunnr IN s_kunnr
+      AND sgr2      IN s_sgr2.
+  IF sy-subrc IS INITIAL.
+
+    PERFORM zf_selecionar_valor_gafisa.
+
+*      REFRESH GW_VDBEPP.
+*      SELECT *
+*      FROM vdbepp
+*      INTO TABLE gw_vdbepp
+*      FOR ALL ENTRIES IN gw_vdarl
+*      WHERE bukrs    =  gw_vdarl-bukrs
+*        AND ranl     =  gw_vdarl-ranl
+*        AND sbewart  IN s_fhazba
+*        AND sbewziti IN s_sbktyp
+*        AND dfaell   IN s_dfaell.
+
+    lw_vdarl[] = gw_vdarl[].
+    SORT lw_vdarl BY sgr2.
+    DELETE ADJACENT DUPLICATES FROM lw_vdarl COMPARING sgr2.
+
+    SELECT sgrp2 xkbez
+      FROM tddgb
+      INTO TABLE gw_natureza
+       FOR ALL ENTRIES IN lw_vdarl
+      WHERE spras = sy-langu
+        AND sgrp2 = lw_vdarl-sgr2.
+
+    SORT: gw_natureza BY sgrp2,
+          gw_vdarl    BY bukrs ranl.
+
+  ENDIF.
+
+  REFRESH gw_tgsbt.
+  SELECT *
+    FROM tgsbt
+    INTO TABLE gw_tgsbt
+    FOR ALL ENTRIES IN lw_vdbeki
+    WHERE spras = sy-langu
+      AND gsber = lw_vdbeki-gsber.
+
+  IF sy-subrc EQ 0.
+    SORT gw_tgsbt BY gsber.
+  ENDIF.
+  SORT gw_vdbeki BY bukrs rbelkpfd.
+
+  REFRESH gw_vdbepi.
+  SELECT bukrs rbelkpfd rposnr sbewart bhwhr dfaell ruzbel
+  FROM vdbepi
+  INTO TABLE gw_vdbepi
+  FOR ALL ENTRIES IN gw_vdbeki
+  WHERE bukrs = gw_vdbeki-bukrs
+    AND rbelkpfd = gw_vdbeki-rbelkpfd
+    AND dfaell IN s_dfaell
+    AND sbewart IN s_fhazba.
+
+  IF sy-subrc EQ 0.
+    DELETE gw_vdbepi WHERE sbewart = cc_8140.
+
+    gw_vdbepi_aux[] = gw_vdbepi[].
+    DELETE gw_vdbepi_aux WHERE ( sbewart NE cc_3210 OR
+                                 sbewart NE cc_3325 ) .
+
+    DELETE gw_vdbepi WHERE ( sbewart EQ cc_3210 OR
+                             sbewart EQ cc_3325 ) .
+
+    LOOP AT gw_vdbepi_aux ASSIGNING <fs_vdbepi_aux>.
+      READ TABLE gw_vdbeki ASSIGNING <fs_vdbeki> WITH KEY bukrs = <fs_vdbepi_aux>-bukrs
+                                                          rbelkpfd = <fs_vdbepi_aux>-rbelkpfd
+                                                          BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        DELETE gw_vdbepi WHERE ruzbel = <fs_vdbeki>-ruzbel.
+      ENDIF.
+
+    ENDLOOP.
+
+
+  ENDIF.
+
+  LOOP AT gw_vdbepi ASSIGNING <fs_vdbepi>.
+
+    READ TABLE gw_vdbeki ASSIGNING <fs_vdbeki> WITH KEY bukrs    = <fs_vdbepi>-bukrs
+                                                        rbelkpfd = <fs_vdbepi>-rbelkpfd
+                                                        BINARY SEARCH.
+    IF sy-subrc EQ 0.
+
+
+      READ TABLE gw_tgsbt ASSIGNING <fs_tgsbt> WITH KEY gsber = <fs_vdbeki>-gsber
+      BINARY SEARCH.
+
+
+      MOVE: <fs_vdbepi>-bukrs TO gw_saida-bukrs,  "Empresa
+            <fs_vdbeki>-gsber TO gw_saida-gsber,  "Divisao
+            <fs_tgsbt>-gtext  TO gw_saida-gtext,  "Texto da Divisao
+            <fs_vdbeki>-ranl  TO gw_saida-ranl,   "Contrato
+*            <fs_vdbepi>-kunnr TO gw_saida-kunnr,  "Cliente
+            <fs_vdbepi>-dfaell TO gw_saida-dfaell, "Vencimento
+            <fs_vdbeki>-rvzblg TO gw_saida-ruzbel,  "Documento Contabil Faturamento
+            <fs_vdbepi>-sbewart TO gw_saida-sbewart, "Movimento
+            <fs_vdbeki>-dbudat  TO gw_saida-dbudat,  "Data da contabilizaÃ§Ã£o
+            <fs_vdbeki>-rklammer TO gw_saida-rklammer. "Projeto Financeiro
+
+      CLEAR gw_vdarl.
+      READ TABLE gw_vdarl WITH KEY bukrs = <fs_vdbepi>-bukrs
+                                   ranl  = <fs_vdbeki>-ranl BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        gw_saida-kunnr = gw_vdarl-hdn_kunnr.
+        READ TABLE gw_natureza INTO gs_natureza WITH KEY sgrp2 = gw_vdarl-sgr2 BINARY SEARCH.
+        IF sy-subrc EQ 0.
+          gw_saida-xkbez = gs_natureza-xkbez.
+        ENDIF.
+      ENDIF.
+
+      CALL FUNCTION 'DATE_CONVERT_TO_FACTORYDATE'
+        EXPORTING
+         correct_option                     = '+'
+         date                               = <fs_vdbepi>-dfaell
+         factory_calendar_id                = 'BR'
+       IMPORTING
+         date                               = gw_saida-dzterm
+*       FACTORYDATE                        =
+*       WORKINGDAY_INDICATOR               =
+       EXCEPTIONS
+         calendar_buffer_not_loadable       = 1
+         correct_option_invalid             = 2
+         date_after_range                   = 3
+         date_before_range                  = 4
+         date_invalid                       = 5
+         factory_calendar_not_found         = 6
+         OTHERS                             = 7.
+      IF sy-subrc <> 0.
+        gw_saida-dzterm = <fs_vdbepi>-dfaell.
+      ENDIF.
+
+* Vencimento Mes/Ano
+      CONCATENATE gw_saida-dzterm(4) gw_saida-dzterm+4(2) INTO
+      gw_saida-mes_ano SEPARATED BY '/'.
+
+*    READ TABLE gw_vdbepp with key bukrs = <fs_vdbepi>-bukrs
+*                                  ranl  = <fs_vdbeki>-ranl BINARY SEARCH.
+*    IF SY-SUBRC IS INITIAL.
+
+      gw_saida-bhwbetr = <fs_vdbepi>-bhwhr.
+      IF NOT gw_vdarl IS INITIAL.
+        PERFORM zf_buscar_valor_gafisa.
+      ENDIF.
+      IF gw_saida-valor_gafisa EQ 0.
+        gw_saida-valor_gafisa = gw_saida-bhwbetr.
+      ENDIF.
+*    ENDIF.
+
+      APPEND gw_saida.
+      CLEAR gw_saida.
+    ENDIF.
+
+  ENDLOOP.
+
+
+ENDFORM.                    " ZF_SELECIONAR_FATURADAS
+*&---------------------------------------------------------------------*
+*&      Form  ZF_EXIBIR_RELATORIO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM zf_exibir_relatorio .
+* Estrutura
+  DATA:   gs_layout      TYPE slis_layout_alv.
+
+  IF gw_saida[] IS INITIAL.
+    MESSAGE text-003 TYPE 'S' DISPLAY LIKE 'E'.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+
+  PERFORM zf_alv_field_cat.
+
+  gs_layout-expand_all        = 'X'.      "Abrir subitens.
+  gs_layout-colwidth_optimize = 'X'.      "Largura melhor possÃ­vel da coluna.
+  gs_layout-zebra             = 'X'.      "zebra.
+
+* Variante
+  s_variante-variant = p_vari.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+*      i_callback_pf_status_set = cc_zf_alv_pf_status
+      i_callback_user_command  = cc_zf_alv_ucomm
+      is_layout                = gs_layout
+      it_fieldcat              = gw_fieldcat
+      i_save                   = 'X'
+      is_variant               = s_variante
+*      it_sort                  = gw_sort
+    TABLES
+      t_outtab                 = gw_saida
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+
+
+ENDFORM.                    " ZF_EXIBIR_RELATORIO
+*&---------------------------------------------------------------------*
+*&      Form  ZF_ALV_FIELD_CAT
+*&---------------------------------------------------------------------*
+FORM zf_alv_field_cat .
+
+*** catÃ¡logo de campos e respectivas descriÃ§Ãµes do relatÃ³rio ALV
+  DATA: ls_fieldcat    TYPE slis_fieldcat_alv.
+
+*** posiÃ§Ã£o da coluna
+  DATA: li_col_pos TYPE i.
+
+*** preenche fieldcat ALV
+  PERFORM zf_alv_fieldcat
+    TABLES gw_fieldcat
+    USING:
+*** 01 Empresa
+      ls_fieldcat li_col_pos 'BUKRS'          'GW_SAIDA'
+                             'BUKRS'          'T001',
+*** 02 DivisÃ£o
+      ls_fieldcat li_col_pos 'GSBER'          'GW_SAIDA'
+                             'GSBER'          'VDBEKI',
+
+*** 03 DescriÃ§Ã£o DivisÃ£o
+      ls_fieldcat li_col_pos 'GTEXT'          'GW_SAIDA'
+                             'GTEXT'          'TGSBT',
+*** 04 Contrato
+      ls_fieldcat li_col_pos 'RANL'          'GW_SAIDA'
+                             'RANL'          'VDBEKI',
+
+*** 05 Cliente
+      ls_fieldcat li_col_pos 'KUNNR'          'GW_SAIDA'
+                             'KUNNR'          'VDBEPI',
+
+*** 06 Natureza da parcela
+      ls_fieldcat li_col_pos 'XKBEZ'          'GW_SAIDA'
+                             'XKBEZ'          'TDDGB',
+
+*** Tipo de Movimento
+      ls_fieldcat li_col_pos 'SBEWART'          'GW_SAIDA'
+                             'SBEWART'          'VDBEPI',
+
+*** 06 Montante
+      ls_fieldcat li_col_pos 'BHWBETR'          'GW_SAIDA'
+                             'BHWBETR'          '/PWS/ZYFCE137_C',
+
+*** 06 Valor gafisa
+      ls_fieldcat li_col_pos 'VALOR_GAFISA'          'GW_SAIDA'
+                             'BHWBETR'          '/PWS/ZYFCE137_C',
+
+*** 07 Vencimento
+      ls_fieldcat li_col_pos 'DZTERM'          'GW_SAIDA'
+                             'DZTERM'          '/PWS/ZYFCE137_C',
+*** 07 Vencimento Mes/Ano
+      ls_fieldcat li_col_pos 'MES_ANO'          'GW_SAIDA'
+                             'DFAELL'           'VDBEPI',
+
+      ls_fieldcat li_col_pos 'DBUDAT'           'GW_SAIDA'
+                             'DBUDAT'           'VDBEKI',
+
+*** 09 Doc.Contabil
+      ls_fieldcat li_col_pos 'RUZBEL'          'GW_SAIDA'
+                             'RUZBEL'          'VDBEPI',
+*** 10 Projeto Financeiro
+      ls_fieldcat li_col_pos 'RKLAMMER'        'GW_SAIDA'
+                             'RKLAMMER'        'VDBEKI'.
+
+ENDFORM.                    " ZF_ALV_FIELD_CAT
+*&---------------------------------------------------------------------*
+*&      Form  ZF_ALV_FIELDCAT
+*&---------------------------------------------------------------------*
+FORM zf_alv_fieldcat  TABLES p_t_fieldcat        TYPE slis_t_fieldcat_alv
+                     USING  p_s_fieldcat        TYPE slis_fieldcat_alv
+                            p_col_pos           TYPE sy-cucol
+                            p_fieldname         TYPE slis_fieldname
+                            p_tabname           TYPE slis_tabname
+                            p_ref_fieldname     TYPE dd03p-fieldname
+                            p_ref_tabname       TYPE dd03p-tabname.
+
+*** p_col_pos increment
+  p_col_pos = p_col_pos + 1.
+
+  p_s_fieldcat-col_pos           = p_col_pos.
+  p_s_fieldcat-fieldname         = p_fieldname.
+  p_s_fieldcat-tabname           = p_tabname.
+  p_s_fieldcat-ref_fieldname     = p_ref_fieldname.
+  p_s_fieldcat-ref_tabname       = p_ref_tabname.
+  p_s_fieldcat-ddictxt   = 'L'.
+
+  IF p_fieldname = 'RUZBEL' OR p_fieldname = 'RANL'.
+    p_s_fieldcat-hotspot = 'X'.
+  ENDIF.
+
+  CASE p_fieldname.
+
+    WHEN 'BHWBETR'.
+      p_s_fieldcat-no_out    = ' '.
+      p_s_fieldcat-do_sum    = 'X'.
+      p_s_fieldcat-seltext_l = text-018.
+      p_s_fieldcat-seltext_m = text-018.
+      p_s_fieldcat-seltext_s = text-018.
+      p_s_fieldcat-reptext_ddic   = text-018.
+
+    WHEN 'DZTERM'.
+      p_s_fieldcat-no_out    = ' '.
+      p_s_fieldcat-seltext_l = text-019.
+      p_s_fieldcat-seltext_m = text-019.
+      p_s_fieldcat-seltext_s = text-019.
+      p_s_fieldcat-reptext_ddic = text-019.
+
+    WHEN 'MES_ANO'.
+      p_s_fieldcat-no_out    = ' '.
+      p_s_fieldcat-seltext_l = text-019.
+      p_s_fieldcat-seltext_m = text-019.
+      p_s_fieldcat-seltext_s = text-019.
+      p_s_fieldcat-reptext_ddic = text-019.
+
+    WHEN 'DBUDAT'.
+      p_s_fieldcat-no_out    = ' '.
+      p_s_fieldcat-seltext_l = text-020.
+      p_s_fieldcat-seltext_m = text-020.
+      p_s_fieldcat-seltext_s = text-020.
+      p_s_fieldcat-reptext_ddic = text-020.
+
+    WHEN 'VALOR_GAFISA'.
+      p_s_fieldcat-no_out    = ' '.
+      p_s_fieldcat-do_sum    = 'X'.
+      p_s_fieldcat-seltext_l = text-021.
+      p_s_fieldcat-seltext_m = text-021.
+      p_s_fieldcat-seltext_s = text-021.
+      p_s_fieldcat-reptext_ddic = text-021.
+  ENDCASE.
+
+
+  APPEND p_s_fieldcat TO p_t_fieldcat.
+  CLEAR p_s_fieldcat.
+
+
+ENDFORM.                    " ZF_ALV_FIELDCAT
+*-----------------------------------------------------------------------
+* Form:      ZF_ALV_UCOMM
+* DescriÃ§Ã£o: ALV User Command
+* Entradas:  p_ucomm    "sy-ucomm
+*            p_selfield "Dados do campo selecionado
+* SaÃ­das:    N/A
+*-----------------------------------------------------------------------
+FORM zf_alv_ucomm USING p_ucomm    TYPE sy-ucomm
+                        p_selfield TYPE slis_selfield.      "#EC *
+
+  READ TABLE gw_saida INTO gs_saida INDEX p_selfield-tabindex.
+  CHECK sy-subrc IS INITIAL.
+  IF p_selfield-sel_tab_field = 'GW_SAIDA-RANL'.
+    SET PARAMETER ID 'BUK' FIELD gs_saida-bukrs.
+    SET PARAMETER ID 'RAD' FIELD gs_saida-ranl.
+    CALL TRANSACTION 'FNVS' AND SKIP FIRST SCREEN.
+  ELSE.
+    CHECK NOT gs_saida-ruzbel IS INITIAL.
+    SET PARAMETER ID 'BLN' FIELD gs_saida-ruzbel.
+    SET PARAMETER ID 'BUK' FIELD gs_saida-bukrs.
+    SET PARAMETER ID 'GJR' FIELD gs_saida-dfaell(4).
+    CALL TRANSACTION 'FB03' AND SKIP FIRST SCREEN.
+  ENDIF.
+
+ENDFORM.                    "zf_alv_ucomm
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SELECIONAR_VALOR_GAFISA
+*&---------------------------------------------------------------------*
+FORM zf_selecionar_valor_gafisa .
+
+  DATA: lw_vdarl  TYPE TABLE OF tp_vdarl,
+        lw_vimi01 TYPE TABLE OF tp_vimi01,
+        ls_vimi01 TYPE tp_vimi01.
+
+  lw_vdarl[] = gw_vdarl[].
+  SORT lw_vdarl BY sobjekt.
+  DELETE ADJACENT DUPLICATES FROM lw_vdarl COMPARING sobjekt.
+
+
+  REFRESH: gw_vzsort, gw_vimi01, gw_vzgpo.
+
+  SELECT sobjekt usr03
+    FROM vzsort
+    INTO TABLE gw_vzsort
+     FOR ALL ENTRIES IN lw_vdarl
+   WHERE snumobj = 'VD'
+     AND sobjekt = lw_vdarl-sobjekt.
+
+  CHECK sy-subrc IS INITIAL.
+  SORT gw_vzsort BY sobjekt.
+  LOOP AT gw_vdarl.
+    READ TABLE gw_vzsort INTO gs_vzsort WITH KEY sobjekt = gw_vdarl-sobjekt BINARY SEARCH.
+    ls_vimi01-bukrs = gw_vdarl-bukrs.
+    ls_vimi01-swenr = gw_vdarl-gsber.
+    ls_vimi01-smenr = gs_vzsort-usr03.
+    CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+      EXPORTING
+        input  = ls_vimi01-smenr
+      IMPORTING
+        output = ls_vimi01-smenr.
+    APPEND ls_vimi01 TO lw_vimi01.
+  ENDLOOP.
+
+  CHECK NOT lw_vimi01[] IS INITIAL.
+
+  SELECT bukrs swenr smenr intreno
+    FROM vimi01
+    INTO TABLE gw_vimi01
+     FOR ALL ENTRIES IN lw_vimi01
+    WHERE bukrs = lw_vimi01-bukrs
+      AND swenr = lw_vimi01-swenr
+      AND smenr = lw_vimi01-smenr.
+
+  CHECK sy-subrc IS INITIAL.
+  SORT gw_vimi01 BY bukrs swenr smenr.
+
+  SELECT sobjekt pbez
+    FROM vzgpo
+    INTO TABLE gw_vzgpo
+     FOR ALL ENTRIES IN gw_vimi01
+    WHERE snumobj = 'VI'
+      AND sobjekt = gw_vimi01-intreno
+      AND roletyp = 'Z020'.
+
+  CHECK sy-subrc IS INITIAL.
+  SORT gw_vzgpo BY sobjekt.
+
+ENDFORM.                    " ZF_SELECIONAR_VALOR_GAFISA
+*----------------------------------------------------------------------*
+*       Form  f_f4_for_variant
+*----------------------------------------------------------------------*
+* Gerar matchcode com os layouts gravados
+*----------------------------------------------------------------------*
+*      -->P_P_VARI  Variante
+*----------------------------------------------------------------------*
+FORM f_f4_for_variant USING  p_vari TYPE any.
+
+  MOVE: 'A'      TO v_variant_save,
+        sy-repid TO s_variante-report.
+
+* FunÃ§Ã£o para selecionar o Layout gravado
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant = s_variante
+      i_save     = v_variant_save
+    IMPORTING
+      e_exit     = v_variant_exit
+      es_variant = s_def_variante
+    EXCEPTIONS
+      not_found  = 2.
+
+  IF sy-subrc = 2.
+    MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.
+
+    IF v_variant_exit = space.
+      p_vari = s_def_variante-variant.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " f_f4_for_variant
+*&---------------------------------------------------------------------*
+*&      Form  ZF_BUSCAR_VALOR_GAFISA
+*&---------------------------------------------------------------------*
+FORM zf_buscar_valor_gafisa .
+
+  DATA: l_smenr   TYPE vimi01-smenr.
+
+  CLEAR l_smenr.
+  l_smenr = gs_vzsort-usr03.
+  SHIFT l_smenr RIGHT DELETING TRAILING space.
+  TRANSLATE l_smenr USING ' 0'.
+
+  READ TABLE gw_vzsort INTO gs_vzsort WITH KEY sobjekt = gw_vdarl-sobjekt BINARY SEARCH.
+  CHECK sy-subrc IS INITIAL.
+  READ TABLE gw_vimi01 INTO gs_vimi01 WITH KEY bukrs = gw_vdarl-bukrs
+                                               swenr = gw_vdarl-gsber
+                                               smenr = l_smenr BINARY SEARCH.
+  CHECK sy-subrc IS INITIAL.
+  READ TABLE gw_vzgpo INTO gs_vzgpo WITH KEY sobjekt = gs_vimi01-intreno BINARY SEARCH.
+  CHECK sy-subrc IS INITIAL.
+  gw_saida-valor_gafisa = ( gs_vzgpo-pbez / 100 ) * gw_saida-bhwbetr.
+
+ENDFORM.                    " ZF_BUSCAR_VALOR_GAFISA

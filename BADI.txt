@@ -1,0 +1,15 @@
+entra na se24 classe: CL_EXITHANDLER
+exibir e entrar no método GET_INSTANCE colocar um ponto de para no metodo
+CALL METHOD cl_exithandler=>get_class_name_by_interface
+rodar a transação q deseja encontra a badi, ele vai para nesse ponto em cada badi q 
+o programa passar, o nome da badi estará no campo exit_name
+
+1. Va na transa??o se24, visualize a classe CL_EXITHANDLER;
+2. Quando aparecer os metodos, de 2 click's no metodo GET_INSTANCE;
+3. Poe uma break no metodo CALL METHOD cl_exithandler=>get_class_name_by_interface, esse metodo retorna o nome na classe ( class_name ) e o da BADI dessa classe ( exit_name ) 
+
+
+
+
+
+

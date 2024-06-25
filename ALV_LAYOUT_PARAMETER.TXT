@@ -1,0 +1,1402 @@
+*---------------------------------------------------------------------*
+* Programa : ZRSCFIR042_CONSULTA_CHEQUE
+* Cliente : RODOBENS
+* Módulo : FI
+* Transação:
+* Descrição: Consulta de Cheques
+* Autor : Thiago Farias Gomes                       Data: 09/04/2012
+*---------------------------------------------------------------------*
+* Histórico de Alterações:
+*---------------------------------------------------------------------*
+*Data       |Request #  | Autor              | Alteração
+*---------------------------------------------------------------------*
+*09/04/2012 |ECDK925954 |Thiago Farias Gomes |Desenvolvimento Inicial
+*---------------------------------------------------------------------*
+REPORT  zrscfir042_consulta_cheque MESSAGE-ID zfi01.
+
+*---------------------------------------------------------------------*
+* Definição de type-pools
+*---------------------------------------------------------------------*
+TYPE-POOLS slis.
+
+*---------------------------------------------------------------------*
+* Definição de Constantes
+*---------------------------------------------------------------------*
+CONSTANTS:
+   c_x(01)        TYPE c VALUE 'X',       " Flag geral
+*** Constantes para coluna do tipo do cheque
+   c_vista(01)    TYPE c VALUE 'V',       " Cheque à vista
+   c_prazo(01)    TYPE c VALUE 'P',       " Cheque à prazo
+   c_custo(01)    TYPE c VALUE 'C',       " Cheque custódia
+*** Constantes para verificação do status
+   c_a(01)        TYPE c VALUE 'A',       " Em cofre
+   c_b(01)        TYPE c VALUE 'B',       " Em cofre
+   c_d(01)        TYPE c VALUE 'D',       " Em cofre
+   c_e(01)        TYPE c VALUE 'E',       " Em cofre
+   c_k(01)        TYPE c VALUE 'K',       " Em cofre
+   c_g(01)        TYPE c VALUE 'G',       " Em cofre
+   c_j(01)        TYPE c VALUE 'J',       " Transf. andamento
+   c_n(01)        TYPE c VALUE 'N',       " Enviado p/ depósito
+   c_o(01)        TYPE c VALUE 'O',       " Em custódia
+   c_q(01)        TYPE c VALUE 'Q',       " Ret. pelo cliente
+*** Constantes para as colunas do alv
+   c_bukrs(05)    TYPE c VALUE 'BUKRS',   " Cód. empresa
+   c_bupla(05)    TYPE c VALUE 'BUPLA',   " Loc. negócio
+   c_caixa(05)    TYPE c VALUE 'CAIXA',   " Cód. caixa
+   c_numch(05)    TYPE c VALUE 'NUMCH',   " Número do cheque
+   c_tname(05)    TYPE c VALUE 'TNAME',   " Dono do cheque
+   c_banco(05)    TYPE c VALUE 'BANCO',   " Banco
+   c_agenc(05)    TYPE c VALUE 'AGENC',   " Agência
+   c_bankn(05)    TYPE c VALUE 'BANKN',   " Conta
+   c_dtven(05)    TYPE c VALUE 'DTVEN',   " Data vencimento
+   c_dtcri(05)    TYPE c VALUE 'DTCRI',   " Data criação
+   c_tpcheq(06)   TYPE c VALUE 'TPCHEQ',  " Tipo de cheque
+   c_kunnr(05)    TYPE c VALUE 'KUNNR',   " Código do pagador
+   c_name1(05)    TYPE c VALUE 'NAME1',   " Nome do pagador
+   c_vlrch(05)    TYPE c VALUE 'VLRCH',   " Valor
+   c_waers(05)    TYPE c VALUE 'WAERS',   " Moeda
+   c_cmc7(05)     TYPE c VALUE 'CMC7',    " Código CMC7
+   c_status(06)   TYPE c VALUE 'STATUS',  " Status do cheque
+   c_opera(05)    TYPE c VALUE 'OPERA',   " Operação
+   c_dtabe(05)    TYPE c VALUE 'DTABE',   " Data do caixa da oper.
+   c_compl(05)    TYPE c VALUE 'COMPL',   " Texto de complemento
+   c_tabalv(10)   TYPE c VALUE 'GW_ALV',  " Tab. interna do alv
+   c_align(01)    TYPE c VALUE 'L',       " Alinham. da coluna do alv
+   c_texto(01)    TYPE c VALUE 'L',       " Tam. texto da col. do alv
+   c_ztbfi067(08) TYPE c VALUE 'ZTBFI067'," Ref. tabela ztbfi067
+   c_ztbfi069(08) TYPE c VALUE 'ZTBFI069'," Ref. tabela ztbfi069
+   c_ztbfi070(08) TYPE c VALUE 'ZTBFI070'," Ref. tabela ztbfi070
+   c_ztbfi075(08) TYPE c VALUE 'ZTBFI075'," Ref. tabela ztbfi075
+   c_kna1(04)     TYPE c VALUE 'KNA1',    " Ref. tabela kna1
+   c_sort1(01)    TYPE c VALUE '1',       " Primeira ordenação
+   c_error(01)    TYPE c VALUE 'E'.       " Ícone de msg de erro
+
+*---------------------------------------------------------------------*
+* Definição de Tipos para Tabelas
+*---------------------------------------------------------------------*
+TYPES:
+*** Tipo para tabela ztbfi067
+BEGIN OF ztbfi067_type,
+ bukrs TYPE ztbfi067-bukrs, " Empresa
+ bupla TYPE ztbfi067-bupla, " Local de Negócio
+ caixa TYPE ztbfi067-caixa, " Caixa
+ idche TYPE ztbfi067-idche, " ID do cheque
+ numch TYPE ztbfi067-numch, " Número do cheque
+ tname TYPE ztbfi067-tname, " Dono do cheque
+ banco TYPE ztbfi067-banco, " Banco
+ agenc TYPE ztbfi067-agenc, " Agência
+ bankn TYPE ztbfi067-bankn, " Conta
+ dtven TYPE ztbfi067-dtven, " Data vencimento
+ kunnr TYPE ztbfi067-kunnr, " Código do pagador
+ vlrch TYPE ztbfi067-vlrch, " Valor
+ waers TYPE ztbfi067-waers, " Moeda Nome do pagador
+ cmc7  TYPE ztbfi067-cmc7,                                  " Cód. CMC7
+ tpche TYPE ztbfi067-tpche, " Tipo do cheque
+ stach TYPE ztbfi067-stach, " Status do cheque
+END OF ztbfi067_type,
+
+*** Tipo para a tabela ztbfi068
+BEGIN OF ztbfi068_type,
+  stach TYPE ztbfi068-stach, " Código do status
+  descr TYPE ztbfi068-descr, " Descrição do status
+END OF ztbfi068_type,
+
+*** Tipo para a tabela ztbfi069
+BEGIN OF ztbfi069_type,
+  bukrs TYPE ztbfi069-bukrs, " Empresa
+  bupla TYPE ztbfi069-bupla, " Local de negócio
+  caixa TYPE ztbfi069-caixa, " Caixa
+  idmov TYPE ztbfi069-idmov, " Id de movimentos
+  dtabe TYPE ztbfi069-dtabe, " Data de abertura
+END OF ztbfi069_type,
+
+*** Tipo para a tabela ztbfi070
+BEGIN OF ztbfi070_type,
+  bukrs TYPE ztbfi070-bukrs, " Empresa
+  bupla TYPE ztbfi070-bupla, " Local de negócio
+  caixa TYPE ztbfi070-caixa, " Caixa
+  idmov TYPE ztbfi070-idmov, " Id de movimentos
+  idlan TYPE ztbfi070-idlan, " Id lançamentos
+  idche TYPE ztbfi070-idche, " Id cheque
+  opera TYPE ztbfi070-opera, " Operação de caixa
+  categ TYPE ztbfi070-categ,
+  idtra TYPE ztbfi070-idtra,
+  dtcri TYPE ztbfi070-dtcri, " Data de criação
+  hrcri TYPE ztbfi070-hrcri,
+  uscri TYPE ztbfi070-uscri,
+  estor TYPE ztbfi070-estor, " Lançamento estornado
+  compl TYPE ztbfi070-compl, " Complemento de text
+END OF ztbfi070_type,
+
+*** Tipo para a tabela ztbfi075
+BEGIN OF ztbfi075_type,
+  bukrs TYPE ztbfi075-bukrs, " Empresa
+  opera TYPE ztbfi075-opera, " Operação
+  categ TYPE ztbfi075-categ, " Categ. trans. contábil livro caixa
+  descr TYPE ztbfi075-descr, " Descrição da operação
+  texto TYPE ztbfi075-texto, " Texto da operação
+END OF ztbfi075_type,
+
+*** Tipo para a tabela kna1
+BEGIN OF kna1_type,
+  kunnr TYPE kna1-kunnr, " Código do cliente
+  name1 TYPE kna1-name1, " Nome do pagador
+END OF kna1_type,
+
+*** Tipo para as colunas do ALV
+BEGIN OF alv_type,
+ bukrs  TYPE ztbfi070-bukrs, " Empresa
+ bupla  TYPE ztbfi070-bupla, " Local de negócio
+ caixa  TYPE ztbfi070-caixa, " Caixa
+ numch  TYPE ztbfi067-numch, " Número do cheque
+ tname  TYPE ztbfi067-tname, " Dono do cheque
+ banco  TYPE ztbfi067-banco, " Banco
+ agenc  TYPE ztbfi067-agenc, " Agência
+ bankn  TYPE ztbfi067-bankn, " Conta
+ dtven  TYPE ztbfi067-dtven, " Data vencimento
+ tpcheq TYPE string,         " Tipo do cheque
+ kunnr  TYPE ztbfi067-kunnr, " Código do pagador
+ name1  TYPE kna1-name1,     " Nome do pagador
+ opera  TYPE ztbfi075-descr, " Descr. operação
+ compl  TYPE ztbfi075-texto, " Complemento
+ dtabe  TYPE ztbfi069-dtabe, " Data do caixa da operação
+ vlrch  TYPE ztbfi067-vlrch, " Valor cheque
+ waers  TYPE ztbfi067-waers, " Moeda Nome do pagador
+ cmc7   TYPE ztbfi067-cmc7,                                 " Cód. cmc7
+ dtcri  TYPE ztbfi070-dtcri, " Data de criação
+ status TYPE string,         " Descrição do status
+ hrcri  TYPE ztbfi070-hrcri,
+ idche  TYPE ztbfi070-idche,
+END OF alv_type.
+
+*--------------------------------------------------------------------*
+* Definição de Tabelas Internas
+*--------------------------------------------------------------------*
+DATA:
+*** Tabela de cadastro de cheques
+  gw_ztbfi067   TYPE STANDARD TABLE OF ztbfi067_type,
+*** Tabela de status dos cheques
+  gw_ztbfi068   TYPE STANDARD TABLE OF ztbfi068_type,
+*** Tabela de movimentos
+  gw_ztbfi069   TYPE STANDARD TABLE OF ztbfi069_type,
+*** Tabela de lançamemtos por movimentos
+  gw_ztbfi070   TYPE STANDARD TABLE OF ztbfi070_type,
+*** Tabela de operações
+  gw_ztbfi075   TYPE STANDARD TABLE OF ztbfi075_type,
+*** Tabela mestre de clientes
+  gw_kna1       TYPE STANDARD TABLE OF kna1_type,
+*** Tabela com os dados do alv
+  gw_alv        TYPE STANDARD TABLE OF alv_type,
+*** Tabela de ordenação do alv
+  gw_sortinfo   TYPE STANDARD TABLE OF slis_sortinfo_alv,
+*** Tabela de montagem das colunas do alv
+  gw_fieldcat   TYPE STANDARD TABLE OF slis_fieldcat_alv.
+
+DATA: gw_077        TYPE TABLE OF ztbfi077.
+
+
+*--------------------------------------------------------------------*
+* Definição de Estruturas
+*--------------------------------------------------------------------*
+DATA:
+  gs_ztbfi067_scr TYPE ztbfi067_type,    " P/ tipo da tela de selecao
+  gs_alv          TYPE alv_type,         " Estrut. da tabela do alv
+  gs_fieldcat     TYPE slis_fieldcat_alv," Estrut. dos camp. do alv
+  gs_layout       TYPE slis_layout_alv,  " Estrut. do layout do alv
+  gs_sortinfo     TYPE slis_sortinfo_alv," Estrut. da orden. do alv
+  gs_variant      TYPE disvariant.
+
+DATA: w_077 TYPE ztbfi077.
+DATA: w_067 TYPE ztbfi067_type.
+DATA: w_070 TYPE ztbfi070_type.
+
+
+*--------------------------------------------------------------------*
+* Definição de Ponteiros
+*--------------------------------------------------------------------*
+FIELD-SYMBOLS:
+  <fs_ztbfi067> TYPE ztbfi067_type,
+  <fs_ztbfi068> TYPE ztbfi068_type,
+  <fs_ztbfi069> TYPE ztbfi069_type,
+  <fs_ztbfi070> TYPE ztbfi070_type,
+  <fs_ztbfi075> TYPE ztbfi075_type,
+  <fs_kna1>     TYPE kna1_type.
+
+*--------------------------------------------------------------------*
+* Definição de Variáveis
+*--------------------------------------------------------------------*
+DATA:
+  gd_dtabe_scr TYPE ztbfi067-dtabe." Para tipo da tela de selecao
+DATA: v_nao_append TYPE flag.
+
+
+*--------------------------------------------------------------------*
+* Definição das Telas de Seleções
+*--------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+
+SELECT-OPTIONS:
+  so_empr  FOR gs_ztbfi067_scr-bukrs, " Empresa
+  so_l_neg FOR gs_ztbfi067_scr-bupla, " Local de Negócio
+  so_caixa FOR gs_ztbfi067_scr-caixa, " Caixa
+  so_dtent FOR gd_dtabe_scr,          " Data de entrada
+  so_dtven FOR gs_ztbfi067_scr-dtven, " Data de vencimento
+  so_codbp FOR gs_ztbfi067_scr-kunnr, " Código do cliente
+  so_cheq  FOR gs_ztbfi067_scr-numch, " Número do cheque
+  so_tpche FOR gs_ztbfi067_scr-tpche, " Tipo do cheque
+  so_stach FOR gs_ztbfi067_scr-stach. " Status do cheque
+
+PARAMETERS:
+  p_atual TYPE c RADIOBUTTON GROUP  gr1 DEFAULT 'X', " Sintético
+  p_hist  TYPE c RADIOBUTTON GROUP  gr1.             " Analítico
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+
+PARAMETERS:
+  p_layout TYPE disvariant-variant.
+
+SELECTION-SCREEN END OF BLOCK b2.
+
+*** Seleção do layout
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_layout.
+
+  PERFORM zf_alv_f4.
+
+*---------------------------------------------------------------------*
+* Início das seleções
+*---------------------------------------------------------------------*
+INITIALIZATION.
+
+*** Variante do ALV
+  PERFORM zf_alv_init.
+
+*---------------------------------------------------------------------*
+* Início das seleções
+*---------------------------------------------------------------------*
+START-OF-SELECTION.
+
+*** Executa a seleção de dados necessários para o exibir no relatório
+  PERFORM zf_selecao.
+
+*** Este form executa a montagem do alv através dos performs
+  PERFORM zf_montar_alv.
+
+*&--------------------------------------------------------------------*
+*& Form zf_selecao
+*&--------------------------------------------------------------------*
+*& Agrupa todas as seleções de dados
+*---------------------------------------------------------------------*
+FORM zf_selecao.
+
+  REFRESH: gw_ztbfi067[].
+  SELECT bukrs
+         bupla
+         caixa
+         idche
+         numch
+         tname
+         banco
+         agenc
+         bankn
+         dtven
+         kunnr
+         vlrch
+         waers
+         cmc7
+         tpche
+         stach
+     INTO TABLE gw_ztbfi067
+     FROM ztbfi067
+    WHERE bukrs IN so_empr
+      AND bupla IN so_l_neg
+      AND caixa IN so_caixa
+      AND dtabe IN so_dtent
+      AND dtven IN so_dtven
+      AND kunnr IN so_codbp
+      AND numch IN so_cheq
+      AND tpche IN so_tpche
+      AND stach IN so_stach.
+
+  IF NOT sy-subrc IS INITIAL.
+
+*** Nenhum Registro foi encontrado para este filtro
+    MESSAGE s006 WITH text-021 DISPLAY LIKE c_error.
+    LEAVE LIST-PROCESSING.
+
+  ELSE.
+
+    SORT gw_ztbfi067 BY bukrs ASCENDING
+                        bupla ASCENDING
+                        caixa ASCENDING
+                        idche ASCENDING.
+
+*    REFRESH: gw_ztbfi068.
+*    SELECT stach
+*           descr
+*      INTO TABLE gw_ztbfi068
+*      FROM ztbfi068.
+*
+*    IF sy-subrc IS INITIAL.
+*      SORT gw_ztbfi068 BY stach ASCENDING.
+*    ENDIF.
+
+    REFRESH: gw_kna1[].
+    SELECT kunnr name1
+       INTO TABLE gw_kna1
+       FROM kna1
+       FOR ALL ENTRIES IN gw_ztbfi067
+       WHERE kunnr = gw_ztbfi067-kunnr.
+
+    IF sy-subrc IS INITIAL.
+      SORT gw_kna1 BY kunnr ASCENDING.
+    ENDIF.
+
+*** Se o parâmetro (Sintético) estiver selecionado
+    IF p_atual = c_x.
+
+      PERFORM zf_alv_sintetico.
+
+*** Se o parâmetro (Analítico) estiver selecionado
+    ELSEIF  p_hist = c_x.
+
+      SELECT *
+        FROM ztbfi077
+        INTO TABLE gw_077
+        FOR ALL ENTRIES IN gw_ztbfi067
+        WHERE bukrs = gw_ztbfi067-bukrs
+          AND bupla = gw_ztbfi067-bupla
+          AND idche = gw_ztbfi067-idche.
+
+      REFRESH: gw_ztbfi070[].
+      SELECT bukrs
+             bupla
+             caixa
+             idmov
+             idlan
+             idche
+             opera
+             categ
+             idtra
+             dtcri
+             hrcri
+             uscri
+             estor
+             compl
+         INTO TABLE gw_ztbfi070
+         FROM ztbfi070
+         FOR ALL ENTRIES IN gw_ztbfi067
+         WHERE bukrs = gw_ztbfi067-bukrs
+           AND bupla = gw_ztbfi067-bupla
+           AND caixa = gw_ztbfi067-caixa
+           AND idche = gw_ztbfi067-idche.
+
+      IF NOT gw_077 IS INITIAL.
+        SELECT bukrs
+               bupla
+               caixa
+               idmov
+               idlan
+               idche
+               opera
+               categ
+               idtra
+               dtcri
+               hrcri
+               uscri
+               estor
+               compl
+           APPENDING TABLE gw_ztbfi070
+           FROM ztbfi070
+           FOR ALL ENTRIES IN gw_077
+           WHERE bukrs = gw_077-bukrs
+             AND bupla = gw_077-bupla
+             AND caixa = gw_077-caixa_emi
+             AND idtra = gw_077-idtra.
+      ENDIF.
+
+      IF NOT gw_ztbfi070 IS INITIAL.
+
+**** Deleta da tabela interna os ids do cheque que estão vazios
+*        DELETE gw_ztbfi070 WHERE idche = 0.
+
+        SORT gw_ztbfi070 BY bukrs ASCENDING
+                            bupla ASCENDING
+                            caixa ASCENDING
+                            dtcri ASCENDING
+                            hrcri ASCENDING.
+
+        REFRESH: gw_ztbfi075[].
+        SELECT bukrs
+               opera
+               categ
+               descr
+               texto
+           INTO TABLE gw_ztbfi075
+           FROM ztbfi075
+           FOR ALL ENTRIES IN gw_ztbfi070
+           WHERE bukrs = gw_ztbfi070-bukrs
+             AND opera = gw_ztbfi070-opera.
+
+        IF sy-subrc IS INITIAL.
+          SORT gw_ztbfi075 BY bukrs ASCENDING
+                              opera ASCENDING.
+        ENDIF.
+
+        REFRESH: gw_ztbfi069[].
+        SELECT bukrs
+               bupla
+               caixa
+               idmov
+               dtabe
+          INTO TABLE gw_ztbfi069
+          FROM ztbfi069
+          FOR ALL ENTRIES IN gw_ztbfi070
+          WHERE bukrs = gw_ztbfi070-bukrs
+            AND bupla = gw_ztbfi070-bupla
+            AND caixa = gw_ztbfi070-caixa
+            AND idmov = gw_ztbfi070-idmov.
+
+        IF sy-subrc IS INITIAL.
+
+          SORT gw_ztbfi069 BY bukrs ASCENDING
+                              bupla ASCENDING
+                              caixa ASCENDING
+                              idmov ASCENDING.
+
+        ENDIF.
+
+*        PERFORM zf_alv_analitico.
+        PERFORM zf_alv_analitico_2.
+
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                                                 " zf_selecao
+
+*&--------------------------------------------------------------------*
+*& Form zf_alv_analitico
+*&--------------------------------------------------------------------*
+*& Preenche o alv se o parâmetro analítico estiver preenchido
+*---------------------------------------------------------------------*
+FORM zf_alv_analitico.
+
+  CLEAR: gs_alv.
+
+  LOOP AT gw_ztbfi070 ASSIGNING <fs_ztbfi070>.
+
+    UNASSIGN <fs_ztbfi067>.
+    READ TABLE gw_ztbfi067
+    WITH KEY bukrs = <fs_ztbfi070>-bukrs
+             bupla = <fs_ztbfi070>-bupla
+             caixa = <fs_ztbfi070>-caixa
+             idche = <fs_ztbfi070>-idche
+    BINARY SEARCH ASSIGNING <fs_ztbfi067>.
+
+    IF sy-subrc IS INITIAL.
+
+      UNASSIGN <fs_kna1>.
+      READ TABLE gw_kna1
+      WITH KEY kunnr = <fs_ztbfi067>-kunnr
+      BINARY SEARCH ASSIGNING <fs_kna1>.
+
+      IF sy-subrc IS INITIAL.
+        gs_alv-name1 = <fs_kna1>-name1.
+      ENDIF.
+
+*** Atribui os dados para preencher o alv
+      gs_alv-bukrs = <fs_ztbfi067>-bukrs.
+      gs_alv-bupla = <fs_ztbfi067>-bupla.
+      gs_alv-caixa = <fs_ztbfi067>-caixa.
+      gs_alv-numch = <fs_ztbfi067>-numch.
+      gs_alv-tname = <fs_ztbfi067>-tname.
+      gs_alv-banco = <fs_ztbfi067>-banco.
+      gs_alv-agenc = <fs_ztbfi067>-agenc.
+      gs_alv-bankn = <fs_ztbfi067>-bankn.
+      gs_alv-dtven = <fs_ztbfi067>-dtven.
+      gs_alv-kunnr = <fs_ztbfi067>-kunnr.
+      gs_alv-vlrch = <fs_ztbfi067>-vlrch.
+      gs_alv-waers = <fs_ztbfi067>-waers.
+      gs_alv-dtcri = <fs_ztbfi070>-dtcri.
+      gs_alv-cmc7  = <fs_ztbfi067>-cmc7.
+    ENDIF.
+
+*** Informa o texto conforme o tipo do cheque
+    CASE <fs_ztbfi067>-tpche.
+      WHEN c_vista.
+        gs_alv-tpcheq = text-003. " À vista
+      WHEN c_prazo.
+        gs_alv-tpcheq = text-004. " À prazo
+      WHEN c_custo.
+        gs_alv-tpcheq = text-005. " Custódia
+    ENDCASE.
+
+    UNASSIGN <fs_ztbfi069>.
+    READ TABLE gw_ztbfi069
+    WITH KEY bukrs = <fs_ztbfi070>-bukrs
+             bupla = <fs_ztbfi070>-bupla
+             caixa = <fs_ztbfi070>-caixa
+             idmov = <fs_ztbfi070>-idmov
+    BINARY SEARCH ASSIGNING <fs_ztbfi069>.
+
+    IF sy-subrc IS INITIAL.
+      gs_alv-dtabe = <fs_ztbfi069>-dtabe.
+    ENDIF.
+
+    UNASSIGN <fs_ztbfi075>.
+    READ TABLE gw_ztbfi075
+    WITH KEY bukrs = <fs_ztbfi070>-bukrs
+             opera = <fs_ztbfi070>-opera
+    BINARY SEARCH ASSIGNING <fs_ztbfi075>.
+
+    IF sy-subrc IS INITIAL.
+
+*** Função para retornar o texto de complemento da operação
+      CALL FUNCTION 'ZRSCFIM018_CX_TEXTO_OPERA'
+        EXPORTING
+          i_texto = <fs_ztbfi075>-texto
+          i_compl = <fs_ztbfi070>-compl
+        IMPORTING
+          e_texto = gs_alv-compl.
+
+      IF sy-subrc IS INITIAL.
+        gs_alv-opera = <fs_ztbfi075>-descr.
+      ENDIF.
+
+      IF <fs_ztbfi070>-estor IS INITIAL.
+
+        CASE <fs_ztbfi075>-categ.
+          WHEN c_a OR c_b OR c_d OR c_e OR c_k OR c_g. " Em cofre
+
+*            PERFORM zf_status USING 01.
+            gs_alv-status = 'Em cofre'.
+
+          WHEN c_j. " Transf. em andamento
+
+*            PERFORM zf_status USING 08.
+            gs_alv-status = 'Em transferência'.
+
+          WHEN c_n. " Enviado para depósito
+
+*            PERFORM zf_status USING 07.
+            gs_alv-status = 'Depositado'.
+
+          WHEN c_o. " Em custódia
+
+*            PERFORM zf_status USING 02.
+            gs_alv-status = 'Em custódia'.
+
+          WHEN c_q. " Retirado pelo cliente
+
+*            PERFORM zf_status USING 05.
+            gs_alv-status = 'Retirado pelo cliente'.
+
+        ENDCASE.
+      ELSE.
+        CASE <fs_ztbfi075>-categ.
+          WHEN c_a OR c_b OR c_d OR c_e OR c_k OR c_g. " Em cofre
+            gs_alv-status = 'Estornado'.
+          WHEN OTHERS.
+            v_nao_append = 'X'.
+        ENDCASE.
+      ENDIF.
+    ELSE.
+*** Em caso de estorno o cheque é duplicado no alv com os status
+*** "Em cofre" e com o status atual
+*      PERFORM zf_status USING 01. " Em cofre  "#EC *
+      gs_alv-status = 'Em cofre'.
+
+      APPEND gs_alv TO gw_alv.
+
+      CLEAR: gs_alv-status.
+*      PERFORM zf_status USING <fs_ztbfi067>-stach.          "#EC *
+      PERFORM zf_define_status USING <fs_ztbfi067>-stach
+                               CHANGING gs_alv-status.
+
+    ENDIF.
+
+    IF v_nao_append IS INITIAL.
+      APPEND gs_alv TO gw_alv.
+    ENDIF.
+    CLEAR: gs_alv, v_nao_append.
+
+  ENDLOOP.
+
+ENDFORM.                                           " zf_alv_analitico
+
+*&--------------------------------------------------------------------*
+*& Form zf_alv_sintetico
+*&--------------------------------------------------------------------*
+*& Preenche o alv se o parâmetro sintético estiver preenchido
+*---------------------------------------------------------------------*
+FORM zf_alv_sintetico.
+
+  CLEAR: gs_alv.
+
+  LOOP AT gw_ztbfi067 ASSIGNING <fs_ztbfi067>.
+
+*** Atribui os dados para preencher o alv
+    gs_alv-bukrs = <fs_ztbfi067>-bukrs.
+    gs_alv-bupla = <fs_ztbfi067>-bupla.
+    gs_alv-caixa = <fs_ztbfi067>-caixa.
+    gs_alv-numch = <fs_ztbfi067>-numch.
+    gs_alv-tname = <fs_ztbfi067>-tname.
+    gs_alv-banco = <fs_ztbfi067>-banco.
+    gs_alv-agenc = <fs_ztbfi067>-agenc.
+    gs_alv-bankn = <fs_ztbfi067>-bankn.
+    gs_alv-dtven = <fs_ztbfi067>-dtven.
+    gs_alv-kunnr = <fs_ztbfi067>-kunnr.
+    gs_alv-vlrch = <fs_ztbfi067>-vlrch.
+    gs_alv-waers = <fs_ztbfi067>-waers.
+    gs_alv-cmc7  = <fs_ztbfi067>-cmc7.
+
+*** Informa o texto conforme o tipo do cheque
+    CASE <fs_ztbfi067>-tpche.
+      WHEN c_vista.
+        gs_alv-tpcheq = text-003. " À vista
+      WHEN c_prazo.
+        gs_alv-tpcheq = text-004. " À prazo
+      WHEN c_custo.
+        gs_alv-tpcheq = text-005. " Custódia
+    ENDCASE.
+
+    UNASSIGN <fs_kna1>.
+    READ TABLE gw_kna1
+    WITH KEY kunnr = <fs_ztbfi067>-kunnr
+    BINARY SEARCH ASSIGNING <fs_kna1>.
+
+    IF sy-subrc IS INITIAL.
+      gs_alv-name1 = <fs_kna1>-name1.
+    ENDIF.
+
+    PERFORM zf_define_status USING <fs_ztbfi067>-stach
+                             CHANGING gs_alv-status.
+*    PERFORM zf_status USING <fs_ztbfi067>-stach.            "#EC *
+
+    APPEND gs_alv TO gw_alv.
+    CLEAR: gs_alv.
+
+  ENDLOOP.
+
+ENDFORM.                                           " zf_alv_sintetico
+
+*&--------------------------------------------------------------------*
+*& Form zf_status
+*&--------------------------------------------------------------------*
+*& Preenche a coluna de status do alv para o histórico do cheque
+*---------------------------------------------------------------------*
+FORM zf_status USING status.                                "#EC *
+
+*** Lê a tabela interna para atribuir o texto do status para a coluna
+*** do alv
+  UNASSIGN <fs_ztbfi068>.
+  READ TABLE gw_ztbfi068
+  WITH KEY stach = status
+  BINARY SEARCH ASSIGNING <fs_ztbfi068>.
+
+  IF sy-subrc IS INITIAL.
+    gs_alv-status = <fs_ztbfi068>-descr.
+  ENDIF.
+*  gs_alv-status = 'Depositado'.
+
+ENDFORM.                                                  " zf_status
+
+*&--------------------------------------------------------------------*
+*& Form  zf_montar_alv
+*&--------------------------------------------------------------------*
+*  Chama as rotinas que montam o ALV.
+*---------------------------------------------------------------------*
+FORM zf_montar_alv.
+
+***Monta o fieldcat
+  PERFORM zf_criarfieldcatalv.
+***Monta a ordenação
+  PERFORM zf_criarsortalv.
+***Monta o layout
+  PERFORM zf_criarlayoutalv.
+***Chama o ALV
+  PERFORM zf_chamaralv.
+
+ENDFORM.                                             " zf_montar_alv
+
+*&--------------------------------------------------------------------*
+*& Form  zf_criarfieldcatalv
+*&--------------------------------------------------------------------*
+*  Construçao das colunas do alv
+*---------------------------------------------------------------------*
+FORM zf_criarfieldcatalv.
+
+*** Código da empresa
+  gs_fieldcat-fieldname     = c_bukrs.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-023.
+  gs_fieldcat-seltext_m     = text-023.
+  gs_fieldcat-seltext_s     = text-023.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_bukrs.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Loca de negócio
+  gs_fieldcat-fieldname     = c_bupla.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-024.
+  gs_fieldcat-seltext_m     = text-024.
+  gs_fieldcat-seltext_s     = text-024.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_bupla.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Código do caixa
+  gs_fieldcat-fieldname     = c_caixa.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-025.
+  gs_fieldcat-seltext_m     = text-025.
+  gs_fieldcat-seltext_s     = text-025.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_caixa.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Número do cheque
+  gs_fieldcat-fieldname     = c_numch.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-006.
+  gs_fieldcat-seltext_m     = text-006.
+  gs_fieldcat-seltext_s     = text-006.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_numch.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Dono do cheque
+  gs_fieldcat-fieldname     = c_tname.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-007.
+  gs_fieldcat-seltext_m     = text-007.
+  gs_fieldcat-seltext_s     = text-007.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_tname.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Banco
+  gs_fieldcat-fieldname     = c_banco.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-008.
+  gs_fieldcat-seltext_m     = text-008.
+  gs_fieldcat-seltext_s     = text-008.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_banco.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Agência
+  gs_fieldcat-fieldname     = c_agenc.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-009.
+  gs_fieldcat-seltext_m     = text-009.
+  gs_fieldcat-seltext_s     = text-009.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_agenc.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Conta
+  gs_fieldcat-fieldname     = c_bankn.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-010.
+  gs_fieldcat-seltext_m     = text-010.
+  gs_fieldcat-seltext_s     = text-010.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_bankn.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+  IF NOT p_hist IS INITIAL.
+
+*** Conta
+    gs_fieldcat-fieldname     = c_dtcri.
+    gs_fieldcat-tabname       = c_tabalv.
+    gs_fieldcat-just          = c_align.
+    gs_fieldcat-seltext_l     = text-020.
+    gs_fieldcat-seltext_m     = text-020.
+    gs_fieldcat-seltext_s     = text-020.
+    gs_fieldcat-ddictxt       = c_texto.
+    gs_fieldcat-ref_fieldname = c_dtcri.
+    gs_fieldcat-ref_tabname   = c_ztbfi070.
+    APPEND gs_fieldcat TO gw_fieldcat.
+    CLEAR gs_fieldcat.
+
+  ENDIF.
+
+*** Data vencimento
+  gs_fieldcat-fieldname     = c_dtven.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-011.
+  gs_fieldcat-seltext_m     = text-011.
+  gs_fieldcat-seltext_s     = text-011.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_dtven.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Tipo do cheque
+  gs_fieldcat-fieldname     = c_tpcheq.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-012.
+  gs_fieldcat-seltext_m     = text-012.
+  gs_fieldcat-seltext_s     = text-012.
+  gs_fieldcat-ddictxt       = c_texto.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Código do pagador
+  gs_fieldcat-fieldname     = c_kunnr.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-013.
+  gs_fieldcat-seltext_m     = text-013.
+  gs_fieldcat-seltext_s     = text-013.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_kunnr.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Nome do pagador
+  gs_fieldcat-fieldname     = c_name1.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-014.
+  gs_fieldcat-seltext_m     = text-014.
+  gs_fieldcat-seltext_s     = text-014.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_name1.
+  gs_fieldcat-ref_tabname   = c_kna1.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Verfica se o usuário escolheu o relatório analítico
+  IF  p_hist = c_x.
+
+*** Descrição da operação
+    gs_fieldcat-fieldname     = c_opera.
+    gs_fieldcat-tabname       = c_tabalv.
+    gs_fieldcat-just          = c_align.
+    gs_fieldcat-seltext_l     = text-019.
+    gs_fieldcat-seltext_m     = text-019.
+    gs_fieldcat-seltext_s     = text-019.
+    gs_fieldcat-ddictxt       = c_texto.
+    gs_fieldcat-ref_fieldname = c_opera.
+    gs_fieldcat-ref_tabname   = c_ztbfi075.
+    APPEND gs_fieldcat TO gw_fieldcat.
+
+*** Texto de complemento da operação
+    gs_fieldcat-fieldname     = c_compl.
+    gs_fieldcat-tabname       = c_tabalv.
+    gs_fieldcat-just          = c_align.
+    gs_fieldcat-seltext_l     = text-026.
+    gs_fieldcat-seltext_m     = text-026.
+    gs_fieldcat-seltext_s     = text-026.
+    gs_fieldcat-ddictxt       = c_texto.
+    gs_fieldcat-ref_fieldname = c_compl.
+    gs_fieldcat-ref_tabname   = c_ztbfi075.
+    APPEND gs_fieldcat TO gw_fieldcat.
+
+*** Data do caixa da operação
+    gs_fieldcat-fieldname     = c_dtabe.
+    gs_fieldcat-tabname       = c_tabalv.
+    gs_fieldcat-just          = c_align.
+    gs_fieldcat-seltext_l     = text-022.
+    gs_fieldcat-seltext_m     = text-022.
+    gs_fieldcat-seltext_s     = text-022.
+    gs_fieldcat-ddictxt       = c_texto.
+    gs_fieldcat-ref_fieldname = c_dtabe.
+    gs_fieldcat-ref_tabname   = c_ztbfi069.
+    APPEND gs_fieldcat TO gw_fieldcat.
+
+  ENDIF.
+
+*** Valor
+  gs_fieldcat-fieldname     = c_vlrch.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-015.
+  gs_fieldcat-seltext_m     = text-015.
+  gs_fieldcat-seltext_s     = text-015.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_vlrch.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Moeda
+  gs_fieldcat-fieldname     = c_waers.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-016.
+  gs_fieldcat-seltext_m     = text-016.
+  gs_fieldcat-seltext_s     = text-016.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_waers.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Código CMC7
+  gs_fieldcat-fieldname     = c_cmc7.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-017.
+  gs_fieldcat-seltext_m     = text-017.
+  gs_fieldcat-seltext_s     = text-017.
+  gs_fieldcat-ddictxt       = c_texto.
+  gs_fieldcat-ref_fieldname = c_cmc7.
+  gs_fieldcat-ref_tabname   = c_ztbfi067.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+*** Status do cheque
+  gs_fieldcat-fieldname     = c_status.
+  gs_fieldcat-tabname       = c_tabalv.
+  gs_fieldcat-just          = c_align.
+  gs_fieldcat-seltext_l     = text-018.
+  gs_fieldcat-seltext_m     = text-018.
+  gs_fieldcat-seltext_s     = text-018.
+  gs_fieldcat-ddictxt       = c_texto.
+  APPEND gs_fieldcat TO gw_fieldcat.
+  CLEAR gs_fieldcat.
+
+ENDFORM.                                        " zf_criarfieldcatalv
+
+*&-------------------------------------------------------------------*
+*& Form  zf_criarsortalv
+*&-------------------------------------------------------------------*
+*  Define por quais colunas o alv será ordenado
+*--------------------------------------------------------------------*
+FORM zf_criarsortalv.
+
+  IF NOT p_hist IS INITIAL.
+
+*** Número do cheque
+    gs_sortinfo-fieldname = c_dtcri.
+    gs_sortinfo-tabname   = c_ztbfi070.
+    gs_sortinfo-up        = c_x.
+    gs_sortinfo-spos      = c_sort1.
+    APPEND gs_sortinfo TO gw_sortinfo.
+    CLEAR gs_sortinfo.
+
+  ELSEIF NOT p_atual IS INITIAL .
+    SORT gw_alv BY dtcri ASCENDING.
+  ENDIF.
+
+ENDFORM.                                          " zf_criarsortalv
+
+*&--------------------------------------------------------------------*
+*& Form  zf_criarlayoutalv
+*&--------------------------------------------------------------------*
+*  Define o layout do alv
+*---------------------------------------------------------------------*
+FORM zf_criarlayoutalv.
+
+  gs_layout-colwidth_optimize = c_x.
+  gs_layout-zebra             = c_x.
+
+ENDFORM.                                          " zf_criarlayoutalv
+
+*&--------------------------------------------------------------------*
+*& Form  zf_alv_f4
+*&--------------------------------------------------------------------*
+FORM zf_alv_f4 .
+
+  gs_variant-report = sy-repid.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+    EXPORTING
+      is_variant = gs_variant
+      i_save     = c_a
+    IMPORTING
+      es_variant = gs_variant
+    EXCEPTIONS
+      not_found  = 2.
+
+  IF sy-subrc = 2.
+    MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.
+    p_layout = gs_variant-variant.
+  ENDIF.
+
+ENDFORM.                                                    " zf_alv_f4
+
+*&--------------------------------------------------------------------*
+*& Form  zf_alv_init
+*&--------------------------------------------------------------------*
+FORM zf_alv_init .
+
+  gs_variant-report = sy-repid.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_DEFAULT_GET'
+    EXPORTING
+      i_save     = c_a
+    CHANGING
+      cs_variant = gs_variant
+    EXCEPTIONS
+      not_found  = 2.
+  IF sy-subrc IS INITIAL.
+    p_layout = gs_variant-variant.
+  ENDIF.
+
+ENDFORM.                                              " zf_alv_init
+
+*&-------------------------------------------------------------------*
+*& Form  zf_chamaralv
+*&-------------------------------------------------------------------*
+* Chamada do alv
+*--------------------------------------------------------------------*
+FORM zf_chamaralv.
+
+  gs_variant-variant = p_layout.
+
+***Chama a função que exibe o ALV
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program     = sy-repid
+      is_layout              = gs_layout
+      i_callback_pf_status_set = 'ZF_STATUS_V'
+*      i_callback_user_command  = 'ZF_USER_COMMAND'
+      it_fieldcat            = gw_fieldcat
+      it_sort                = gw_sortinfo
+      i_default                = ' '
+      i_save                   = c_a
+      is_variant               = gs_variant
+    TABLES
+      t_outtab               = gw_alv
+    EXCEPTIONS
+      program_error          = 1
+      OTHERS                 = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                                            " zf_chamaralv
+
+*---------------------------------------------------------------------*
+* FORM zf_status_v
+*---------------------------------------------------------------------*
+* ........
+*---------------------------------------------------------------------*
+FORM zf_status_v USING p_extab TYPE slis_t_extab.           "#EC CALLED
+
+  SET PF-STATUS 'STANDARD_FULLSCREEN' EXCLUDING p_extab.
+
+ENDFORM.                                                 " zf_status_v
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_DEFINE_STATUS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_define_status  USING    p_stach
+                       CHANGING p_status.
+
+  CASE p_stach.
+    WHEN 1. p_status = 'Em cofre'.
+    WHEN 2. p_status = 'Em custódia'.
+    WHEN 3. p_status = 'Liquidado'.
+    WHEN 4. p_status = 'Aguard. ret. cliente'.
+    WHEN 5. p_status = 'Ret. pelo cliente'.
+    WHEN 6. p_status = 'Devolução solicitada'.
+    WHEN 7. p_status = 'Depositado'.
+    WHEN 8. p_status = 'Em transferência'.
+    WHEN 9. p_status = 'Transferido'.
+    WHEN 10. p_status = 'Estornado'.
+    WHEN OTHERS.
+  ENDCASE.
+
+ENDFORM.                    " ZF_DEFINE_STATUS
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_ALV_ANALITICO_2
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_alv_analitico_2.
+
+*-- Para cada cheque
+  LOOP AT gw_ztbfi067 INTO w_067.
+
+    PERFORM preenche_dados_cheque.
+    PERFORM lista_operacores_do_cheque.
+    PERFORM lista_op_transferencia_saida.
+    PERFORM lista_op_transferencia_entrada.
+
+  ENDLOOP.
+
+  SORT gw_alv BY bukrs bupla idche dtcri hrcri.
+
+ENDFORM.                    " ZF_ALV_ANALITICO_2
+
+
+*&---------------------------------------------------------------------*
+*&      Form  PREENCHE_DADOS_CHEQUE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM preenche_dados_cheque.
+
+  UNASSIGN <fs_kna1>.
+  READ TABLE gw_kna1
+  WITH KEY kunnr = w_067-kunnr
+  BINARY SEARCH ASSIGNING <fs_kna1>.
+
+  IF <fs_kna1> IS ASSIGNED.
+    gs_alv-name1 = <fs_kna1>-name1.
+  ENDIF.
+
+  gs_alv-bukrs = w_067-bukrs.
+  gs_alv-bupla = w_067-bupla.
+  gs_alv-caixa = w_067-caixa.
+  gs_alv-numch = w_067-numch.
+  gs_alv-tname = w_067-tname.
+  gs_alv-banco = w_067-banco.
+  gs_alv-agenc = w_067-agenc.
+  gs_alv-bankn = w_067-bankn.
+  gs_alv-dtven = w_067-dtven.
+  gs_alv-kunnr = w_067-kunnr.
+  gs_alv-vlrch = w_067-vlrch.
+  gs_alv-waers = w_067-waers.
+  gs_alv-dtcri = w_070-dtcri.
+  gs_alv-cmc7  = w_067-cmc7.
+
+  CASE w_067-tpche.
+    WHEN c_vista.
+      gs_alv-tpcheq = text-003. " À vista
+    WHEN c_prazo.
+      gs_alv-tpcheq = text-004. " À prazo
+    WHEN c_custo.
+      gs_alv-tpcheq = text-005. " Custódia
+  ENDCASE.
+
+ENDFORM.                    " PREENCHE_DADOS_CHEQUE
+
+
+*&---------------------------------------------------------------------*
+*&      Form  LISTA_OPERACORES_DO_CHEQUE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM lista_operacores_do_cheque.
+
+*-- Trata cada operação
+  LOOP AT gw_ztbfi070 INTO w_070 WHERE bukrs = w_067-bukrs
+                                   AND bupla = w_067-bupla
+                                   AND caixa = w_067-caixa
+                                   AND idche = w_067-idche.
+
+    UNASSIGN <fs_ztbfi069>.
+    READ TABLE gw_ztbfi069
+    WITH KEY bukrs = w_070-bukrs
+             bupla = w_070-bupla
+             caixa = w_070-caixa
+             idmov = w_070-idmov
+    BINARY SEARCH ASSIGNING <fs_ztbfi069>.
+    IF <fs_ztbfi069> IS ASSIGNED.
+      gs_alv-dtabe = <fs_ztbfi069>-dtabe.
+    ENDIF.
+
+    gs_alv-idche = w_070-idche.
+    gs_alv-dtcri = w_070-dtcri.
+    gs_alv-hrcri = w_070-hrcri.
+
+    UNASSIGN <fs_ztbfi075>.
+    READ TABLE gw_ztbfi075
+    WITH KEY bukrs = w_070-bukrs
+             opera = w_070-opera
+    BINARY SEARCH ASSIGNING <fs_ztbfi075>.
+
+    IF sy-subrc IS INITIAL.
+      CALL FUNCTION 'ZRSCFIM018_CX_TEXTO_OPERA'
+        EXPORTING
+          i_texto = <fs_ztbfi075>-texto
+          i_compl = w_070-compl
+        IMPORTING
+          e_texto = gs_alv-compl.
+      IF sy-subrc IS INITIAL.
+        gs_alv-opera = <fs_ztbfi075>-descr.
+      ENDIF.
+    ENDIF.
+
+    CASE <fs_ztbfi075>-categ.
+      WHEN c_a OR c_b OR c_d OR c_e OR c_k OR c_g. " Em cofre
+        gs_alv-status = 'Em cofre'.
+      WHEN c_j. " Transf. em andamento
+        gs_alv-status = 'Em transferência'.
+      WHEN c_n. " Enviado para depósito
+        gs_alv-status = 'Depositado'.
+      WHEN c_o. " Em custódia
+        gs_alv-status = 'Em custódia'.
+      WHEN c_q. " Retirado pelo cliente
+        gs_alv-status = 'Retirado pelo cliente'.
+    ENDCASE.
+
+    IF NOT w_070-estor IS INITIAL.
+      gs_alv-status = 'Estornado'.
+    ENDIF.
+
+    APPEND gs_alv TO gw_alv.
+
+  ENDLOOP.
+
+ENDFORM.                    " LISTA_OPERACORES_DO_CHEQUE
+
+
+*&---------------------------------------------------------------------*
+*&      Form  LISTA_OP_TRANSFERENCIA_SAIDA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM lista_op_transferencia_saida.
+
+  LOOP AT gw_077 INTO w_077 WHERE bukrs = w_067-bukrs
+                              AND bupla = w_067-bupla
+                              AND caixa_emi = w_067-caixa
+                              AND idche = w_067-idche.
+
+    READ TABLE gw_ztbfi070 INTO w_070 WITH KEY bukrs = w_077-bukrs
+                                               bupla = w_077-bupla
+                                               idtra = w_077-idtra.
+    CHECK sy-subrc = 0.
+    UNASSIGN <fs_ztbfi069>.
+    READ TABLE gw_ztbfi069
+    WITH KEY bukrs = w_070-bukrs
+             bupla = w_070-bupla
+             caixa = w_070-caixa
+             idmov = w_070-idmov
+    BINARY SEARCH ASSIGNING <fs_ztbfi069>.
+    IF <fs_ztbfi069> IS ASSIGNED.
+      gs_alv-dtabe = <fs_ztbfi069>-dtabe.
+    ENDIF.
+
+    gs_alv-idche = w_077-idche.
+    gs_alv-dtcri = w_070-dtcri.
+    gs_alv-hrcri = w_070-hrcri.
+
+    UNASSIGN <fs_ztbfi075>.
+    READ TABLE gw_ztbfi075
+    WITH KEY bukrs = w_070-bukrs
+             opera = w_070-opera
+    BINARY SEARCH ASSIGNING <fs_ztbfi075>.
+
+    IF sy-subrc IS INITIAL.
+      CALL FUNCTION 'ZRSCFIM018_CX_TEXTO_OPERA'
+        EXPORTING
+          i_texto = <fs_ztbfi075>-texto
+          i_compl = w_070-compl
+        IMPORTING
+          e_texto = gs_alv-compl.
+      IF sy-subrc IS INITIAL.
+        gs_alv-opera = <fs_ztbfi075>-descr.
+      ENDIF.
+    ENDIF.
+
+    IF w_077-receb = 'X'.
+      gs_alv-status = 'Transferido'.
+    ELSE.
+      gs_alv-status = 'Em transferência'.
+    ENDIF.
+
+    IF NOT w_070-estor IS INITIAL.
+      gs_alv-status = 'Estornado'.
+    ENDIF.
+
+    APPEND gs_alv TO gw_alv.
+
+  ENDLOOP.
+
+ENDFORM.                    " LISTA_OP_TRANSFERENCIA_SAIDA
+
+
+*&---------------------------------------------------------------------*
+*&      Form  LISTA_OP_TRANSFERENCIA_ENTRADA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM lista_op_transferencia_entrada.
+
+  LOOP AT gw_077 INTO w_077 WHERE bukrs = w_067-bukrs
+                              AND bupla = w_067-bupla
+                              AND caixa = w_067-caixa
+                              AND idche = w_067-idche.
+
+    READ TABLE gw_ztbfi070 INTO w_070 WITH KEY bukrs = w_077-bukrs
+                                               bupla = w_077-bupla
+                                               idtra = w_077-idtra.
+    CHECK sy-subrc = 0.
+    UNASSIGN <fs_ztbfi069>.
+    READ TABLE gw_ztbfi069
+    WITH KEY bukrs = w_070-bukrs
+             bupla = w_070-bupla
+             caixa = w_070-caixa
+             idmov = w_070-idmov
+    BINARY SEARCH ASSIGNING <fs_ztbfi069>.
+    IF <fs_ztbfi069> IS ASSIGNED.
+      gs_alv-dtabe = <fs_ztbfi069>-dtabe.
+    ENDIF.
+
+    gs_alv-idche = w_077-idche.
+    gs_alv-dtcri = w_070-dtcri.
+    gs_alv-hrcri = w_070-hrcri.
+
+    UNASSIGN <fs_ztbfi075>.
+    READ TABLE gw_ztbfi075
+    WITH KEY bukrs = w_070-bukrs
+             opera = w_070-opera
+    BINARY SEARCH ASSIGNING <fs_ztbfi075>.
+
+    IF sy-subrc IS INITIAL.
+      CALL FUNCTION 'ZRSCFIM018_CX_TEXTO_OPERA'
+        EXPORTING
+          i_texto = <fs_ztbfi075>-texto
+          i_compl = w_070-compl
+        IMPORTING
+          e_texto = gs_alv-compl.
+      IF sy-subrc IS INITIAL.
+        gs_alv-opera = <fs_ztbfi075>-descr.
+      ENDIF.
+    ENDIF.
+
+    IF w_077-receb = 'X'.
+      gs_alv-status = 'Em cofre'.
+      APPEND gs_alv TO gw_alv.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    " LISTA_OP_TRANSFERENCIA_ENTRADA

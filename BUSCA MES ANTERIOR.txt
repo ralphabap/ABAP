@@ -1,0 +1,23 @@
+*Busca mês passado
+
+CALL FUNCTION 'HR_PT_ADD_MONTH_TO_DATE'
+
+EXPORTING
+
+dmm_datin = sy-datum
+
+dmm_count = '01' "Qtd de meses
+
+dmm_oper = '-' "operador
+
+dmm_pos = '00'
+
+IMPORTING
+
+dmm_daout = lc_data
+
+EXCEPTIONS
+
+unknown = 1
+
+OTHERS = 2.

@@ -1,0 +1,1830 @@
+************************************************************************
+*** Cópia da transação ZCO001
+************************************************************************
+
+*-----------------------------------------------------------------------
+* Programa : ZCOP_ZCO001
+* Cliente  : Emerson
+* Módulo   :
+* Transação: ZCT002
+* Descrição: Sales Report
+* Autor: Alex Tech       Data: 10/02/2010
+*-----------------------------------------------------------------------
+* Histórico de Alterações:
+*-----------------------------------------------------------------------
+* Data       |Change # |Autor            |Alteração
+*-----------------------------------------------------------------------
+* XX/XX/XXXX |-------- |XXXXXXXX         |XXXXXXXX
+*-----------------------------------------------------------------------
+* REPORT zcorp_sd_r_margem_vendas.
+
+REPORT zcop_zco001 .
+
+*----------------------------------------------------------------------*
+*Declaração de dados
+*----------------------------------------------------------------------*
+
+INCLUDE zcop_zutt0004.  "Logging Data
+INCLUDE zcop_zutt0005.  "Logging Forms
+
+
+TABLES: vbrp, vbrk, skb1, cepc, ckmlhd, ckmlcr.
+
+*---saida de dados ALV
+* Ini Alteração - Alex Tech - 11/02/2010
+* Inclusão dos campos Dt.Pedido(ERDAT) e Grp.Merc.(MATKL)
+*DATA: t_list_data TYPE TABLE OF zesd_margemvendas WITH HEADER LINE.
+DATA: t_list_data TYPE TABLE OF zcop_zesd_margemvendas WITH HEADER LINE.
+*
+*
+*DATA: BEGIN OF t_list_data OCCURS 0.
+*        INCLUDE STRUCTURE zesd_margemvendas.
+*DATA:   erdat LIKE vbak-erdat.
+*DATA:   matkl LIKE vbap-matkl.
+*DATA: END OF t_list_data.
+* Fim Alteração - Alex Tech - 11/02/2010
+
+* Ini Alteração - Alex Tech - 10/02/2010
+*---saída de dados Excel
+DATA: BEGIN OF it_excel OCCURS 0,
+        line(500) TYPE c,
+      END OF it_excel.
+* Fim Alteração - Alex Tech - 10/02/2010
+
+* Ini Alteração - Guilherme Ninni - 24/05/2010
+DATA: BEGIN OF it_excel_fim OCCURS 0,
+        l1(40) TYPE c,
+        l2(40) TYPE c,
+        l3(40) TYPE c,
+        l4(40) TYPE c,
+        l5(40) TYPE c,
+        l6(40) TYPE c,
+        l7(40) TYPE c,
+        l8(40) TYPE c,
+        l9(40) TYPE c,
+        l10(40) TYPE c,
+        l11(40) TYPE c,
+        l12(40) TYPE c,
+        l13(40) TYPE c,
+        l14(40) TYPE c,
+        l15(40) TYPE c,
+        l16(40) TYPE c,
+        l17(40) TYPE c,
+        l18(40) TYPE c,
+      END OF it_excel_fim.
+* fim Alteração - Guilherme Ninni - 24/05/2010
+
+*---faturas
+DATA: BEGIN OF t_billing OCCURS 0,
+        vbeln LIKE vbrk-vbeln,
+        posnr LIKE vbrp-posnr,
+        vkorg LIKE vbrk-vkorg,
+        fkdat LIKE vbrk-fkdat,
+        kunag LIKE vbrk-kunag,
+        aubel LIKE vbrp-aubel, "DOC VENDA
+        aupos LIKE vbrp-aupos, "ITM DOC VENDA
+        name1 LIKE kna1-name1,
+        matnr LIKE vbrp-matnr,
+        arktx LIKE vbrp-arktx,
+        prctr LIKE vbrp-prctr,
+        fkimg LIKE vbrp-fkimg, "quantidade
+        skfbp LIKE vbrp-skfbp, "valor bruto
+        netwr LIKE vbrp-netwr, "valor líquido
+        knumv LIKE vbrk-knumv,
+        wavwr LIKE vbrp-wavwr, "cpv
+        vbeln1 LIKE j_1bnflin-refkey, "DEVE SER SEMPRE O ÚLTIMO CAMPO
+        awkey1 LIKE bkpf-awkey,
+        aufnr  LIKE vbrp-aufnr,
+        ps_psp_pnr LIKE vbrp-ps_psp_pnr,
+*       Alterado em 01.03.2004 - Mario TSuzaki
+        fksto  LIKE vbrk-fksto,
+        vbtyp  LIKE vbrk-vbtyp,
+        waerk  LIKE vbrk-waerk,
+        kurrf  LIKE vbrk-kurrf,
+        kalsm  LIKE vbrk-kalsm,
+        vtweg  LIKE vbrk-vtweg,
+*        nbm    LIKE j_1bnflin-nbm,
+*       Final da Alteracao 01.03.2004
+        meins  LIKE vbrp-meins,
+      END OF t_billing.
+
+*---nota fiscal
+DATA: BEGIN OF t_notafiscal OCCURS 0,
+        docnum LIKE j_1bnfdoc-docnum,
+        nfnum  LIKE j_1bnfdoc-nfnum,
+        series LIKE j_1bnfdoc-series,
+        cfop   LIKE j_1bnflin-cfop,
+        refkey LIKE j_1bnflin-refkey,
+        refitm LIKE j_1bnflin-refitm,
+        nbm    LIKE j_1bnflin-nbm,
+      END OF t_notafiscal.
+
+*---condições de impostos da fatura
+DATA: BEGIN OF t_konv OCCURS 0,
+        knumv LIKE konv-knumv,
+        kposn LIKE konv-kposn,
+        kschl LIKE konv-kschl,
+        kwert LIKE konv-kwert,
+      END OF t_konv.
+
+*---itens da ordem de venda
+DATA: BEGIN OF t_vbap OCCURS 0,
+        vbeln LIKE vbap-vbeln,
+        posnr LIKE vbap-posnr,
+* Inicio Alteração - Alex Tech - 11/02/2010
+        matkl LIKE vbap-matkl,
+* Fim Alteração - Alex Tech - 11/02/2010
+        aufnr LIKE vbap-aufnr,
+        pstyv LIKE vbap-pstyv,
+        uepos LIKE vbap-uepos,
+        netwr LIKE vbap-netwr,
+        matnr LIKE vbap-matnr,
+        arktx LIKE vbap-arktx,
+        prodh LIKE vbap-prodh,
+        netpr LIKE vbap-netpr,
+      END OF t_vbap.
+
+*--- Alterado em 02.03.2004 - Mario Tsuzaki
+*---Dados da ordem de venda
+DATA: BEGIN OF t_vbak OCCURS 0,
+        vbeln LIKE vbak-vbeln,
+* Inicio Alteração - Alex Tech - 11/02/2010
+        erdat LIKE vbak-erdat,
+* Fim Alteração - Alex Tech - 11/02/2010
+        auart LIKE vbak-auart,
+* Inicio Alteração - Alex Tech - 11/02/2010
+        vkgrp LIKE vbak-vkgrp,
+* Fim Alteração - Alex Tech - 11/02/2010
+ END OF t_vbak.
+*--- Final da Alteracao.
+
+*---relacionamento oredem de venda x ordem interna
+DATA: BEGIN OF t_aufnr OCCURS 0,
+        objnr LIKE covp-objnr,
+        aubel LIKE vbrp-aubel,
+        aupos LIKE vbrp-aupos,
+      END OF t_aufnr.
+
+*>> SC/ASPEN - Inicio da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+*  Tabela auxiliar
+DATA: BEGIN OF t_aufnr_aux OCCURS 0,
+        objnr LIKE covp-objnr,
+        aubel LIKE vbrp-aubel,
+        aupos LIKE vbrp-aupos,
+      END OF t_aufnr_aux.
+
+*<< SC/ASPEN - Fim da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+*---custos atribuídos à ordem interna
+DATA: BEGIN OF t_covp OCCURS 0,
+        objnr  LIKE covp-objnr,
+        wtgbtr LIKE covp-wtgbtr,
+*>>>> SC/ASPEN - CH 483587 - Alteração "Select" COVP - ALJS - Início:
+        orgvg  LIKE covp-orgvg,
+*<<<< SC/ASPEN - CH 483587 - Alteração "Select" COVP - ALJS - Início:
+      END OF t_covp.
+
+*---cabeçalho de documento comtáabil
+DATA: BEGIN OF t_bkpf OCCURS 0,
+        bukrs LIKE bkpf-bukrs,
+        belnr LIKE bkpf-belnr,
+        gjahr LIKE bkpf-gjahr,
+        awkey LIKE bkpf-awkey,
+      END OF t_bkpf.
+
+*---itens de documento contábil
+* ( BSEG é uma tabela cluster a seleção só deve
+* ser feita pela chave primária )
+
+DATA: BEGIN OF t_bseg OCCURS 0,
+       bukrs LIKE bseg-bukrs,
+       belnr LIKE bseg-belnr,
+       gjahr LIKE bseg-gjahr,
+       hkont LIKE bseg-hkont,
+      END OF t_bseg.
+
+*---cabeçalho de ledger de material
+DATA: BEGIN OF t_ckmlhd OCCURS 0,
+       kalnr LIKE ckmlhd-kalnr,
+       matnr LIKE ckmlhd-matnr,
+      END OF t_ckmlhd.
+
+*---Ledger de material: valores dos regs.totais do período
+DATA: BEGIN OF t_ckmlcr OCCURS 0,
+        kalnr LIKE ckmlcr-kalnr,
+        bdatj LIKE ckmlcr-bdatj,
+        poper LIKE ckmlcr-poper,
+        pvprs LIKE ckmlcr-pvprs,
+        peinh LIKE ckmlcr-peinh,
+        waers LIKE ckmlcr-waers,
+      END OF t_ckmlcr.
+
+*Product Hierarchies for Materials at Sales Org View
+DATA: BEGIN OF t_mvke_prodh OCCURS 0,
+         matnr  LIKE  mvke-matnr,
+         vkorg  LIKE  mvke-vkorg,
+         vtweg  LIKE  mvke-vtweg,
+         prodh  LIKE  mvke-prodh.
+DATA: END OF t_mvke_prodh.
+
+*Product Hierarchies for Materials at Basis View
+DATA: BEGIN OF t_mara_prdha OCCURS 0,
+         matnr  LIKE  mara-matnr,
+         prdha  LIKE  mara-prdha.
+DATA: END OF t_mara_prdha.
+
+
+*---sumarização dos custo da ordem
+DATA: t_covp_sum LIKE TABLE OF t_covp WITH HEADER LINE.
+
+*--varáveis de manipulação de mensagem de erro
+DATA: v_text01(100) TYPE c,
+      v_text02(020) TYPE c,
+      v_level2(001) TYPE c,
+* Ini - Alex Tech - 12/02/2010
+      v_exit(01)    TYPE c.
+
+DATA:  w_registros(5) TYPE c,          "Contador
+       vl_file  LIKE rlgrap-filename. "TYPE string.
+* Fim - Alex Tech - 12/02/2010
+
+*----------------------------------------------------------------------*
+* SELECTION SCREEN
+*----------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b001 WITH FRAME TITLE text-t01.
+SELECT-OPTIONS: s_vkorg FOR vbrk-vkorg,
+                s_kunag FOR vbrk-kunag,
+                s_matnr FOR vbrp-matnr.
+SELECTION-SCREEN END OF BLOCK b001.
+SELECTION-SCREEN BEGIN OF BLOCK b002 WITH FRAME TITLE text-t02.
+SELECT-OPTIONS:
+                s_vbeln FOR vbrp-vbeln,
+                s_fkdat FOR vbrk-fkdat.
+SELECTION-SCREEN END OF BLOCK b002.
+SELECTION-SCREEN BEGIN OF BLOCK b003 WITH FRAME TITLE text-t03.
+SELECT-OPTIONS:
+                s_prctr FOR cepc-prctr,
+                s_aufnr FOR vbrp-aufnr,
+                s_saknr FOR skb1-saknr.
+SELECTION-SCREEN END OF BLOCK b003.
+SELECTION-SCREEN BEGIN OF BLOCK b004 WITH FRAME TITLE text-t04.
+PARAMETERS: p_bdatj LIKE ckmlcr-bdatj,
+            p_poper LIKE ckmlcr-poper.
+SELECTION-SCREEN END OF BLOCK b004.
+
+* Inicio Alteração - Alex Tech - 10/02/2010
+* incluir lógica para gravar reletório em excel
+SELECTION-SCREEN BEGIN OF BLOCK save_file WITH FRAME TITLE text-s01.
+PARAMETER: p_alv  RADIOBUTTON GROUP mod DEFAULT 'X'.
+PARAMETER: p_locl RADIOBUTTON GROUP mod,   "Grava arquivo Local
+           p_serv RADIOBUTTON GROUP mod,   "Grava arquivo Servidor
+           p_path LIKE rlgrap-filename  .
+SELECTION-SCREEN END OF BLOCK save_file.
+* Fim Alteração - Alex Tech - 10/02/2010
+
+*----------------------------------------------------------------------*
+INITIALIZATION.
+*----------------------------------------------------------------------*
+  s_saknr-low = '310000'.
+  s_saknr-high = '319999'.
+  s_saknr-sign = 'I'.
+  s_saknr-option = 'BT'.
+  APPEND s_saknr.
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+*----------------------------------------------------------------------*
+
+* Ini - Alex Tech - 12/02/2010
+  IF ( NOT p_locl IS INITIAL OR
+       NOT p_serv IS INITIAL ) AND
+      p_path IS INITIAL.
+
+    MESSAGE e000(z9) WITH 'Informar Caminho gravação arquivo'.
+  ENDIF.
+
+
+*---preenche S_FKDAT para execução de JOB
+  PERFORM f_fill_s_fkdat.
+* Fim - Alex Tech - 12/02/2010
+
+  PERFORM track_event USING 'Program Execution' 'B'.
+
+*---busca dos dados
+  PERFORM f_get_data.
+* Ini - Alex Tech - 12/02/2010
+  CHECK v_exit IS INITIAL.
+* Fim - Alex Tech - 12/02/2010
+
+*---manipulação
+  PERFORM f_fill_list.
+
+*>> SC/ASPEN - Inicio da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+* Progress Bar
+  PERFORM zf_sapgui_progress_indicator
+  USING '100'
+        'Concluíndo. Aguarde...'.
+
+*<< SC/ASPEN - Fim da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+* Incluido por Angelo - 25.03.04
+  PERFORM atualiza_valor_liquido.
+
+  PERFORM track_event USING 'Program Execution' 'E'.
+
+* Inicio Alteração - Alex Tech - 10/02/2010
+  IF NOT p_locl IS INITIAL OR
+     NOT p_serv IS INITIAL.
+    PERFORM f_save_file.
+  ELSE.
+* Fim Alteração - Alex Tech - 10/02/2010
+
+*---exibição em modo ALV
+    PERFORM f_show_alv.
+
+* Inicio Alteração - Alex Tech - 10/02/2010
+  ENDIF.
+* Fim Alteração - Alex Tech - 10/02/2010
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  f_show_message
+*&---------------------------------------------------------------------*
+FORM f_show_message.
+
+  v_text01 = text-001.
+  v_text02 = t_vbap-aufnr.
+  SHIFT v_text02 LEFT DELETING LEADING '0'.
+
+  REPLACE '#' WITH  v_text02 INTO v_text01.
+
+  CALL FUNCTION 'FC_POPUP_ERR_WARN_MESSAGE'
+    EXPORTING
+     popup_title        = 'Incosistência no processamento'
+*   IS_ERROR           = 'X'
+      message_text       = v_text01.
+*   START_COLUMN       = 25
+*   START_ROW          = 6.
+
+ENDFORM.                    " f_show_message
+*&---------------------------------------------------------------------*
+*&      Form  F_SHOW_ALV
+*&---------------------------------------------------------------------*
+FORM f_show_alv.
+
+  TYPE-POOLS slis.
+
+  DATA: wa_layout TYPE slis_layout_alv,
+        wa_variant LIKE disvariant.
+
+*>> SC/ASPEN - Inicio da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+* Progress Bar
+  PERFORM zf_sapgui_progress_indicator
+  USING '100'
+        'Carregando. Aguarde...'.
+
+*<< SC/ASPEN - Fim da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+  wa_variant-variant = '/DEFAULT'.
+  wa_variant-report = sy-repid.
+  wa_layout-zebra = 'X'.
+*  wa_layout-info_fieldname = 'VBELN'.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+   EXPORTING
+*   I_INTERFACE_CHECK                 = ' '
+   i_bypassing_buffer                = 'X'
+*   I_BUFFER_ACTIVE                   = 'X'
+* Inicio Alteração - Alex Tech - 11/02/2010
+*   i_callback_program                = 'ZCORP_SD_R_MARGEM_VENDA'
+   i_callback_program                = sy-repid
+* Fim Alteração - Alex Tech - 11/02/2010
+*   I_CALLBACK_PF_STATUS_SET          = ' '
+*   I_CALLBACK_USER_COMMAND           = ' '
+*   I_CALLBACK_TOP_OF_PAGE            = ' '
+*   I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*   I_CALLBACK_HTML_END_OF_LIST       = ' '
+* Inicio Alteração - Alex Tech - 11/02/2010
+*     i_structure_name                  = 'ZESD_MARGEMVENDAS'
+     i_structure_name                  = 'ZCOP_ZESD_MARGEMVENDAS'
+* Fim Alteração - Alex Tech - 11/02/2010
+*   I_BACKGROUND_ID                   = ' '
+ i_grid_title =
+ 'Emerson - Relatório de Margem de vendas por cliente e produto'
+*   I_GRID_SETTINGS                   =
+   is_layout                         = wa_layout
+*   IT_FIELDCAT                       =
+*   IT_EXCLUDING                      =
+*   IT_SPECIAL_GROUPS                 =
+*   IT_SORT                           =
+*   IT_FILTER                         =
+*   IS_SEL_HIDE                       =
+   i_default                         = 'X'
+   i_save                            = 'X'
+   is_variant                        = wa_variant
+*   IT_EVENTS                         =
+*   IT_EVENT_EXIT                     =
+*   IS_PRINT                          =
+*   IS_REPREP_ID                      =
+*   I_SCREEN_START_COLUMN             = 0
+*   I_SCREEN_START_LINE               = 0
+*   I_SCREEN_END_COLUMN               = 0
+*   I_SCREEN_END_LINE                 = 0
+*   IT_ALV_GRAPHICS                   =
+*   IT_ADD_FIELDCAT                   =
+*   IT_HYPERLINK                      =
+*   I_HTML_HEIGHT_TOP                 =
+*   I_HTML_HEIGHT_END                 =
+*   IT_EXCEPT_QINFO                   =
+* IMPORTING
+*   E_EXIT_CAUSED_BY_CALLER           =
+*   ES_EXIT_CAUSED_BY_USER            =
+    TABLES
+      t_outtab                          = t_list_data
+ EXCEPTIONS
+   program_error                     = 1
+   OTHERS                            = 2
+            .
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+ENDFORM.                    " F_SHOW_ALV
+
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_DATA
+*&---------------------------------------------------------------------*
+FORM f_get_data.
+
+*>> SC/ASPEN - Inicio da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+* Progress Bar
+  PERFORM zf_sapgui_progress_indicator
+  USING '1'
+        'Selecionando dados...'.
+
+*<< SC/ASPEN - Fim da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+
+*---faturamento
+  PERFORM f_billing.
+
+*---verificação da existência de dados buscados das faturas
+* Ini - Alex Tech - 12/02/2010
+*  CHECK sy-subrc = 0.
+  CLEAR v_exit.
+  IF t_billing[] IS INITIAL.
+    MESSAGE i000(z9) WITH 'Nenhum registro encontrado para '
+                          'seleção indicada'.
+    MOVE 'X' TO v_exit.
+  ELSE.
+* Fim - Alex Tech - 12/02/2010
+
+* Inicio Alteração - Alex Tech - 11/02/2010
+* Rotina XXXXXXXXXX - Filtrar ordens a serem processadas
+*  Ordens Tipo Estorno ( ZREB ) serão eliminadas do relatório
+    PERFORM f_filtrar_ordem.
+* Fim Alteração - Alex Tech - 11/02/2010
+
+
+*--preço interno padrão / médio movel
+    PERFORM f_custo_mm.
+
+*---nota fiscal
+    PERFORM f_get_nf.
+
+*---impostos da fatura
+    PERFORM f_get_tax.
+
+*---dados da internal order
+    PERFORM f_get_internal_order.
+
+*---lançamentos em contas do range de RECEITA.
+    PERFORM f_get_account.
+
+    PERFORM f_get_product_hierarchy.
+    "populate t_mvke_prodh and t_mara-prdha
+
+* Ini - Alex Tech - 12/02/2010
+  ENDIF.
+* Fim - Alex Tech - 12/02/2010
+
+ENDFORM.                    " F_GET_DATA
+*&---------------------------------------------------------------------*
+*&      Form  F_BILLING
+*&---------------------------------------------------------------------*
+FORM f_billing.
+
+*--- FATURA ---
+  SELECT b~vbeln b~posnr
+  a~vkorg a~fkdat a~kunag b~aubel b~aupos
+         c~name1
+*         b~matnr b~arktx b~prctr b~skfbp b~netwr b~fkimg a~knumv
+         b~matnr b~arktx b~prctr b~fkimg b~skfbp b~netwr a~knumv
+         b~wavwr a~vbeln a~vbeln b~aufnr b~ps_psp_pnr
+         a~fksto a~vbtyp a~waerk a~kurrf a~kalsm
+         a~vtweg b~meins
+  FROM vbrp AS b INNER JOIN vbrk AS a
+  ON a~vbeln = b~vbeln
+  INNER JOIN kna1 AS c
+  ON a~kunag = c~kunnr
+  INTO TABLE t_billing
+  WHERE a~vbeln IN s_vbeln AND
+        a~vkorg IN s_vkorg AND
+        a~fkdat IN s_fkdat AND
+        a~kunag IN s_kunag AND
+        b~matnr IN s_matnr AND
+        b~prctr IN s_prctr AND
+        b~aufnr IN s_aufnr.
+
+*--- Alterado em 02.03.2004 - Mario.
+*        AND
+*        a~vbtyp <> 'N'     AND   "Nota de Estorno
+*        a~fksto NE 'X' ."AND "REMOVER FAT. ESTORNADAS
+*--- Final da Alteracao
+
+*        A~FKART NE 'S1'....
+*COLOCAR OS TIPOS DE DOC. DE FAT. QUE DEVEM SER EXIBIDOS
+
+ENDFORM.                    " F_BILLING
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_NF
+*&---------------------------------------------------------------------*
+FORM f_get_nf.
+
+*--- NOTA FISCAL ---*
+  SELECT a~docnum b~nfnum b~series a~cfop a~refkey a~refitm a~nbm
+  FROM j_1bnflin AS a INNER JOIN j_1bnfdoc AS b
+    ON a~docnum = b~docnum
+    INTO TABLE t_notafiscal
+    FOR ALL ENTRIES IN t_billing
+  WHERE a~refkey = t_billing-vbeln1 AND
+        a~refitm = t_billing-posnr  AND
+        a~reftyp = 'BI'.
+
+
+ENDFORM.                    " F_GET_NF
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_TAX
+*&---------------------------------------------------------------------*
+FORM f_get_tax.
+
+*--- IMPOSTOS ---*
+  SELECT knumv kposn kschl kwert
+    FROM konv
+    INTO TABLE t_konv
+    FOR ALL ENTRIES IN t_billing
+    WHERE knumv = t_billing-knumv AND
+          kposn = t_billing-posnr.
+
+ENDFORM.                    " F_GET_TAX
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_INTERNAL_ORDER
+*&---------------------------------------------------------------------*
+FORM f_get_internal_order.
+
+* Inicio Alteração - Alex Tech - 11/02/2010
+* Seleção foi alterada para rotina XXXXXXXXXX
+* Motivo da alteração: Seleção será utilizada para filtrar ordens
+*   As Ordens Tipo = 'ZREB' serão eliminadas do relatório, pois
+*   estas são Ordens de Estorno
+**---- Alterado em 02.03.2004 - Mario Tsuzaki
+*  SELECT vbeln auart
+*  FROM vbak
+*  INTO TABLE t_vbak
+*  FOR ALL ENTRIES IN t_billing
+*  WHERE vbeln = t_billing-aubel.
+**---- Final da Alteracao.
+* Fim Alteração - Alex Tech - 11/02/2010
+
+
+*--- ORDEM INTERNA ---
+* Inicio Alteração - Alex Tech - 11/02/2010
+*  SELECT vbeln posnr aufnr pstyv uepos netwr matnr arktx
+*         prodh
+  SELECT vbeln posnr matkl aufnr pstyv uepos netwr matnr
+         arktx prodh netpr
+* Fim Alteração - Alex Tech - 11/02/2010
+    FROM vbap
+    INTO TABLE t_vbap
+    FOR ALL ENTRIES IN t_billing
+    WHERE vbeln = t_billing-aubel.
+*          posnr = t_billing-aupos.
+
+
+*buscar os itens das ordens de venda na VBAP e com o número da ordem
+*interna, concatenada com "OR" ir na COVP-OBJNR E SUMARIZAR O CAMPO
+*WTGBTR
+  LOOP AT t_vbap WHERE NOT aufnr IS initial.
+
+    READ TABLE t_aufnr WITH KEY objnr = t_vbap-aufnr.
+
+    IF sy-subrc = 0.
+      PERFORM f_show_message.
+    ELSE.
+      CONCATENATE 'OR' t_vbap-aufnr INTO t_aufnr-objnr.
+      t_aufnr-aubel = t_vbap-vbeln.
+      t_aufnr-aupos = t_vbap-posnr.
+      APPEND t_aufnr.
+    ENDIF.
+
+  ENDLOOP.
+
+*>> SC/ASPEN - Inicio da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+*  sort t_aufnr.
+  SORT t_vbap BY vbeln uepos ASCENDING.
+
+
+  "THE SELECT ON COVP IS VERY VERY SLOW!!!
+
+  IF NOT t_aufnr[] IS INITIAL.
+    PERFORM track_event USING 'Select on COVP' 'B'.
+*--- CUSTOS DA ORDEM INTERNA ---*
+
+*   Deleta registros duplicados da tabela t_aufnr
+    t_aufnr_aux[] = t_aufnr[].
+    SORT t_aufnr_aux BY objnr.
+    DELETE ADJACENT DUPLICATES FROM t_aufnr_aux COMPARING objnr.
+
+*>>>> SC/ASPEN - CH 483587 - Alteração "Select" COVP - ALJS - Início:
+*    SELECT objnr wtgbtr orgvg
+*    FROM covp
+*    INTO TABLE t_covp
+*    FOR ALL ENTRIES IN t_aufnr_aux
+*    WHERE objnr = t_aufnr_aux-objnr.
+**    AND orgvg <> 'SD00'. "NÃO INCLUIR ITENS DO FATURAMENTO
+
+    SELECT a~objnr a~wtgbtr b~orgvg
+    FROM coep AS a INNER JOIN cobk AS b
+      ON a~kokrs = b~kokrs
+     AND a~belnr = b~belnr
+      INTO TABLE t_covp
+      FOR ALL ENTRIES IN t_aufnr_aux
+    WHERE a~objnr = t_aufnr_aux-objnr.
+
+
+*<<<< SC/ASPEN - CH 483587 - Alteração "Select" COVP - ALJS - Fim.
+
+*<< SC/ASPEN - Fim da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+    LOOP AT t_covp.
+*>>>> SC/ASPEN - CH 483587 - Alteração "Select" COVP - ALJS - Início:
+      DELETE t_covp WHERE orgvg = 'SD00'.
+*<<<< SC/ASPEN - CH 483587 - Alteração "Select" COVP - ALJS - Fim.
+
+      COLLECT t_covp INTO t_covp_sum.
+    ENDLOOP.
+
+    PERFORM track_event USING 'Select on COVP' 'E'.
+  ENDIF.
+
+ENDFORM.                    " F_GET_INTERNAL_ORDER
+*&---------------------------------------------------------------------*
+*&      Form  f_fill_list
+*&---------------------------------------------------------------------*
+FORM f_fill_list.
+
+  DATA:   vl_regs         TYPE i,            " Nº de Registros da Tabela
+          vl_tabix        TYPE i,            " Valor do tabix
+          vl_reg_atual    TYPE i.            " Nº do Registro atual
+
+  SORT t_vbap BY vbeln posnr.
+
+*>> SC/ASPEN - Inicio da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+  CLEAR vl_regs.
+  DESCRIBE TABLE t_billing LINES vl_regs.
+
+  LOOP AT t_billing.
+
+*   Cálculo para encontrar percentual de processamento
+    vl_tabix = sy-tabix.
+    vl_reg_atual = ( 100 * vl_tabix ) / vl_regs.
+
+*   Progress Bar
+    PERFORM zf_sapgui_progress_indicator
+    USING vl_reg_atual
+          'Processando...'.
+
+*<< SC/ASPEN - Fim da Alteração - JGCS - 17/08/2007 CH: 396126.
+
+
+*--- Alterado em 02.03.2004 - Mario Tsuzaki.
+*--- Desprezar os faturamentos em que a ordem de venda seja ZRCM
+    READ  TABLE t_vbak  WITH KEY  vbeln =  t_billing-aubel.
+    IF  sy-subrc <> 0.
+      CLEAR  t_vbak-auart.
+    ENDIF.
+    IF  t_vbak-auart <>  'YBOR'
+    AND t_vbak-auart <>  'YBRB'
+    AND t_vbak-auart <>  'YBST'
+    AND t_vbak-auart <>  'YSER'
+    AND t_vbak-auart <>  'ZDPR'
+    AND t_vbak-auart <>  'ZDYR'
+    AND t_vbak-auart <>  'ZEXD'
+    AND t_vbak-auart <>  'ZNFC'
+    AND t_vbak-auart <>  'ZRCS'
+    AND t_vbak-auart <>  'ZREB'
+*   and t_vbak-auart <>  'ZVFF'
+    AND t_vbak-auart <>  'ZVFR'
+    AND t_vbak-auart <>  'ZVIN'
+    AND t_vbak-auart <>  'ZPRM'
+    AND t_vbak-auart <>  'ZCQ'
+    AND t_vbak-auart <>  'ZCQ1'
+    AND t_vbak-auart <>  'ZCOF'
+    AND t_vbak-auart <>  space.
+      CONTINUE.
+    ENDIF.
+*--- Final da Alteracao.
+    CLEAR t_list_data.
+    MOVE-CORRESPONDING t_billing TO t_list_data.
+
+* Inicio Alteração - Alex Tech - 11/02/2010
+    CLEAR t_vbap.
+    READ TABLE t_vbap WITH KEY vbeln =  t_billing-aubel
+                               posnr =  t_billing-aupos
+                                          BINARY SEARCH.
+    IF sy-subrc IS INITIAL.
+      MOVE: t_vbak-erdat TO t_list_data-erdat,
+            t_vbak-vkgrp TO t_list_data-vkgrp,
+            t_vbap-matkl TO t_list_data-matkl,
+            t_vbap-netpr TO t_list_data-netpr.
+    ENDIF.
+* Fim Alteração - Alex Tech - 11/02/2010
+*---nota fiscal---*
+    READ TABLE t_notafiscal WITH KEY refkey = t_billing-vbeln1
+                                     refitm = t_billing-posnr.
+    IF sy-subrc = 0.
+      MOVE-CORRESPONDING t_notafiscal TO t_list_data.
+    ENDIF.
+*---impostos---*
+*YPIS
+*YCOF
+*IPI3
+*ICM3
+*ISS3
+    PERFORM f_fill_tax_values.
+*---ordem interna---*
+    PERFORM f_fill_int_order_value.
+*---conta de receita---*
+    PERFORM f_fill_account.
+*---items com recurso do nível 2---*
+    PERFORM f_fill_level2 USING v_level2.
+    IF v_level2 IS INITIAL.
+*---item comum(sem nível 2)
+
+*---Alterado em 02.03.2004 - Mario Tsuzaki.
+      PERFORM  f_corrige_apropriacao_valores.
+*---Final da Alteracao.
+
+*---preço interno padrão
+      PERFORM f_preco_padrao.
+
+*---fill product hiearchy
+      PERFORM fill_product_hierarchy.
+
+      APPEND t_list_data.
+      CLEAR t_list_data.
+    ENDIF.
+  ENDLOOP.
+  PERFORM monta_nota_fiscal_manual.
+ENDFORM.                    " f_fill_list
+*&---------------------------------------------------------------------*
+*&      Form  f_fill_int_order_value
+*&---------------------------------------------------------------------*
+FORM f_fill_int_order_value.
+
+  READ TABLE t_aufnr WITH KEY aubel = t_billing-aubel
+                              aupos = t_billing-aupos.
+  IF sy-subrc = 0.
+    t_list_data-aufnr = t_aufnr-objnr+2(12).
+    READ TABLE t_covp WITH KEY objnr = t_aufnr-objnr.
+    IF sy-subrc = 0.
+      t_list_data-wtgbtr = t_covp-wtgbtr.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " f_fill_int_order_value
+*&---------------------------------------------------------------------*
+*&      Form  f_fill_tax_values
+*&---------------------------------------------------------------------*
+FORM f_fill_tax_values.
+
+  LOOP AT t_konv WHERE knumv = t_billing-knumv AND
+                       kposn = t_billing-posnr.
+    CASE t_konv-kschl.
+      WHEN 'YPIS'.
+        t_list_data-pis = -1 * t_konv-kwert.
+      WHEN 'YCOF'.
+        t_list_data-cofins = -1 * t_konv-kwert.
+      WHEN 'IPI3'.
+        t_list_data-ipi = t_konv-kwert.
+      WHEN 'ICM3'.
+        t_list_data-icms = t_konv-kwert.
+      WHEN 'ISS3'.
+        t_list_data-iss = t_konv-kwert.
+      WHEN 'ICSO'.
+        t_list_data-iss = -1 * t_konv-kwert.
+    ENDCASE.
+  ENDLOOP.
+
+ENDFORM.                    " f_fill_tax_values
+*&---------------------------------------------------------------------*
+*&      Form  f_FILL_LEVEL2
+*&---------------------------------------------------------------------*
+FORM f_fill_level2 USING p_level2.
+
+  DATA: t_billing_tmp LIKE TABLE OF t_list_data WITH HEADER LINE.
+
+  CLEAR p_level2.
+*--- Alterado em 02.03.2004 - Mario Tsuzaki.
+  READ  TABLE t_vbak  WITH KEY  vbeln =  t_billing-aubel.
+  IF  sy-subrc <> 0.
+    CLEAR  t_vbak-auart.
+  ENDIF.
+*--- Final da Alteracao.
+  LOOP AT t_vbap WHERE vbeln = t_billing-aubel AND
+                       uepos = t_billing-aupos.
+*                       pstyv = 'ZCLT'.
+    t_billing_tmp = t_list_data.
+*---rateio dos valores do item principal---*
+*---SKFBP	- Valor bruto do item
+    t_billing_tmp-skfbp = t_vbap-netwr.
+    IF NOT t_billing-skfbp IS INITIAL.
+*---NETWR	 - Valor líquido na moeda do documento
+      t_billing_tmp-netwr = ( t_vbap-netwr / t_billing-skfbp ) *
+                              t_list_data-netwr.
+*---WAVWR	 - Custo de prods.vendidos
+      t_billing_tmp-wavwr = ( t_vbap-netwr / t_billing-skfbp ) *
+                               t_list_data-wavwr.
+*---IPI	 - IPI
+      t_billing_tmp-ipi	= ( t_vbap-netwr / t_billing-skfbp ) *
+                            t_list_data-ipi.
+*---ICMS   	 - ICMS
+      t_billing_tmp-icms = ( t_vbap-netwr / t_billing-skfbp ) *
+                             t_list_data-icms.
+*---PIS        - PIS
+      t_billing_tmp-pis	=  ( t_vbap-netwr / t_billing-skfbp ) *
+                             t_list_data-pis.
+*COFINS	 - COFINS
+      t_billing_tmp-cofins = ( t_vbap-netwr / t_billing-skfbp ) *
+                               t_list_data-cofins.
+*ISS    	 - ISS
+      t_billing_tmp-iss	=  ( t_vbap-netwr / t_billing-skfbp ) *
+                             t_list_data-iss.
+*WTGBTR	 - Despesas atreladas à ordem Interna
+      t_billing_tmp-wtgbtr = ( t_vbap-netwr / t_billing-skfbp ) *
+                               t_list_data-wtgbtr.
+    ENDIF.
+*---Material do nível inferior
+    t_billing_tmp-matnr = t_vbap-matnr.
+    t_billing_tmp-arktx = t_vbap-arktx.
+
+    IF NOT t_vbap-prodh IS INITIAL.
+      "Get Product Hierarchy from
+      "Sales Order line item
+      t_billing_tmp-prodh = t_vbap-prodh.
+    ELSE.
+      "Get Product Hiearchy from the
+      "Material Master
+    ENDIF.
+
+
+
+*--- Alterado em 02.03.2004 - Mario Tsuzaki.
+*--- Ajusta os valores de acordo com o tipo da Ordem Venda
+*    IF  t_vbak-auart = 'ZVFF'.
+*        clear :  t_billing_tmp-skfbp
+*               , t_billing_tmp-netwr
+*               , t_billing_tmp-WAVWR
+*               , t_billing_tmp-ICMS    , t_billing_tmp-PIS
+*               , t_billing_tmp-COFINS  , t_billing_tmp-ISS
+*               , t_billing_tmp-WTGBTR.
+*         t_billing_tmp-netwr = ( t_billing_tmp-IPI * -1 ).
+*    endif.
+
+*   Nos casos dos documentos de Estorno os valores deverão ser
+*   invertidos.
+    IF  t_billing-vbtyp = 'N'.  "Documento de Estorno.
+      t_billing_tmp-skfbp = ( t_billing_tmp-skfbp * -1 ).
+      t_billing_tmp-netwr = ( t_billing_tmp-netwr * -1 ).
+      t_billing_tmp-wavwr = ( t_billing_tmp-wavwr * -1 ).
+      t_billing_tmp-ipi   = ( t_billing_tmp-ipi   * -1 ).
+      t_billing_tmp-icms  = ( t_billing_tmp-icms  * -1 ).
+      t_billing_tmp-pis   = ( t_billing_tmp-pis   * -1 ).
+      t_billing_tmp-cofins = ( t_billing_tmp-cofins * -1 ).
+      t_billing_tmp-iss    = ( t_billing_tmp-iss    * -1 ).
+      t_billing_tmp-wtgbtr = ( t_billing_tmp-wtgbtr * -1 ).
+    ENDIF.
+*   Caso o documento não seja em Reais efetuar a conversão.
+    IF  t_billing-waerk  <>  'BRL'  AND
+    NOT t_billing-kurrf  IS INITIAL.
+      t_billing_tmp-skfbp =  ( t_billing_tmp-skfbp *
+                               t_billing-kurrf ).
+      t_billing_tmp-netwr =  ( t_billing_tmp-netwr *
+                               t_billing-kurrf ).
+      t_billing_tmp-wavwr =  ( t_billing_tmp-wavwr *
+                               t_billing-kurrf ).
+    ENDIF.
+*   Final da Alteracao.
+    t_billing_tmp-netpr = t_vbap-netpr.
+    APPEND t_billing_tmp TO t_list_data.
+    p_level2 = 'X'.
+  ENDLOOP.
+
+ENDFORM.                    " f_FILL_LEVEL2
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_ACCOUNT
+*&---------------------------------------------------------------------*
+FORM f_get_account.
+
+  CHECK NOT t_billing[] IS INITIAL.
+
+  SELECT bukrs belnr gjahr awkey
+    FROM bkpf
+    INTO TABLE t_bkpf
+    FOR ALL ENTRIES IN t_billing
+    WHERE awtyp = 'VBRK' AND
+          awkey = t_billing-awkey1.
+
+  SELECT bukrs belnr gjahr hkont
+      FROM bseg
+      INTO TABLE t_bseg
+      FOR ALL ENTRIES IN t_bkpf
+      WHERE bukrs = t_bkpf-bukrs AND
+            belnr = t_bkpf-belnr AND
+            gjahr = t_bkpf-gjahr.
+
+  DELETE t_bseg WHERE NOT hkont IN s_saknr.
+
+ENDFORM.                    " F_GET_ACCOUNT
+*&---------------------------------------------------------------------*
+*&      Form  f_fill_account
+*&---------------------------------------------------------------------*
+FORM f_fill_account.
+  READ TABLE t_bkpf WITH KEY awkey = t_list_data-vbeln.
+  IF sy-subrc = 0.
+    READ TABLE t_bseg WITH KEY bukrs = t_bkpf-bukrs
+                               belnr = t_bkpf-belnr
+                               gjahr = t_bkpf-gjahr.
+    IF sy-subrc = 0.
+      t_list_data-hkont = t_bseg-hkont.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " f_fill_account
+*&---------------------------------------------------------------------*
+*&      Form  f_corrige_apropriacao_valores
+*&---------------------------------------------------------------------*
+FORM f_corrige_apropriacao_valores.
+* Busca o tipo do Ordem de Venda.
+  READ  TABLE t_vbak  WITH KEY  vbeln =  t_billing-aubel.
+  IF  sy-subrc <> 0.
+    CLEAR  t_vbak-auart.
+  ENDIF.
+* Alguns tipos de ordem deve ter tratamento especial.
+*  if  t_vbak-auart = 'ZVFF' . "Considera apenas valor IPI
+*
+*      clear :  t_list_data-skfbp
+*              , t_list_data-netwr
+*              , t_list_data-WAVWR
+*              , t_list_data-ICMS    , t_list_data-PIS
+*              , t_list_data-COFINS  , t_list_data-ISS
+*              , t_list_data-WTGBTR.
+*
+*       t_list_data-netwr = ( t_list_data-IPI * -1 ).
+*
+*  endif.
+* Caso os documento seja de cancelamento os valores deverão
+* entrar cancelando os valores anteriomente lancados.
+  IF  t_billing-vbtyp = 'N'.  "Documento de Estorno.
+    t_list_data-skfbp = ( t_list_data-skfbp * -1 ).
+    t_list_data-netwr = ( t_list_data-netwr * -1 ).
+    t_list_data-wavwr = ( t_list_data-wavwr * -1 ).
+    t_list_data-ipi   = ( t_list_data-ipi   * -1 ).
+    t_list_data-icms  = ( t_list_data-icms  * -1 ).
+    t_list_data-pis   = ( t_list_data-pis   * -1 ).
+    t_list_data-cofins = ( t_list_data-cofins * -1 ).
+    t_list_data-iss    = ( t_list_data-iss    * -1 ).
+    t_list_data-wtgbtr = ( t_list_data-wtgbtr * -1 ).
+  ENDIF.
+* Caso o documento não seja em Reais efetuar a conversão.
+* Modificado por Angelo - 22.03.04
+  IF  t_billing-waerk  <>  'BRL'  AND
+      NOT t_billing-kurrf  IS INITIAL.
+
+    IF t_billing-kalsm EQ 'ZEXDEM'
+       AND t_billing-waerk EQ 'EUR'.
+      t_list_data-skfbp = ( t_list_data-skfbp / 10 ).
+      t_list_data-netwr = ( t_list_data-netwr / 10 ).
+      t_list_data-wavwr = ( t_list_data-wavwr / 10 ).
+    ENDIF.
+
+    t_list_data-skfbp =  ( t_list_data-skfbp *  t_billing-kurrf ).
+    t_list_data-netwr =  ( t_list_data-netwr *  t_billing-kurrf ).
+    t_list_data-wavwr =  ( t_list_data-wavwr *  t_billing-kurrf ).
+
+  ENDIF.
+
+ENDFORM.                    " f_corrige_apropriacao_valores
+*&---------------------------------------------------------------------*
+*&      Form  ATUALIZA_VALOR_LIQUIDO
+*&---------------------------------------------------------------------*
+*       Atualiza o valor liquido de cada registro.
+*----------------------------------------------------------------------*
+FORM atualiza_valor_liquido.
+*     Modificado por Angelo - 22.03.04
+*     Atualiza o valor liquido
+
+  LOOP AT t_list_data.
+    IF t_list_data-cfop IS INITIAL.
+      t_list_data-netwr = t_list_data-skfbp.
+    ENDIF.
+*   t_list_data-netwr = t_list_data-netwr - t_list_data-ipi.
+
+    t_list_data-netwr = t_list_data-netwr - t_list_data-cofins.
+    t_list_data-netwr = t_list_data-netwr - t_list_data-iss.
+    t_list_data-netwr = t_list_data-netwr - t_list_data-pis.
+    MODIFY t_list_data.
+  ENDLOOP.
+
+ENDFORM.                    " ATUALIZA_VALOR_LIQUIDO
+*&---------------------------------------------------------------------*
+*&      Form  monta_nota_fiscal_manual
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM monta_nota_fiscal_manual.
+
+*  data: ti_j1bnfdoc like j_1bnfdoc occurs 0 with header line.
+*  data: ti_j1bnflin like j_1bnflin occurs 0 with header line.
+*
+*  select *
+*        from j_1bnfdoc
+*        into table ti_j1bnfdoc
+*        where direct = '2'
+*          and doctyp = '1'
+*          and docdat in s_periodo.
+*
+*  if sy-subrc eq 0.
+*
+*    select *
+*          from j_1bnflin
+*          into table ti_j1bnflin
+*          for all entries in ti_j1bnfdoc
+*          where docnum = ti_j1bnfdoc-docnum.
+*
+*  endif.
+
+
+ENDFORM.                    " monta_nota_fiscal_manual
+*&---------------------------------------------------------------------*
+*&      Form  f_custo_mm
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_custo_mm.
+  DATA: l_count LIKE sy-tabix.
+
+  DESCRIBE TABLE t_billing LINES l_count.
+  IF l_count < 1.
+    EXIT.
+  ENDIF.
+
+  SELECT kalnr matnr
+      FROM ckmlhd
+      INTO CORRESPONDING FIELDS OF TABLE t_ckmlhd
+      FOR ALL ENTRIES IN t_billing
+      WHERE matnr = t_billing-matnr.
+
+  DESCRIBE TABLE t_ckmlhd LINES l_count.
+  IF l_count < 1.
+    EXIT.
+  ENDIF.
+
+  SELECT kalnr bdatj poper pvprs peinh waers
+       FROM ckmlcr
+       INTO CORRESPONDING FIELDS OF TABLE t_ckmlcr
+       FOR ALL ENTRIES IN t_ckmlhd
+       WHERE kalnr = t_ckmlhd-kalnr
+         AND bdatj = p_bdatj
+         AND poper = p_poper.
+
+ENDFORM.                    " f_custo_mm
+
+*&---------------------------------------------------------------------*
+*&      Form  f_preco_padrao
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_preco_padrao.
+
+  READ TABLE t_ckmlhd WITH KEY matnr = t_billing-matnr.
+  IF sy-subrc = 0.
+    READ TABLE t_ckmlcr WITH KEY kalnr = t_ckmlhd-kalnr
+                                 bdatj = p_bdatj
+                                 poper = p_poper.
+    IF sy-subrc = 0.
+      MOVE t_ckmlcr-pvprs TO t_list_data-pvprs.
+      MOVE t_ckmlcr-peinh TO t_list_data-peinh.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " f_preco_padrao
+
+*---------------------------------------------------------------------*
+*  FORM  F_GET_PRODUCT_HIERARCHY                                      *
+*            If the product hierarchy isn't populate on VBAP (sales   *
+*            order line item, then we need to check the material      *
+*            master for product hierarchy.  The product hierarchy on  *
+*            materials are stored in 2 places (sales org & basic      *
+*            views.)                                                  *
+*---------------------------------------------------------------------*
+FORM f_get_product_hierarchy.
+  DATA: l_count LIKE sy-tabix,
+        t_vbap_tmp LIKE TABLE OF t_vbap.
+
+  DESCRIBE TABLE t_vbap LINES l_count.
+  IF l_count < 1.
+    EXIT.
+  ENDIF.
+
+  t_vbap_tmp[] = t_vbap[].
+
+
+*Get the list of materials/orders that do NOT have
+*a product hierarchy on the sales order
+  DELETE t_vbap_tmp WHERE NOT prodh IS initial.
+
+*Get a unique list of materials that are missing a
+*product hierarchy on at least one sales order item.
+  SORT t_vbap_tmp BY matnr.
+  DELETE ADJACENT DUPLICATES FROM t_vbap_tmp COMPARING matnr.
+
+
+*Get the Product Hierarchies from the Material - Sales Org View
+  SELECT matnr vkorg vtweg prodh
+   INTO TABLE t_mvke_prodh
+   FROM mvke
+   FOR ALL ENTRIES IN t_vbap_tmp
+  WHERE matnr = t_vbap_tmp-matnr.
+
+*Get the Product Hierarchies from the Material - Basic View
+  SELECT matnr prdha
+   INTO TABLE t_mara_prdha
+   FROM mara
+   FOR ALL ENTRIES IN t_vbap_tmp
+  WHERE matnr = t_vbap_tmp-matnr.
+
+  SORT t_mvke_prodh BY matnr vkorg vtweg.
+  SORT t_mara_prdha BY matnr.
+
+ENDFORM.  "f_get_product_hierarchy
+
+*---------------------------------------------------------------------*
+*  FORM  FILL_PRODUCT_HIERARCHY                                       *
+*          - First look at sales order line item, for the product     *
+*            hierarchy.                                               *
+*          - If not found, then look at the Material Master, sales    *
+*            Org view.                                                *
+*          - If still not found, then look at the Material Master,    *
+*            basic data view.                                         *
+*---------------------------------------------------------------------*
+FORM fill_product_hierarchy.
+  DATA: l_found(1) TYPE c VALUE 'N'.
+
+*LOOK for Product Hiearchy on Sales Order first.
+  LOOP AT t_vbap WHERE vbeln = t_list_data-aubel AND
+                       posnr = t_list_data-aupos.
+    IF NOT t_vbap-prodh IS INITIAL.
+      t_list_data-prodh = t_vbap-prodh.
+      l_found = 'Y'.
+    ENDIF.
+  ENDLOOP.
+
+  IF l_found = 'Y'.
+    EXIT.
+  ENDIF.
+
+*No Product Hiearchy on Sales - check on Material (Sales Org View)
+  READ TABLE t_mvke_prodh WITH KEY matnr = t_list_data-matnr
+                                       vkorg = t_list_data-vkorg
+                                       vtweg = t_billing-vtweg
+                                                 BINARY SEARCH.
+  IF sy-subrc = 0.
+    t_list_data-prodh = t_mvke_prodh-prodh.
+    l_found = 'Y'.
+  ENDIF.
+
+  IF l_found = 'Y'.
+    EXIT.
+  ENDIF.
+
+*No Sales Order, or Material didn't have a sales org view
+*Check the Material Master (Basic view) for the product hiearchy
+  READ TABLE t_mara_prdha WITH KEY matnr = t_list_data-matnr
+                                                 BINARY SEARCH.
+  IF sy-subrc = 0.
+    t_list_data-prodh = t_mara_prdha-prdha.
+    l_found = 'Y'.
+  ENDIF.
+
+  "NOTE:  Distribution channel on Material Sales Org (MVKE-VTWEG)
+  "       is 99 on most of the records.    However VBRK-VTWEG and
+  "       VBAK-VTWEG are usally 20.  I have no idea how/why these
+  "       do not match
+
+
+ENDFORM. "fill_product_hierarchy
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_sapgui_progress_indicator
+*&---------------------------------------------------------------------*
+FORM zf_sapgui_progress_indicator USING  value(pv_val)  TYPE i
+                                         value(pv_text).
+
+  CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+       EXPORTING
+            percentage = pv_val
+            text       = pv_text.
+
+ENDFORM.                    " z_sapgui_progress_indicator
+*&---------------------------------------------------------------------*
+*&      Form  f_save_file
+*&---------------------------------------------------------------------*
+*       Gerar arquivo excel
+*----------------------------------------------------------------------*
+FORM f_save_file.
+
+  DATA: vl_path  LIKE rlgrap-filename,
+*        vl_file  TYPE string,
+        vl_len   TYPE i.
+
+
+  DATA: v_vbeln(10)      TYPE c,
+        v_posnr(06)      TYPE c,
+        v_vkorg(04)      TYPE c,
+        v_fkdat(10)      TYPE c,
+        v_kunag(10)      TYPE c,
+        v_name1(10)      TYPE c,
+        v_hkont(10)      TYPE c,
+        v_aubel(10)      TYPE c,
+        v_aupos(06)      TYPE c,
+        v_erdat(10)      TYPE c,
+        v_matnr(18)      TYPE c,
+        v_arktx(40)      TYPE c,
+        v_matkl(09)      TYPE c,
+        v_prctr(10)      TYPE c,
+        v_fkimg(20)      TYPE c,
+        v_skfbp(20)      TYPE c,
+        v_netwr(20)      TYPE c,
+        v_wavwr(20)      TYPE c,
+        v_pvprs(20)      TYPE c,
+        v_peinh(10)      TYPE c,
+        v_docnum(10)     TYPE c,
+        v_nfnum(10)      TYPE c,
+        v_series(03)     TYPE c,
+        v_cfop(05)       TYPE c,
+        v_ipi(22)        TYPE c,
+        v_icms(22)       TYPE c,
+        v_pis(22)        TYPE c,
+        v_cofins(22)     TYPE c,
+        v_iss(22)        TYPE c,
+        v_aufnr(12)      TYPE c,
+        v_wtgbtr(22)     TYPE c,
+        v_ps_psp_pnr(10) TYPE c,
+        v_nbm(16)        TYPE c,
+        v_prodh(18)      TYPE c,
+        v_vkgrp(03)      TYPE c,
+        v_waerk(03)      TYPE c,
+        v_meins          LIKE vbrp-meins,
+        v_netpr(20)."          like vbap-netpr.
+
+
+  CLEAR:   it_excel, it_excel[], vl_file, w_registros.
+
+* Preenche cabeçalho arquivo
+
+* Cabeçalho em PT
+*  CONCATENATE 'Documento'
+*              'Item'
+**              'Organização de vendas'
+*              'Data do faturamento'
+**              'Razão'
+*              'Doc.venda'
+*              'Item'
+*              'Data Pedido'
+*              'Material'
+*              'Denominação'
+*              'Grupo Merc.'
+**              'Centro de lucro'
+*              'Quantidade faturada'
+**              'Emissor da ordem'
+*              'Nome 1'
+*              'Valor bruto'
+*              'Valor líquido'
+*              'CstProdVend'
+**              'Preço interno periódico'
+**              'Unidade de preço'
+*              'Nº documento'
+*              'Nº NF'
+**              'Série'
+**              'CFOP'
+**              'IPI'
+**              'ICMS'
+**              'PIS'
+**              'COFINS'
+**              'ISS'
+**              'Ordem interna'
+**              'Desp.Ordem interna'
+**              'Elemento PEP'
+**              'Code de controle'
+**              'hierarquia produtos'
+*               'Grp.vendedores'
+*         INTO it_excel-line
+*         SEPARATED BY ';'.
+*  APPEND it_excel.
+
+* Cabeçalho em EN
+*  CONCATENATE 'Accounting Document'
+*              'Item'
+**              'Organização de vendas'
+*              'Invoice Date'
+**                            'Billing date' Alterado Guilherme Ninni
+**              'Razão'
+*              'Order Number'
+**                           'Sales document' Alterado Guilherme Ninni
+*              'Order lines'
+**                                     'Item' Alterado Guilherme Ninni
+*              'Order date'
+*              'Product Code '
+**                                'Material'  Alterado Guilherme Ninni
+*              'Product Description'
+**                                 'Description'Alter. Guilherme Ninni
+*              'Material Group' "'Product Family'
+**                            'Material group'Alterado Guilherme Ninni
+**              'Centro de lucro'
+*              'Quantity'
+**                          'Billed quantity' Alterado Guilherme Ninni
+**              'Emissor da ordem'
+*              'Customer Name'
+**                                   'Name 1' Alterado Guilherme Ninni
+*              'Gross value'
+*              'Net value'
+*              'Cost'
+**                      'Cost of goods sold'  Alterado Guilherme Ninni
+**              'Preço interno periódico'
+**              'Unidade de preço'
+*              'Invoice Document'
+**                          'Document number' Alterado Guilherme Ninni
+*              'Invoice Number'
+**                                'NF Number' Alterado Guilherme Ninni
+**              'Série'
+**              'CFOP'
+**              'IPI'
+**              'ICMS'
+**              'PIS'
+**              'COFINS'
+**              'ISS'
+**              'Ordem interna'
+**              'Desp.Ordem interna'
+**              'Elemento PEP'
+**              'Code de controle'
+**              'hierarquia produtos'
+*               'Sales group'
+  CONCATENATE 'Accounting Document'                         "1   1
+              'Invoice Date'                                "3   2
+              'Invoice Number'                              "16  3
+              'Invoice Document'                            "15  4
+              'Order Number'                                "4   5
+              'Order lines'                                 "5   6
+              'Order date'                                  "6   7
+              'Customer Number'                             "X   8 novo
+              'Customer Name'                               "11  9
+              'Product Code '                               "7   10
+              'Product Description'                         "8   11
+              'Material Group'                              "9   12
+              'Unit of Measure'      "X   13 novo
+              'Quantity'                                    "10  14
+              'Gross value'                                 "12  15
+              'Net Sales'                                   "13  16
+              'Cost'                                        "14  17
+
+              'Item'                                        "2 tirar
+              'Sales group'                                 "17  tirar
+
+         INTO it_excel-line
+         SEPARATED BY ','.
+  APPEND it_excel.
+
+
+  MOVE  'Accounting Document' TO it_excel_fim-l1.
+  MOVE  'Invoice Date'        TO it_excel_fim-l2.
+  MOVE  'Invoice Number'      TO it_excel_fim-l3.
+  MOVE  'Invoice Document'    TO it_excel_fim-l4.
+  MOVE  'Order Number'        TO it_excel_fim-l5.
+  MOVE  'Order lines'         TO it_excel_fim-l6.
+  MOVE  'Order date'          TO it_excel_fim-l7.
+  MOVE  'Customer Number'     TO it_excel_fim-l8.
+  MOVE  'Customer Name'       TO it_excel_fim-l9.
+  MOVE  'Product Code'        TO it_excel_fim-l10.
+  MOVE  'Product Description' TO it_excel_fim-l11.
+  MOVE  'Material Group'      TO it_excel_fim-l12.
+  MOVE  'Unit of Measure'      TO it_excel_fim-l13.
+  MOVE  'Quantity'            TO it_excel_fim-l14.
+  MOVE  'Gross value'         TO it_excel_fim-l15.
+  MOVE  'Net Sales'           TO it_excel_fim-l16.
+  MOVE  'Cost'                TO it_excel_fim-l17.
+* Alteração - Deived Charles - SondaProcwork - 14/12/2010 - início
+  MOVE  'Agent Order'         TO it_excel_fim-l18.
+* Alteração - Deived Charles - SondaProcwork - 14/12/2010 - fim
+
+*  move  'Price List'          to it_excel_fim-l18. Retirado 31/05/2010
+  APPEND it_excel_fim.
+
+
+
+* Preenche itens arquivo
+  LOOP AT t_list_data.
+
+    MOVE: t_list_data-vbeln      TO v_vbeln,
+          t_list_data-posnr      TO v_posnr,
+          t_list_data-vkorg      TO v_vkorg,
+*          t_list_data-fkdat      TO v_fkdat,
+          t_list_data-kunag      TO v_kunag,
+          t_list_data-name1      TO v_name1,
+          t_list_data-hkont      TO v_hkont,
+          t_list_data-aubel      TO v_aubel,
+          t_list_data-aupos      TO v_aupos,
+          t_list_data-matnr      TO v_matnr,
+          t_list_data-arktx      TO v_arktx,
+          t_list_data-prctr      TO v_prctr,
+*          t_list_data-fkimg      TO v_fkimg,
+*          t_list_data-skfbp      TO v_skfbp,
+*          t_list_data-netwr      TO v_netwr,
+*          t_list_data-wavwr      TO v_wavwr,
+*          t_list_data-pvprs      TO v_pvprs,
+          t_list_data-peinh      TO v_peinh,
+          t_list_data-docnum     TO v_docnum,
+          t_list_data-nfnum      TO v_nfnum,
+          t_list_data-series     TO v_series,
+          t_list_data-cfop       TO v_cfop,
+*          t_list_data-ipi        TO v_ipi,
+*          t_list_data-icms       TO v_icms,
+*          t_list_data-pis        TO v_pis,
+*          t_list_data-cofins     TO v_cofins,
+*          t_list_data-iss        TO v_iss,
+          t_list_data-aufnr      TO v_aufnr,
+*          t_list_data-wtgbtr     TO v_wtgbtr,
+*          t_list_data-ps_psp_pnr TO v_ps_psp_pnr,
+*          t_list_data-nbm        TO v_nbm,
+          t_list_data-prodh      TO v_prodh,
+*          t_list_data-erdat      TO v_erdat,
+          t_list_data-matkl      TO v_matkl,
+          t_list_data-vkgrp      TO v_vkgrp,
+          t_list_data-waerk      TO v_waerk,
+          t_list_data-netpr      TO v_netpr,
+*            t_list_data-wavwr      TO v_wavwr,
+*            t_list_data-netwr      TO v_netwr,
+*            t_list_data-skfbp      TO v_skfbp,
+            t_list_data-fkimg      TO v_fkimg.
+
+    WRITE:  t_list_data-fkdat      TO v_fkdat,
+*            t_list_data-fkimg      TO v_fkimg,
+            t_list_data-skfbp      TO v_skfbp,
+            t_list_data-netwr      TO v_netwr,
+            t_list_data-wavwr      TO v_wavwr,
+*          t_list_data-netpr      to v_netpr,
+            t_list_data-pvprs      TO v_pvprs,
+            t_list_data-ipi        TO v_ipi,
+            t_list_data-icms       TO v_icms,
+            t_list_data-pis        TO v_pis,
+            t_list_data-cofins     TO v_cofins,
+            t_list_data-iss        TO v_iss,
+            t_list_data-wtgbtr     TO v_wtgbtr,
+            t_list_data-ps_psp_pnr TO v_ps_psp_pnr,
+            t_list_data-nbm        TO v_nbm,
+            t_list_data-erdat      TO v_erdat,
+            t_list_data-meins      TO v_meins.
+
+* >>> Alteração SondaProcwork - 22/02/2011 - RLH - Início
+* Joga o sinal do campo Gross Value para esquerda
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+         CHANGING
+              value = v_skfbp.
+
+* Joga o sinal do campo Net Sales para esquerda
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+         CHANGING
+              value = v_netwr.
+
+* Joga o sinal do campo Cost para esquerda
+    CALL FUNCTION 'CLOI_PUT_SIGN_IN_FRONT'
+         CHANGING
+              value = v_wavwr.
+* <<< Alteração SondaProcwork - 22/02/2011 - RLH - Fim
+
+    CONCATENATE v_vbeln
+                v_posnr
+*                v_vkorg
+                v_fkdat
+*                v_hkont
+                v_aubel
+                v_aupos
+                v_erdat
+                v_matnr
+                v_arktx
+                v_matkl
+*                v_prctr
+                v_fkimg
+*                v_kunag
+                v_name1
+                v_skfbp
+                v_netwr
+                v_wavwr
+*                v_pvprs
+*                v_peinh
+                v_docnum
+                v_nfnum
+*                v_series
+*                v_cfop
+*                v_ipi
+*                v_icms
+*                v_pis
+*                v_cofins
+*                v_iss
+*                v_aufnr
+*                v_wtgbtr
+*                v_ps_psp_pnr
+*                v_nbm
+*                v_prodh
+                v_vkgrp
+           INTO it_excel-line
+           SEPARATED BY ','.
+
+    APPEND it_excel.
+
+    CLEAR it_excel_fim.
+    MOVE  v_vbeln TO  it_excel_fim-l1.
+*    move  v_posnr to  it_excel_fim-l2.
+    MOVE  v_fkdat TO  it_excel_fim-l2.
+    MOVE  v_aubel TO  it_excel_fim-l5.
+    MOVE  v_aupos TO  it_excel_fim-l6.
+    MOVE  v_erdat TO  it_excel_fim-l7.
+    MOVE  v_matnr TO  it_excel_fim-l10.
+**    move  v_arktx to  it_excel_fim-l8.
+    MOVE  v_kunag TO  it_excel_fim-l8.
+    MOVE  v_arktx TO  it_excel_fim-l11.
+    MOVE  v_matkl TO  it_excel_fim-l12.
+    MOVE  v_fkimg TO  it_excel_fim-l14.
+    MOVE  v_name1 TO  it_excel_fim-l9.
+    MOVE  v_skfbp TO  it_excel_fim-l15.
+**    move  v_netwr to  it_excel_fim-l13.
+    MOVE  v_meins TO  it_excel_fim-l13.
+    MOVE  v_netwr TO  it_excel_fim-l16.
+    MOVE  v_wavwr TO  it_excel_fim-l17.
+    MOVE  v_docnum TO it_excel_fim-l4.
+    MOVE  v_nfnum TO  it_excel_fim-l3.
+
+* Alteração - Deived Charles - SondaProcwork - 14/12/2010 - início
+*   Vendedor
+    SELECT bezei
+     INTO it_excel_fim-l18
+     UP TO 1 ROWS
+     FROM tvgrt
+     WHERE spras = 'PT'
+     AND   vkgrp = v_vkgrp.
+    ENDSELECT.
+* Alteração - Deived Charles - SondaProcwork - 14/12/2010 - fim
+
+*    move  v_vkgrp to  it_excel_fim-l17.
+*    it_excel_fim-l18 = v_netpr * v_fkimg. Retirado 31/05/2010 ini
+*
+*     t_list_data-netpr = it_excel_fim-l18.
+*   write t_list_data-netpr to it_excel_fim-l18. Retirado 31/05/2010 fim
+
+    t_list_data-netpr = it_excel_fim-l14.
+    WRITE t_list_data-netpr TO it_excel_fim-l14.
+
+    APPEND it_excel_fim.
+  ENDLOOP.
+
+* Gravação de arquivo Local
+  IF NOT p_locl IS INITIAL.
+
+    CONCATENATE p_path
+                '\Sales_Report_'
+                sy-datum
+*              sy-uzeit
+                '.XLS' "'.csv'
+                INTO vl_file.
+
+    CALL FUNCTION 'WS_DOWNLOAD'
+         EXPORTING
+              filename                = vl_file
+              filetype                = 'DAT'
+         TABLES
+              data_tab                = it_excel_fim
+         EXCEPTIONS
+              file_open_error         = 1
+              file_write_error        = 2
+              invalid_filesize        = 3
+              invalid_type            = 4
+              no_batch                = 5
+              unknown_error           = 6
+              invalid_table_width     = 7
+              gui_refuse_filetransfer = 8
+              customer_error          = 9
+              OTHERS                  = 10.
+
+
+*    CALL FUNCTION 'GUI_DOWNLOAD'
+*      EXPORTING
+**   BIN_FILESIZE                  =
+*        filename                      = vl_file
+*        filetype                      = 'ASC'
+**   APPEND                        = ' '
+**    write_field_separator         = ' '
+**   HEADER                        = '00'
+**   TRUNC_TRAILING_BLANKS         = ' '
+**   WRITE_LF                      = 'X'
+**   COL_SELECT                    = ' '
+**   COL_SELECT_MASK               = ' '
+**   DAT_MODE                      = ' '
+** IMPORTING
+**   FILELENGTH                    =
+*      TABLES
+*        data_tab                      = it_excel            "%g00
+*      EXCEPTIONS
+*        file_write_error              = 1
+*        no_batch                      = 2
+*        gui_refuse_filetransfer       = 3
+*        invalid_type                  = 4
+*        no_authority                  = 5
+*        unknown_error                 = 6
+*        header_not_allowed            = 7
+*        separator_not_allowed         = 8
+*        filesize_not_allowed          = 9
+*        header_too_long               = 10
+*        dp_error_create               = 11
+*        dp_error_send                 = 12
+*        dp_error_write                = 13
+*        unknown_dp_error              = 14
+*        access_denied                 = 15
+*        dp_out_of_memory              = 16
+*        disk_full                     = 17
+*        dp_timeout                    = 18
+*        file_not_found                = 19
+*        dataprovider_exception        = 20
+*        control_flush_error           = 21
+*        OTHERS                        = 22
+*              .
+
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ELSE.
+      MESSAGE s000(z9) WITH 'Arquivo gerado com sucesso'
+                            vl_file.
+    ENDIF.
+
+
+* Gravação de arquivo no Servidor
+  ELSEIF NOT p_serv IS INITIAL.
+    CONSTANTS: con_tab TYPE x VALUE '09'.
+    CLEAR: it_excel[], it_excel.
+
+    LOOP AT it_excel_fim.
+      CONCATENATE it_excel_fim-l1  it_excel_fim-l2
+                  it_excel_fim-l3  it_excel_fim-l4
+                  it_excel_fim-l5  it_excel_fim-l6
+                  it_excel_fim-l7  it_excel_fim-l8
+                  it_excel_fim-l9  it_excel_fim-l10
+                  it_excel_fim-l11  it_excel_fim-l12
+                  it_excel_fim-l13 it_excel_fim-l14
+                  it_excel_fim-l15 it_excel_fim-l16
+                  it_excel_fim-l17 it_excel_fim-l18
+                  INTO it_excel
+                  SEPARATED BY con_tab.
+      APPEND it_excel.
+    ENDLOOP.
+** tabela interna a ser gerada em formato excel => it_excel  "%G00
+*    vl_len = '500'.
+*    OPEN DATASET vl_path FOR OUTPUT IN TEXT MODE. "encoding default.
+*    LOOP AT it_excel.
+*      TRANSFER it_excel TO vl_path LENGTH vl_len.
+*    ENDLOOP.
+*    CLOSE DATASET vl_path.
+
+    CONCATENATE p_path
+                '/Sales_Report_'
+                sy-datum
+*              sy-uzeit
+                '.XLS' "'.csv'
+                INTO vl_file.
+
+***Se for UNIX
+***Abre arquivo
+    OPEN DATASET vl_file FOR OUTPUT IN TEXT MODE . "MESSAGE W_MESSAG.
+    IF sy-subrc NE 0.
+      MESSAGE s000(z9) WITH vl_file.
+    ENDIF.
+
+***Tranfere dados
+*    LOOP AT it_excel.
+    LOOP AT it_excel.
+      w_registros = w_registros + 1.
+      TRANSFER it_excel TO vl_file.
+      IF sy-subrc NE 0.
+        MESSAGE s000(z9) WITH vl_file.
+      ENDIF.
+
+***Fecha Arquivo
+    ENDLOOP.
+    CLOSE DATASET vl_file.
+    IF sy-subrc NE 0.
+      MESSAGE s000(z9) WITH vl_file.
+    ENDIF.
+
+    PERFORM resultado.
+
+
+  ENDIF.
+
+ENDFORM.                    " f_save_file
+*&---------------------------------------------------------------------*
+*&      Form  f_filtrar_ordem
+*&---------------------------------------------------------------------*
+*       Filtrar ordens de vendas a serem processadas -
+*       Ordens Tipo Estorno (ZREB) serão Eliminadas
+*----------------------------------------------------------------------*
+FORM f_filtrar_ordem.
+
+* Seleciona dados de Cabeçalho Ordem Venda
+  SELECT vbeln erdat auart vkgrp
+    FROM vbak
+    INTO TABLE t_vbak
+    FOR ALL ENTRIES IN t_billing
+    WHERE vbeln = t_billing-aubel.
+
+  IF sy-subrc IS INITIAL.
+* Elimina registros tabela t_billing com Ordem Tipo Estorno = 'ZREB'
+    SORT t_vbak BY vbeln.
+
+    LOOP AT t_billing.
+      CLEAR t_vbak.
+      READ TABLE t_vbak WITH KEY vbeln = t_billing-aubel
+                                 BINARY SEARCH.
+      IF sy-subrc IS INITIAL AND
+         t_vbak-auart = 'ZREB'.
+
+        DELETE t_billing WHERE aubel = t_vbak-vbeln.
+
+      ENDIF.
+    ENDLOOP.
+
+    DELETE t_vbak WHERE auart = 'ZREB'.
+
+  ENDIF.
+
+ENDFORM.                    " f_filtrar_ordem
+*&---------------------------------------------------------------------*
+*&      Form  f_fill_s_fkdat
+*&---------------------------------------------------------------------*
+*       Preencher Data do faturamento para processamento de JOB
+*----------------------------------------------------------------------*
+FORM f_fill_s_fkdat.
+
+  IF s_fkdat[] IS INITIAL.
+
+    s_fkdat-sign   = 'I'.
+    s_fkdat-option = 'EQ'.
+    s_fkdat-low    = sy-datum.
+    APPEND s_fkdat.
+
+  ENDIF.
+
+ENDFORM.                    " f_fill_s_fkdat
+*&---------------------------------------------------------------------*
+*&      Form  RESULTADO
+*&---------------------------------------------------------------------*
+FORM resultado.
+
+*** Imprime Log de Execução
+  WRITE: sy-uline(100).
+  WRITE: / '|', w_registros, 'Registros gerados com sucesso',
+                'no arquivo:', 100 '|'.
+  WRITE: / '|', 11 vl_file,     100 '|'.
+  WRITE: sy-uline(100).
+
+ENDFORM.                    " RESULTADO

@@ -1,0 +1,31 @@
+*--------------------------------------------------------------------
+*      Form  zf_monta_shdb
+*--------------------------------------------------------------------
+*       Monta SHDP
+*----------------------------------------------------------------------
+*       --> P_INICIO - Indica se o mapeamento é referente a tela
+*       --> P_NOME   - Nome do mapeamento (tela, campo, sy-ucomm...)
+*       --> P_VALOR  - Valor do mapeamento de tela (campo ou sy-ucomm)
+*----------------------------------------------------------------------
+FORM zf_monta_shdb  USING  value(p_inicio)               "#EC *
+                           value(p_nome)                 "#EC *
+                           value(p_valor).               "#EC *
+
+  CLEAR  gs_bdcdata.
+
+  IF p_inicio = c_x.
+    
+    MOVE: p_nome   TO gs_bdcdata-program,
+          p_valor  TO gs_bdcdata-dynpro,
+          p_inicio TO gs_bdcdata-dynbegin.
+    
+  ELSE.
+    
+    MOVE: p_nome   TO gs_bdcdata-fnam,
+          p_valor  TO gs_bdcdata-fval.
+    
+  ENDIF.
+
+  APPEND gs_bdcdata TO gw_bdcdata.
+  
+ENDFORM.                    " zf_monta_shdb

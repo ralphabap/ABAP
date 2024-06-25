@@ -1,0 +1,676 @@
+REPORT Z_SL_FOR .
+
+DATA: BEGIN OF FORMHEADER OCCURS 0.    "...work area for form-header
+        INCLUDE STRUCTURE ITCTA.
+DATA: END OF FORMHEADER.
+
+DATA: BEGIN OF LINES OCCURS 0.         "...work area for lines
+        INCLUDE STRUCTURE TLINE.
+DATA: END OF LINES.
+
+DATA  BEGIN OF PAGEWINDOWS OCCURS 0.   "...work area for page-windows
+        INCLUDE STRUCTURE ITCTH.
+DATA  END OF PAGEWINDOWS.
+
+DATA  BEGIN OF PAGES OCCURS 0.         "...work aread for pages
+        INCLUDE STRUCTURE ITCTG.
+DATA  END OF PAGES.
+
+DATA  BEGIN OF PARAGRAPHS OCCURS 0.    "...work area for paragraphs
+        INCLUDE STRUCTURE ITCDP.
+DATA  END OF PARAGRAPHS.
+
+DATA  BEGIN OF STRINGS OCCURS 0.       "...work area for strings
+        INCLUDE STRUCTURE ITCDS.
+DATA  END OF STRINGS.
+
+DATA  BEGIN OF TABS OCCURS 0.          "...work area for tabs
+        INCLUDE STRUCTURE ITCDQ.
+DATA  END OF TABS.
+
+DATA  BEGIN OF WINDOWS OCCURS 0.       "...work area for windows
+        INCLUDE STRUCTURE ITCTW.
+DATA  END OF WINDOWS.
+
+DATA  BEGIN OF THEAD OCCURS 0.
+        INCLUDE STRUCTURE THEAD.
+DATA  END OF THEAD.
+
+************************************************************************
+*                       REGISTROS
+************************************************************************
+
+************************************************************************
+*                       CONSTANTES
+************************************************************************
+
+************************************************************************
+*                       DATOS VARIABLES
+************************************************************************
+DATA: W_LONG LIKE SY-TABIX,
+      W_FILE LIKE RLGRAP-FILENAME.
+
+************************************************************************
+*                       FIELD-SYMBOLS
+************************************************************************
+
+************************************************************************
+*                       PARÁMETROS
+************************************************************************
+PARAMETERS: P_FORM LIKE THEAD-TDFORM,  "Formulario
+            P_IDIOMA LIKE THEAD-TDSPRAS DEFAULT 'S'.
+SELECTION-SCREEN SKIP.
+    SELECTION-SCREEN BEGIN OF LINE.
+    SELECTION-SCREEN COMMENT 1(5) TEXT-003.
+    SELECTION-SCREEN POSITION 10.
+    PARAMETERS: P_PATH(70).                "Path
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN BEGIN OF LINE.
+   SELECTION-SCREEN COMMENT 1(6) TEXT-001.
+   SELECTION-SCREEN POSITION 10.
+   PARAMETERS: P_GRAB AS CHECKBOX.        "Grabar
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN BEGIN OF LINE.
+   SELECTION-SCREEN COMMENT 1(6) TEXT-002.
+   SELECTION-SCREEN POSITION 10.
+   PARAMETERS: P_CARG AS CHECKBOX.        "Cargar
+SELECTION-SCREEN END OF LINE.
+
+************************************************************************
+*                       TOP-OF-PAGE
+************************************************************************
+
+************************************************************************
+*                       END-OF-PAGE
+************************************************************************
+
+************************************************************************
+**                       INITIALIZATION
+************************************************************************
+
+
+************************************************************************
+*                  START-OF-SELECTION
+************************************************************************
+START-OF-SELECTION.
+
+  PERFORM CHECK_PATH.
+  IF NOT P_GRAB IS INITIAL .
+    PERFORM GRABAR_FORM.
+  ELSE.
+    PERFORM CARGAR_FORM.
+  ENDIF.
+
+************************************************************************
+*                  END-OF-SELECTION
+************************************************************************
+
+************************************************************************
+*                       EVENTOS ESPECIALES
+************************************************************************
+
+************************************************************************
+*                       CHECK_PATH
+*  Descripción:
+*
+************************************************************************
+FORM CHECK_PATH.
+
+  DATA: W_RETURN(2),
+        W_LAST_CARACT(70),
+        W_ULTIMO LIKE SY-TABIX.
+
+  W_LONG = STRLEN( P_PATH ).
+  W_LAST_CARACT = P_PATH.
+  W_ULTIMO = W_LONG - 1.
+  SHIFT W_LAST_CARACT BY W_ULTIMO PLACES.
+
+  IF W_LAST_CARACT(1) = '\'.
+    CALL FUNCTION 'WS_QUERY'
+         EXPORTING
+              FILENAME  = P_PATH
+              QUERY     = 'DE'
+         IMPORTING
+              RETURN    = W_RETURN
+         EXCEPTIONS
+              INV_QUERY = 01
+              NO_BATCH  = 02.
+    IF W_RETURN = '0 '.
+      WRITE /5 TEXT-004.               "Path no existe
+      STOP.
+    ENDIF.
+  ELSE.
+    WRITE /10 TEXT-020.                "Formato incorrecto
+    STOP.
+  ENDIF.
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_FORM
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_FORM.
+
+  CALL FUNCTION 'READ_FORM'
+       EXPORTING
+            LANGUAGE     = P_IDIOMA
+            FORM         = P_FORM
+       IMPORTING
+            FORM_HEADER  = FORMHEADER
+       TABLES
+            FORM_LINES   = LINES
+            PAGE_WINDOWS = PAGEWINDOWS
+            PAGES        = PAGES
+            PARAGRAPHS   = PARAGRAPHS
+            STRINGS      = STRINGS
+            TABS         = TABS
+            WINDOWS      = WINDOWS.
+  APPEND FORMHEADER.
+
+  PERFORM GRABAR_HEADER.
+  PERFORM GRABAR_LINES.
+  PERFORM GRABAR_PAGEWINDOWS.
+  PERFORM GRABAR_PAGES.
+  PERFORM GRABAR_PARRAFOS.
+  PERFORM GRABAR_STRINGS.
+  PERFORM GRABAR_TABS.
+  PERFORM GRABAR_WINDOWS.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_FORM
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_FORM.
+
+  PERFORM CARGAR_HEADER.
+
+  PERFORM CHECK_EXISTE_FORM.
+
+  PERFORM CARGAR_LINES.
+  PERFORM CARGAR_PAGEWINDOWS.
+  PERFORM CARGAR_PAGES.
+  PERFORM CARGAR_PARRAFOS.
+  PERFORM CARGAR_STRINGS.
+  PERFORM CARGAR_TABS.
+  PERFORM CARGAR_WINDOWS.
+
+  READ TABLE FORMHEADER INDEX 1.
+
+  CALL FUNCTION 'SAVE_FORM'
+       EXPORTING
+            FORM_HEADER      = FORMHEADER
+       IMPORTING
+            SAVE_FORM_HEADER = FORMHEADER
+       TABLES
+            FORM_LINES       = LINES
+            PAGES            = PAGES
+            PAGE_WINDOWS     = PAGEWINDOWS
+            PARAGRAPHS       = PARAGRAPHS
+            STRINGS          = STRINGS
+            TABS             = TABS
+            WINDOWS          = WINDOWS.
+
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_HEADER
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_HEADER.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-005 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_DOWNLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = FORMHEADER
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_LINES
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_LINES.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-006 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_DOWNLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = LINES
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_PAGEWINDOWS
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_PAGEWINDOWS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-007 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_DOWNLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = PAGEWINDOWS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_PAGES
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_PAGES.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-008 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_DOWNLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = PAGES
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_PARRAFOS
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_PARRAFOS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-009 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_DOWNLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = PARAGRAPHS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_STRINGS
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_STRINGS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-010 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_DOWNLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = STRINGS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_TABS
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_TABS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-011 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_DOWNLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = TABS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       GRABAR_WINDOWS
+*  Descripción:
+*
+************************************************************************
+FORM GRABAR_WINDOWS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-012 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_DOWNLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = WINDOWS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_HEADER
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_HEADER.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-005 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_UPLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = FORMHEADER
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_LINES
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_LINES.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-006 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_UPLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = LINES
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_PAGEWINDOWS
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_PAGEWINDOWS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-007 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_UPLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = PAGEWINDOWS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_PAGES
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_PAGES.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-008 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_UPLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = PAGES
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_PARRAFOS
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_PARRAFOS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-009 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_UPLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = PARAGRAPHS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_STRINGS
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_STRINGS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-010 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_UPLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = STRINGS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_TABS
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_TABS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-011 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_UPLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = TABS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CARGAR_WINDOWS
+*  Descripción:
+*
+************************************************************************
+FORM CARGAR_WINDOWS.
+
+  W_FILE = P_PATH.
+  WRITE TEXT-012 TO W_FILE+W_LONG(12).
+  CALL FUNCTION 'WS_UPLOAD'
+       EXPORTING
+            FILENAME            = W_FILE
+            FILETYPE            = 'DAT'
+       TABLES
+            DATA_TAB            = WINDOWS
+       EXCEPTIONS
+            FILE_OPEN_ERROR     = 01
+            FILE_WRITE_ERROR    = 02
+            INVALID_FILESIZE    = 03
+            INVALID_TABLE_WIDTH = 04
+            INVALID_TYPE        = 05
+            NO_BATCH            = 06
+            UNKNOWN_ERROR       = 07.
+
+ENDFORM.
+
+************************************************************************
+*                       CHECK_EXISTE_FORM
+*  Descripción:
+*
+************************************************************************
+FORM CHECK_EXISTE_FORM.
+
+  DATA: W_ENTRADAS LIKE SY-TFILL,
+        W_ANSWER.
+
+  CALL FUNCTION 'SELECT_FORM'
+       EXPORTING
+            CLIENT        = SY-MANDT
+            FORM          = FORMHEADER-TDFORM
+            LANGUAGE      = FORMHEADER-TDSPRAS
+            STATUS        = '*'
+*           THROUGHCLIENT = ' '
+       IMPORTING
+            ENTRIES       = W_ENTRADAS
+       TABLES
+            SELECTIONS    = THEAD.
+  IF NOT W_ENTRADAS IS INITIAL.
+    CALL FUNCTION 'POPUP_TO_CONFIRM_STEP'
+         EXPORTING
+              DEFAULTOPTION = 'Y'
+              TEXTLINE1     = TEXT-021
+              TEXTLINE2     = TEXT-022
+              TITEL         = TEXT-023
+         IMPORTING
+              ANSWER        = W_ANSWER.
+    IF W_ANSWER <> 'J'.
+      STOP.                            "Para el report.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.

@@ -1,0 +1,1131 @@
+*--------------------------------------------------------------------------
+* Programa : ZPCS_CRM02
+* Cliente  : GAFISA
+* Módulo   : CS
+* Transação: VA03 e HB23 e IL03
+* Descrição: Interfaces com o CRM - Extração de Dados de Compras de Unidade
+* Autor    : Paula Camara                                  Data: 05/08/2008
+*--------------------------------------------------------------------------
+* Histórico de Alterações:
+*--------------------------------------------------------------------------
+* Data       |Change #  |Autor               |Alteração
+*--------------------------------------------------------------------------
+* 05/08/2008 |DEVK915031|Paula Camara        |Desenvolvimento Inicial
+*--------------------------------------------------------------------------
+* 30/09/2008 |DEVK919121|Elierge C Silva     |Alt. Campo UND_ID_UNIDADE
+*--------------------------------------------------------------------------
+* 01/10/2008 |DEVK919242|Elierge C Silva     |Alt. Campo UND_ID_UNIDADE
+*--------------------------------------------------------------------------
+* 01/10/2008 |DEVK919354|Elierge C Silva     |Alt. Campo part_cliente
+*--------------------------------------------------------------------------
+REPORT zpcs_crm02 NO STANDARD PAGE HEADING
+                  LINE-SIZE 80
+                  LINE-COUNT 65
+                  MESSAGE-ID zlcs001.
+
+
+*------------------------------------------------------------------------
+* Definição de Includes
+*------------------------------------------------------------------------
+
+
+*------------------------------------------------------------------------
+* Definição de Tabelas
+*------------------------------------------------------------------------
+TABLES: vbak.
+
+
+*------------------------------------------------------------------------
+* Definição de Estruturas, Tabelas Internas e Tipos
+*------------------------------------------------------------------------
+TYPES: BEGIN OF tp_data,
+         id_cliente(10),
+         principal(01),
+         part_cliente(03),
+         id_unid(21),
+         num_unid(05),
+         tp_unid(20),
+         util_unid(12),
+         area_util(10),
+         area_priv(10),
+         dt_escrit(10),
+         dt_contrato(10),
+         dt_parc_inad(10),
+         permut(01),
+         distrato(01),
+         dt_distrato(10),
+         vl_venda(15),
+         vl_entrada(15),
+         dt_fim_pagto(10),
+         qtd_parc(04),
+         tp_pagto(02),
+         dt_persline(10),
+         pers_line(03),
+         dt_chaves(10),
+         dt_bvu_ass(10),
+         dt_vistoria(10),
+         tp_planta(30),
+         vl_pline(15),
+         dt_contr_crm(10),
+         dt_contr_esc(10),
+         dt_contr_ass(10),
+         tp_contr(10),
+         dt_habtse(10),
+         num_cart(05),
+         num_matr(15),
+         num_averb(15),
+         num_espec(15),
+         gestao(08),
+         part_emp(03),
+         dt_atual(10).
+TYPES: END OF tp_data.
+
+TYPES: BEGIN OF tp_text,
+*>>> Inicio Alteração ECS - 30/09/2008
+*         text(600).
+         text(800).
+*<<< Fim Alteração ECS - 30/09/2008
+
+TYPES: END OF tp_text.
+
+TYPES: BEGIN OF tp_vbak,
+         vbeln    TYPE vbak-vbeln,
+         erdat    TYPE vbak-erdat,
+         audat    TYPE vbak-audat,
+         netwr    TYPE vbak-netwr,
+         waerk    TYPE vbak-waerk,
+         bstnk    TYPE vbak-bstnk,
+         bstdk    TYPE vbak-bstdk,
+         kunnr    TYPE vbak-kunnr,
+         aedat    TYPE vbak-aedat,
+         bukrs_vf TYPE vbak-bukrs_vf,
+         swenr    TYPE vbak-swenr,
+         smenr    TYPE vbak-smenr.
+TYPES: END OF tp_vbak.
+
+TYPES: BEGIN OF tp_vbap,
+         vbeln TYPE vbap-vbeln,
+         posnr TYPE vbap-posnr,
+         pstyv TYPE vbap-pstyv,
+         fkrel TYPE vbap-fkrel,
+         gsber TYPE vbap-gsber,
+         netwr TYPE vbap-netwr,
+         waerk TYPE vbap-waerk,
+         erdat TYPE vbap-erdat,
+         aedat TYPE vbap-aedat,
+         mvgr2 TYPE vbap-mvgr2.
+TYPES: END OF tp_vbap.
+
+TYPES: BEGIN OF tp_vbpa,
+         vbeln TYPE vbpa-vbeln,
+         posnr TYPE vbpa-posnr,
+         parvw TYPE vbpa-parvw,
+         kunnr TYPE vbpa-kunnr.
+TYPES: END OF tp_vbpa.
+
+TYPES: BEGIN OF tp_vbrk,
+         vbeln TYPE vbrk-vbeln,
+         fkdat TYPE vbrk-fkdat,
+         kunrg TYPE vbrk-kunrg,
+         kunag TYPE vbrk-kunag.
+TYPES: END OF tp_vbrk.
+
+TYPES: BEGIN OF tp_vbrp,
+         vbeln TYPE vbrp-vbeln,
+         posnr TYPE vbrp-posnr,
+         netwr TYPE vbrp-netwr,
+         vgbel TYPE vbrp-vgbel,
+         vgpos TYPE vbrp-vgpos,
+         mvgr2 TYPE vbrp-mvgr2,
+         abrbg TYPE vbrp-abrbg.
+TYPES: END OF tp_vbrp.
+
+TYPES: BEGIN OF tp_vimi01,
+         bukrs   TYPE vimi01-bukrs,
+         swenr   TYPE vimi01-swenr,
+         smenr   TYPE vimi01-smenr,
+         sgenr   TYPE vimi01-sgenr,
+         snks    TYPE vimi01-snks,
+         intreno TYPE vimi01-intreno,
+         gsber   TYPE vimi01-gsber,
+         refno   TYPE vimi01-refno,
+         homtyp  TYPE vimi01-homtyp,
+         prmtxt6 TYPE vimi01-prmtxt6.
+TYPES: END OF tp_vimi01.
+
+TYPES: BEGIN OF tp_vzsort,
+         sobjekt TYPE vzsort-sobjekt,
+         usr00   TYPE vzsort-usr00,
+         usr01   TYPE vzsort-usr01.
+TYPES: END OF tp_vzsort.
+
+TYPES: BEGIN OF tp_vzgpo,
+         sobjekt TYPE vzgpo-sobjekt,
+         roletyp TYPE vzgpo-roletyp,
+         partnr  TYPE vzgpo-partnr,
+         pbez    TYPE vzgpo-pbez.
+TYPES: END OF tp_vzgpo.
+
+TYPES: BEGIN OF tp_iflo,
+         tplnr TYPE iflot-tplnr,
+         tplma TYPE iflot-tplma.
+TYPES: END OF tp_iflo.
+
+TYPES: BEGIN OF tp_unid,
+         vbeln TYPE vbak-vbeln,
+         bukrs TYPE vbak-bukrs_vf,
+         swenr TYPE vbak-swenr,
+         smenr TYPE vbak-smenr,
+         swenn TYPE ztbcs_sd-swenr,
+         sgenn TYPE ztbcs_sd-sgenr,
+         smenn TYPE vimi01-smenr,
+         tplnr TYPE iflo-tplnr,
+         objek TYPE ausp-objek,
+         refno(6).
+TYPES: END OF tp_unid.
+
+TYPES: BEGIN OF tp_jest,
+         objnr TYPE jest-objnr,
+         stat  TYPE jest-stat,
+         udate TYPE jcds-udate.
+TYPES: END OF tp_jest.
+
+DATA: t_text   TYPE TABLE OF tp_text,
+      t_vbak   TYPE TABLE OF tp_vbak,
+      t_vbap   TYPE TABLE OF tp_vbap,
+      t_vbpa   TYPE TABLE OF tp_vbpa,
+      t_vbrk   TYPE TABLE OF tp_vbrk,
+      t_vbrp   TYPE TABLE OF tp_vbrp,
+      t_vimi01 TYPE TABLE OF tp_vimi01,
+      t_vzsort TYPE TABLE OF tp_vzsort,
+      t_vzgpo  TYPE TABLE OF tp_vzgpo,
+      t_iflo   TYPE TABLE OF tp_iflo,
+      t_unid   TYPE TABLE OF tp_unid,
+      t_jest   TYPE TABLE OF tp_jest,
+      t_carac  TYPE TABLE OF ztbcs_carac,
+      t_perc   TYPE TABLE OF ztbsd_perc.
+
+DATA: w_data TYPE tp_data.
+
+DATA: w_text LIKE LINE OF t_text.
+*>>> Inicio Alteração ECS - 30/09/2008
+DATA: v_text(800).
+*>>> Fim Alteração ECS - 30/09/2008
+
+FIELD-SYMBOLS: <fs_vbak>   LIKE LINE OF t_vbak,
+               <fs_unid>   LIKE LINE OF t_unid,
+               <fs_vimi01> LIKE LINE OF t_vimi01.
+
+
+*------------------------------------------------------------------------
+* Definição de Variáveis
+*------------------------------------------------------------------------
+
+
+*------------------------------------------------------------------------
+* Definição de Constantes
+*------------------------------------------------------------------------
+
+
+*------------------------------------------------------------------------
+* Definições de Tela
+*------------------------------------------------------------------------
+SELECTION-SCREEN: BEGIN OF BLOCK bl1 WITH FRAME TITLE text-t01.
+SELECT-OPTIONS: s_aedat FOR vbak-aedat,
+                s_vbeln FOR vbak-vbeln,
+                s_bukrs FOR vbak-bukrs_vf OBLIGATORY.
+SELECTION-SCREEN: END OF BLOCK bl1.
+SELECTION-SCREEN: BEGIN OF BLOCK bl2 WITH FRAME TITLE text-t02.
+SELECTION-SCREEN: BEGIN OF LINE.
+SELECTION-SCREEN: COMMENT 3(20) text-rb1 FOR FIELD rb_rede.
+SELECTION-SCREEN: POSITION 1.
+PARAMETERS: rb_rede RADIOBUTTON GROUP rb1.
+SELECTION-SCREEN: COMMENT 35(20) text-rb2 FOR FIELD rb_serv.
+SELECTION-SCREEN: POSITION 33.
+PARAMETERS: rb_serv RADIOBUTTON GROUP rb1 DEFAULT 'X'.
+SELECTION-SCREEN: END OF LINE.
+SELECTION-SCREEN: SKIP.
+PARAMETERS: p_path LIKE ibipparms-path OBLIGATORY
+                        DEFAULT '/usr/tmp/unidade.txt'.
+SELECTION-SCREEN: END OF BLOCK bl2.
+
+
+*------------------------------------------------------------------------
+* Inicialização da tela de seleção
+*------------------------------------------------------------------------
+INITIALIZATION.
+
+* Move a empresa 0010 (Gafisa) para o range de empresas
+  MOVE: 'I'    TO s_bukrs-sign,
+        'EQ'   TO s_bukrs-option,
+        '0010' TO s_bukrs-low.
+  APPEND s_bukrs.
+
+* Move as empresas "A*" até "J*" para o range de empresas, pois todas
+* são Gafisa
+  MOVE: 'I'  TO s_bukrs-sign,
+        'BT' TO s_bukrs-option,
+        'A*' TO s_bukrs-low,
+        'J*' TO s_bukrs-high.
+  APPEND s_bukrs.
+
+
+*------------------------------------------------------------------------
+* Processamento principal
+*------------------------------------------------------------------------
+START-OF-SELECTION.
+
+  PERFORM f_authority_check.
+  PERFORM f_select_data.
+  PERFORM f_append_header.
+  PERFORM f_append_data.
+  PERFORM f_append_trailler.
+  PERFORM f_download_data.
+
+END-OF-SELECTION.
+
+
+*------------------------------------------------------------------------
+* Form Rotines
+*------------------------------------------------------------------------
+*&---------------------------------------------------------------------*
+*&      Form  F_SELECT_DATA
+*&---------------------------------------------------------------------*
+*       Seleção dos dados
+*----------------------------------------------------------------------*
+FORM f_select_data.
+
+  TYPES: BEGIN OF tp_vbfa,
+           vbelv   TYPE vbfa-vbelv,
+           vbeln   TYPE vbfa-vbeln.
+  TYPES: END OF tp_vbfa.
+
+  TYPES: BEGIN OF tp_intreno,
+           intreno TYPE vimi01-intreno.
+  TYPES: END OF tp_intreno.
+
+  TYPES: BEGIN OF tp_objnr,
+           objnr TYPE jcds-objnr.
+  TYPES: END OF tp_objnr.
+
+  TYPES: BEGIN OF tp_cs_sd,
+           bukrs    TYPE ztbcs_sd-bukrs,
+           swenr    TYPE ztbcs_sd-swenr,
+           sgenr    TYPE ztbcs_sd-sgenr,
+           bukrs_ri TYPE ztbcs_sd-bukrs_ri,
+           swenr_ri TYPE ztbcs_sd-swenr_ri,
+           sgenr_ri TYPE ztbcs_sd-sgenr_ri.
+  TYPES: END OF tp_cs_sd.
+
+  TYPES: BEGIN OF tp_objek,
+           objek TYPE ausp-objek.
+  TYPES: END OF tp_objek.
+
+  DATA: tl_vbfa    TYPE TABLE OF tp_vbfa,
+        tl_intreno TYPE TABLE OF tp_intreno,
+        tl_objnr   TYPE TABLE OF tp_objnr,
+        tl_cssd    TYPE TABLE OF tp_cs_sd,
+        tl_objek   TYPE TABLE OF tp_objek.
+
+  DATA: wl_unid  LIKE LINE OF t_unid,
+        wl_vbap  LIKE LINE OF t_vbap,
+        wl_vbrk  LIKE LINE OF t_vbrk,
+        wl_iflo  LIKE LINE OF t_iflo.
+
+  DATA: vl_empr(04), vl_torre(04), vl_unid(06).
+
+  FIELD-SYMBOLS: <fs_vbfa> LIKE LINE OF tl_vbfa,
+                 <fs_cssd> LIKE LINE OF tl_cssd.
+
+  CONSTANTS: cl_auart  LIKE vbak-auart     VALUE 'Z400',
+             cl_vbtpn  LIKE vbfa-vbtyp_n   VALUE 'M',
+             cl_vbtpv  LIKE vbfa-vbtyp_v   VALUE 'C',
+             cl_rfbsc  LIKE vbrk-rfbsk     VALUE 'C',
+             cl_rfbsd  LIKE vbrk-rfbsk     VALUE 'D',
+             cl_numobj LIKE vzsort-snumobj VALUE 'VI',
+             cl_slwid  LIKE vzsort-slwid   VALUE 'ZRES003',
+             cl_rol10  LIKE vzgpo-roletyp  VALUE 'Z010',
+             cl_rol31  LIKE vzgpo-roletyp  VALUE 'Z031',
+             cl_klart  LIKE ausp-klart     VALUE '003',
+             cl_gaart  LIKE bgmkobj-gaart  VALUE '1',
+             cl_grptyp LIKE bp3010-grp_typ VALUE '002',
+             cl_sta19  LIKE jest-stat      VALUE 'E0019',
+             cl_sta25  LIKE jest-stat      VALUE 'E0025'.
+
+  CONSTANTS: cl_sep1(01) VALUE '/',
+             cl_sep2(01) VALUE '_',
+             cl_str(02)  VALUE 'B0'.
+
+  REFRESH: t_text, t_vbak, t_vbap, t_vbpa, t_vbrk, t_vbrp, t_vimi01,
+           t_vzsort, t_vzgpo, t_iflo, t_jest, t_perc, t_carac,
+           t_unid, tl_vbfa, tl_intreno, tl_objnr, tl_cssd, tl_objek.
+
+  IF s_aedat[] IS INITIAL.
+
+* Carga Inicial das ordens para seleção de todos os dados
+    SELECT vbeln erdat audat netwr waerk bstnk bstdk kunnr aedat
+           bukrs_vf swenr smenr
+           FROM vbak INTO TABLE t_vbak
+           WHERE vbeln    IN s_vbeln
+             AND auart    EQ cl_auart
+             AND bukrs_vf IN s_bukrs.
+
+  ELSE.
+
+* Carga Semanal das ordens somente com dados que foram atualizados
+    SELECT vbeln erdat audat netwr waerk bstnk bstdk kunnr aedat
+           bukrs_vf swenr smenr
+           FROM vbak INTO TABLE t_vbak
+           WHERE vbeln    IN s_vbeln
+             AND auart    EQ cl_auart
+             AND bukrs_vf IN s_bukrs
+             AND aedat    IN s_aedat.
+
+* Carga Semanal das ordens somente com novos registros
+    SELECT vbeln erdat audat netwr waerk bstnk bstdk kunnr aedat
+           bukrs_vf swenr smenr
+           FROM vbak APPENDING TABLE t_vbak
+           WHERE vbeln    IN s_vbeln
+             AND auart    EQ cl_auart
+             AND bukrs_vf IN s_bukrs
+             AND erdat    IN s_aedat
+             AND aedat    EQ space.
+
+  ENDIF.
+
+* Para todas as Propostas Identificadas Selecionadas
+  CHECK NOT t_vbak IS INITIAL.
+  SORT t_vbak BY vbeln ASCENDING.
+
+*** Início da alteração - Gabriel H. Monteiro - 10/09/2008
+* Seleciona os clientes (recebedores da ordem)
+  SELECT vbeln posnr parvw kunnr
+    FROM vbpa
+    INTO TABLE t_vbpa
+    FOR ALL ENTRIES IN t_vbak
+    WHERE vbeln EQ t_vbak-vbeln
+      AND parvw EQ 'WE'.
+  IF sy-subrc IS INITIAL.
+    SORT t_vbpa BY vbeln.
+
+  ENDIF.
+*** Fim da alteração    - Gabriel H. Monteiro - 10/09/2008
+
+* Seleciona os itens das Propostas
+  SELECT vbeln posnr pstyv fkrel gsber netwr waerk erdat aedat mvgr2
+         FROM vbap INTO TABLE t_vbap
+         FOR ALL ENTRIES IN t_vbak
+         WHERE vbeln EQ t_vbak-vbeln
+           AND abgru EQ space.
+  SORT t_vbap BY vbeln posnr ASCENDING.
+
+* Verifica se todos os doctos contém ao menos 1 item.
+  LOOP AT t_vbak ASSIGNING <fs_vbak>.
+    READ TABLE t_vbap INTO wl_vbap
+                      WITH KEY vbeln = <fs_vbak>-vbeln.
+    IF sy-subrc NE 0.
+      DELETE t_vbak.
+    ENDIF.
+  ENDLOOP.
+
+* Seleciona os percentuais dos clientes por ordem
+  CHECK NOT t_vbak IS INITIAL.
+  SELECT * FROM ztbsd_perc INTO TABLE t_perc
+           FOR ALL ENTRIES IN t_vbak
+           WHERE vbeln EQ t_vbak-vbeln.
+
+* Seleciona os doctos de faturamento no fluxo da ordem
+  SELECT DISTINCT vbelv vbeln
+         FROM vbfa INTO TABLE tl_vbfa
+         FOR ALL ENTRIES IN t_vbak
+         WHERE vbelv   EQ t_vbak-vbeln
+           AND vbtyp_n EQ cl_vbtpn
+           AND vbtyp_v EQ cl_vbtpv.
+
+* Para todos os Faturamentos Selecionadas
+  CHECK NOT tl_vbfa IS INITIAL.
+  SORT tl_vbfa BY vbelv ASCENDING.
+
+* Seleciona os Doctos de Faturamento
+  SELECT vbeln fkdat kunrg kunag
+         FROM vbrk INTO TABLE t_vbrk
+         FOR ALL ENTRIES IN tl_vbfa
+         WHERE vbeln EQ tl_vbfa-vbeln
+           AND rfbsk BETWEEN cl_rfbsc AND cl_rfbsd
+           AND sfakn EQ space
+           AND fksto EQ space.
+  SORT t_vbrk BY vbeln ASCENDING.
+
+* Seleciona os itens dos Doctos de Faturamento
+  IF NOT t_vbrk IS INITIAL.
+    SELECT vbeln posnr netwr vgbel vgpos mvgr2 abrbg
+           FROM vbrp INTO TABLE t_vbrp
+           FOR ALL ENTRIES IN t_vbrk
+           WHERE vbeln EQ t_vbrk-vbeln.
+    SORT t_vbrp BY vbeln posnr ASCENDING.
+  ENDIF.
+
+* Monta uma tabela com dados p/ a seleção de unidades
+  LOOP AT t_vbak ASSIGNING <fs_vbak>.
+    CLEAR: wl_unid, vl_empr, vl_torre, vl_unid.
+    MOVE: <fs_vbak>-vbeln    TO wl_unid-vbeln,
+          <fs_vbak>-bukrs_vf TO wl_unid-bukrs,
+          <fs_vbak>-swenr    TO wl_unid-swenr,
+          <fs_vbak>-smenr    TO wl_unid-smenr.
+    SPLIT <fs_vbak>-bstnk AT cl_sep1 INTO vl_empr vl_torre vl_unid.
+    SHIFT: vl_empr  RIGHT DELETING TRAILING space,
+           vl_torre RIGHT DELETING TRAILING space,
+           vl_unid  RIGHT DELETING TRAILING space.
+    TRANSLATE: vl_empr  USING ' 0',
+               vl_torre USING ' 0',
+               vl_unid  USING ' 0'.
+    TRANSLATE vl_empr TO UPPER CASE.
+    CONCATENATE wl_unid-bukrs vl_empr vl_torre vl_unid
+                INTO wl_unid-tplnr SEPARATED BY cl_sep2.
+    MOVE: vl_empr       TO wl_unid-swenn,
+          vl_torre      TO wl_unid-sgenn,
+          vl_unid       TO wl_unid-smenn,
+          wl_unid-tplnr TO wl_unid-objek.
+    APPEND wl_unid TO t_unid.
+  ENDLOOP.
+  SORT t_unid BY vbeln ASCENDING.
+
+* Seleciona os dados das unidades
+  CHECK NOT t_unid IS INITIAL.
+  SELECT bukrs swenr smenr sgenr snks intreno gsber refno
+         homtyp prmtxt6
+         FROM vimi01 INTO TABLE t_vimi01
+         FOR ALL ENTRIES IN t_unid
+         WHERE bukrs EQ t_unid-bukrs
+           AND swenr EQ t_unid-swenr
+           AND smenr EQ t_unid-smenr.
+  SORT t_vimi01 BY bukrs swenr smenr sgenr ASCENDING.
+
+* Seleciona o Empreendimento x Local de Instalação (Tabela De / Para).
+  SELECT bukrs swenr sgenr bukrs_ri swenr_ri sgenr_ri
+         FROM ztbcs_sd INTO TABLE tl_cssd
+         FOR ALL ENTRIES IN t_unid
+         WHERE bukrs EQ t_unid-bukrs
+           AND swenr EQ t_unid-swenn
+           AND sgenr EQ t_unid-sgenn.
+  SORT tl_cssd BY bukrs swenr sgenr ASCENDING.
+
+* Monta o novo local de instalação se o registro existir na tabela
+* ZTBCS_SD (De/Para Empreendimento x Local de Instalação)
+  LOOP AT t_unid ASSIGNING <fs_unid>.
+*>>> Inicio Alteração ECS - 01/10/2008
+*** Recupera número do Apto
+    UNASSIGN <fs_vimi01>.
+    READ TABLE t_vimi01 ASSIGNING <fs_vimi01>
+                        WITH KEY  bukrs = <fs_unid>-bukrs
+                                  swenr = <fs_unid>-swenr
+                                  smenr = <fs_unid>-smenr.
+    IF sy-subrc = 0.
+*** Número do Apto
+      <fs_unid>-refno = <fs_vimi01>-refno(6).
+      SHIFT: <fs_unid>-refno  RIGHT DELETING TRAILING space.
+      TRANSLATE: <fs_unid>-refno USING ' 0'.
+    ELSE.
+      <fs_unid>-refno = <fs_unid>-smenn.
+    ENDIF.
+*>>> Fim Alteração ECS - 01/10/2008
+
+    READ TABLE tl_cssd ASSIGNING <fs_cssd>
+                       WITH KEY bukrs = <fs_unid>-bukrs
+                                swenr = <fs_unid>-swenn
+                                sgenr = <fs_unid>-sgenn
+                       BINARY SEARCH.
+    IF sy-subrc EQ 0.
+      CLEAR: <fs_unid>-tplnr, vl_torre.
+      CONCATENATE: cl_str <fs_cssd>-sgenr_ri INTO vl_torre.
+*>>> Inicio Alteração ECS - 30/09/2008
+*      CONCATENATE <fs_cssd>-bukrs_ri <fs_cssd>-swenr_ri vl_torre
+*                  <fs_unid>-smenn
+      CONCATENATE <fs_cssd>-bukrs <fs_cssd>-swenr vl_torre <fs_unid>-refno
+*>>> Fim Alteração ECS - 30/09/2008
+                  INTO <fs_unid>-tplnr SEPARATED BY cl_sep2.
+      <fs_unid>-objek = <fs_unid>-tplnr.
+*>>> Inicio Alteração ECS - 01/10/2008
+    ELSE.
+      <fs_unid>-tplnr+15(6) = <fs_unid>-refno.
+*>>> Fim Alteração ECS - 01/10/2008
+    ENDIF.
+    MODIFY t_unid FROM <fs_unid>.
+
+  ENDLOOP.
+
+* Seleção dos dados dos locais na instalação
+  SELECT tplnr tplma FROM iflo INTO TABLE t_iflo
+                     FOR ALL ENTRIES IN t_unid
+                     WHERE tplnr EQ t_unid-tplnr.
+  SORT t_iflo BY tplnr ASCENDING.
+
+* Monta uma tabela com dados do campo INTRENO e SNKS
+  CHECK NOT t_vimi01 IS INITIAL.
+  LOOP AT t_vimi01 ASSIGNING <fs_vimi01>.
+    APPEND: <fs_vimi01>-intreno TO tl_intreno.
+    APPEND: <fs_vimi01>-snks    TO tl_objnr.
+  ENDLOOP.
+  SORT: tl_intreno BY intreno ASCENDING,
+        tl_objnr   BY objnr   ASCENDING.
+  DELETE ADJACENT DUPLICATES FROM tl_intreno.
+  DELETE ADJACENT DUPLICATES FROM tl_objnr.
+
+* Para todos os registros de Objeto selecionados
+  IF NOT tl_intreno IS INITIAL.
+    SELECT sobjekt usr00 usr01
+           FROM vzsort INTO TABLE t_vzsort
+           FOR ALL ENTRIES IN tl_intreno
+           WHERE snumobj EQ cl_numobj
+             AND sobjekt EQ tl_intreno-intreno
+             AND slwid   EQ cl_slwid.
+    SORT t_vzsort BY sobjekt ASCENDING.
+
+    SELECT sobjekt roletyp partnr pbez
+           FROM vzgpo INTO TABLE t_vzgpo
+           FOR ALL ENTRIES IN tl_intreno
+           WHERE snumobj EQ cl_numobj
+             AND sobjekt EQ tl_intreno-intreno
+             AND roletyp BETWEEN cl_rol10 AND cl_rol31.
+    SORT t_vzgpo BY sobjekt roletyp ASCENDING.
+  ENDIF.
+
+* Para todos os registros de Objeto selecionados
+  IF NOT tl_objnr IS INITIAL.
+    SELECT j~objnr j~stat c~udate
+           INTO CORRESPONDING FIELDS OF TABLE t_jest
+           FROM jest AS j
+           INNER JOIN jcds AS c
+           ON  j~objnr = c~objnr
+           AND j~stat  = c~stat
+           AND j~chgnr = c~chgnr
+           FOR ALL ENTRIES IN tl_objnr
+           WHERE j~objnr EQ tl_objnr-objnr
+             AND j~inact EQ space
+             AND ( j~stat EQ cl_sta19
+                OR j~stat EQ cl_sta25 ).
+    SORT t_jest BY objnr stat ASCENDING.
+  ENDIF.
+
+* Monta uma tabela com dados do TPLNR e TPLMA
+  IF NOT t_iflo IS INITIAL.
+    LOOP AT t_iflo INTO wl_iflo.
+      APPEND: wl_iflo-tplnr TO tl_objek.
+      APPEND: wl_iflo-tplma TO tl_objek.
+    ENDLOOP.
+    SORT: tl_objek BY objek ASCENDING.
+    DELETE ADJACENT DUPLICATES FROM tl_objek.
+  ENDIF.
+
+* Seleção da tabela de características para campos do arquivo
+  SELECT * FROM ztbcs_carac INTO TABLE t_carac.       "#EC CI_SGLSELECT
+  SORT t_carac BY atnam ASCENDING.
+
+* Unassign field_symbols.
+  UNASSIGN: <fs_vbak>, <fs_unid>, <fs_vimi01>.
+
+ENDFORM.                    " F_SELECT_DATA
+*&---------------------------------------------------------------------*
+*&      Form  F_APPEND_DATA
+*&---------------------------------------------------------------------*
+*       Adiciona os dados das diversas tabelas na tabela de saída
+*----------------------------------------------------------------------*
+FORM f_append_data.
+
+  DATA: tl_class  TYPE TABLE OF sclass,
+        tl_object TYPE TABLE OF clobjdat.
+
+  DATA: wl_class  LIKE LINE OF tl_class,
+        wl_object LIKE LINE OF tl_object.
+
+  FIELD-SYMBOLS: <fs_perc>  LIKE LINE OF t_perc,
+                 <fs_vbap>  LIKE LINE OF t_vbap,
+                 <fs_vbrk>  LIKE LINE OF t_vbrk,
+                 <fs_vbrp>  LIKE LINE OF t_vbrp,
+*** Início da alteração - Gabriel H. Monteiro - 10/09/2008
+                 <fs_vbpa>  LIKE LINE OF t_vbpa,
+*** Fim da alteração    - Gabriel H. Monteiro - 10/09/2008
+                 <fs_iflo>  LIKE LINE OF t_iflo,
+                 <fs_jest>  LIKE LINE OF t_jest,
+                 <fs_vsort> LIKE LINE OF t_vzsort,
+                 <fs_vzgpo> LIKE LINE OF t_vzgpo,
+                 <fs_carac> LIKE LINE OF t_carac.
+
+  FIELD-SYMBOLS: <fs_tab>   TYPE ANY.
+
+  DATA: vl_field(50).
+
+  DATA: vl_netwr LIKE vbap-netwr,
+        vl_objek LIKE ausp-objek.
+
+  DATA: vl_parc TYPE i,
+        vl_date TYPE d.
+
+*>>> Início Alteração ECS - 02/10/2008
+  Data: vl_perc(3)  type n.
+*<<< Fim Alteração ECS - 02/10/2008
+
+  CONSTANTS: cl_yes(01) VALUE 'S',
+             cl_no(01)  VALUE 'N'.
+
+  CONSTANTS: cl_klart LIKE ausp-klart    VALUE '003',
+             cl_rol20 LIKE vzgpo-roletyp VALUE 'Z020',
+             cl_rol30 LIKE vzgpo-roletyp VALUE 'Z030',
+             cl_pstv0 LIKE vbap-pstyv    VALUE 'Z100',
+             cl_pstv1 LIKE vbap-pstyv    VALUE 'Z101',
+             cl_sta19 LIKE jest-stat     VALUE 'E0019',
+             cl_sta25 LIKE jest-stat     VALUE 'E0025'.
+
+  CONSTANTS: cl_gaf(06) VALUE 'GAFISA',
+             cl_soc(05) VALUE 'SOCIO',
+             cl_inv(12) VALUE 'INVESTIMENTO',
+             cl_mor(07) VALUE 'MORADIA'.
+
+  CONSTANTS: cl_sep(01) VALUE '|'.
+
+* Processa todas as ordens selecionadas
+  LOOP AT t_vbak ASSIGNING <fs_vbak>.
+
+    CLEAR: w_data.
+
+* Le o registro de faturamento
+    READ TABLE t_vbrp ASSIGNING <fs_vbrp>
+                      WITH KEY vgbel = <fs_vbak>-vbeln.
+
+    IF sy-subrc EQ 0.
+
+* Le o registro de header do faturamento
+      READ TABLE t_vbrk ASSIGNING <fs_vbrk>
+                        WITH KEY vbeln = <fs_vbrp>-vbeln
+                        BINARY SEARCH.
+
+* ID do cliente e Data de Venda (Escritura)
+      IF sy-subrc EQ 0.
+*** Início da alteração - Gabriel H. Monteiro - 10/09/2008
+*** Cliente passado era o emissor e não o recebedor!!!
+*        WRITE: <fs_vbrk>-kunag TO w_data-id_cliente,
+*** Fim da alteração    - Gabriel H. Monteiro - 10/09/2008
+        WRITE <fs_vbrk>-fkdat TO w_data-dt_escrit
+                                 USING EDIT MASK '__/__/____'.
+      ENDIF.
+
+    ENDIF.
+
+* Se não encontrou o id do cliente no faturamento, move o id do docto.
+* O mesmo deve ocorrer com a data da escritura
+
+*** Início da alteração - Gabriel H. Monteiro - 10/09/2008
+    IF w_data-dt_escrit IS INITIAL.
+*    IF w_data-id_cliente IS INITIAL.
+*** Cliente passado era o emissor e não o recebedor!!!
+*      WRITE: <fs_vbak>-kunnr TO w_data-id_cliente,
+*** Fim da alteração    - Gabriel H. Monteiro - 10/09/2008
+
+      WRITE <fs_vbak>-audat TO w_data-dt_escrit
+                               USING EDIT MASK '__/__/____'.
+    ENDIF.
+
+*** Início da alteração - Gabriel H. Monteiro - 10/09/2008
+*** ID do cliente
+    READ TABLE t_vbpa ASSIGNING <fs_vbpa>
+                      WITH KEY vbeln = <fs_vbak>-vbeln
+                      BINARY SEARCH.
+    IF sy-subrc IS INITIAL.
+      WRITE <fs_vbpa>-kunnr TO w_data-id_cliente.
+
+    ENDIF.
+*** Fim da alteração    - Gabriel H. Monteiro - 10/09/2008
+
+* Indicador de Cliente Principal e % Participação do Cliente
+    READ TABLE t_perc ASSIGNING <fs_perc>
+                      WITH KEY vbeln   = <fs_vbak>-vbeln
+                               partner = <fs_vbpa>-kunnr.
+    IF sy-subrc EQ 0.
+      WRITE: cl_yes                TO w_data-principal.
+*>>> Início Alteração ECS - 02/10/2008
+      vl_perc = <fs_perc>-zpercentual.
+      w_data-part_cliente = vl_perc.
+*<<< Fim Alteração ECS - 02/10/2008
+    ELSE.
+      WRITE: cl_no TO w_data-principal.
+    ENDIF.
+
+* Tipo da Unidade
+    READ TABLE t_vimi01 ASSIGNING <fs_vimi01>
+                        WITH KEY bukrs = <fs_vbak>-bukrs_vf
+                                 swenr = <fs_vbak>-swenr
+                                 smenr = <fs_vbak>-smenr
+                        BINARY SEARCH.
+
+    IF sy-subrc EQ 0.
+
+      WRITE: <fs_vimi01>-homtyp TO w_data-tp_unid.
+
+* Área Útil e Área Privativa da Unidade
+      READ TABLE t_vzsort ASSIGNING <fs_vsort>
+                          WITH KEY sobjekt = <fs_vimi01>-intreno
+                          BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        WRITE: <fs_vsort>-usr00 TO w_data-area_util,
+               <fs_vsort>-usr01 TO w_data-area_priv.
+      ENDIF.
+
+* Responsabilidade da gestão do empreendimento e %part. gafisa/sócio
+      LOOP AT t_vzgpo ASSIGNING <fs_vzgpo>
+                      WHERE sobjekt EQ <fs_vimi01>-intreno
+                      AND ( roletyp EQ cl_rol20
+                         OR roletyp EQ cl_rol30 ).
+        WRITE: cl_gaf          TO w_data-gestao,
+               <fs_vzgpo>-pbez TO w_data-part_emp DECIMALS 0.
+      ENDLOOP.
+
+      IF sy-subrc NE 0.
+        WRITE: cl_soc TO w_data-gestao.
+      ENDIF.
+
+* Le a tabela de status da unidade p/ Preencher Permutante
+      READ TABLE t_jest ASSIGNING <fs_jest>
+                        WITH KEY objnr = <fs_vimi01>-snks
+                                 stat  = cl_sta19
+                        BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        MOVE: cl_yes TO w_data-permut.
+      ELSE.
+        MOVE: cl_no  TO w_data-permut.
+      ENDIF.
+
+* Le a tabela de status da unidade p/ Preencher dados de Distrato
+      READ TABLE t_jest ASSIGNING <fs_jest>
+                        WITH KEY objnr = <fs_vimi01>-snks
+                                 stat  = cl_sta25
+                        BINARY SEARCH.
+      IF sy-subrc EQ 0.
+        MOVE: cl_yes TO w_data-distrato.
+        WRITE: <fs_jest>-udate TO w_data-dt_distrato
+                               USING EDIT MASK '__/__/____'.
+      ELSE.
+        MOVE: cl_no TO w_data-distrato.
+      ENDIF.
+
+    ENDIF.
+
+* Valor Bruto de Venda da Unidade
+    WRITE: <fs_vbak>-netwr TO w_data-vl_venda.
+
+* Processa itens de entrada para selecionar o Valor de entrada no Ato
+    CLEAR: vl_netwr.
+    LOOP AT t_vbap ASSIGNING <fs_vbap>
+                   WHERE vbeln EQ <fs_vbak>-vbeln
+                     AND pstyv BETWEEN cl_pstv0 AND cl_pstv1.
+      vl_netwr = vl_netwr + <fs_vbap>-netwr.
+    ENDLOOP.
+    WRITE: vl_netwr TO w_data-vl_entrada.
+
+* Processa os registros de faturamento
+    CLEAR: vl_parc, vl_date.
+    LOOP AT t_vbrp ASSIGNING <fs_vbrp>
+                   WHERE vgbel = <fs_vbak>-vbeln.
+      ADD 1 TO vl_parc.
+      IF <fs_vbrp>-abrbg GT vl_date.
+        MOVE: <fs_vbrp>-abrbg TO vl_date.
+      ENDIF.
+    ENDLOOP.
+
+* Quantidade de Parcelas (Incluindo ATO)
+    WRITE: vl_parc TO w_data-qtd_parc.
+
+* Data de Término do Pagamento das Parcelas
+    WRITE: vl_date TO w_data-dt_fim_pagto USING EDIT MASK '__/__/____'.
+
+* ID da Unidade e Identificação da Unidade
+    READ TABLE t_unid ASSIGNING <fs_unid>
+                      WITH KEY vbeln   = <fs_vbak>-vbeln
+                      BINARY SEARCH.
+    IF sy-subrc EQ 0.
+
+      WRITE: <fs_unid>-tplnr TO w_data-id_unid,
+*>>> Inicio Alteração ECS -01/10/2008
+             <fs_unid>-refno+1(5) TO w_data-num_unid.
+*<<< Fim Alteração ECS -01/10/2008
+
+* Le a tabela de local de instalação
+      READ TABLE t_iflo ASSIGNING <fs_iflo>
+                        WITH KEY tplnr = <fs_unid>-tplnr
+                        BINARY SEARCH.
+      IF sy-subrc EQ 0.
+
+        CLEAR: vl_objek.
+        MOVE: <fs_iflo>-tplnr TO vl_objek.
+
+* Processa as características do local de instalação - unidade
+        REFRESH: tl_class, tl_object.
+        CALL FUNCTION 'CLAF_CLASSIFICATION_OF_OBJECTS'
+          EXPORTING
+            classtype          = cl_klart
+            object             = vl_objek
+          TABLES
+            t_class            = tl_class
+            t_objectdata       = tl_object
+          EXCEPTIONS
+            no_classification  = 1
+            no_classtypes      = 2
+            invalid_class_type = 3
+            OTHERS             = 4.
+
+* Processa as características que serão utilizadas no arquivo de saída.
+        LOOP AT tl_object INTO wl_object.
+          READ TABLE t_carac ASSIGNING <fs_carac>
+                             WITH KEY atnam = wl_object-atnam
+                             BINARY SEARCH.
+          IF sy-subrc EQ 0.
+* Se a característica for utilizada no arquivo de saída, move seu valor
+* para o campo do arquivo informado.
+            WRITE: <fs_carac>-field TO vl_field.
+            ASSIGN (vl_field) TO <fs_tab>.
+            WRITE: wl_object-ausp1 TO <fs_tab>.
+            UNASSIGN: <fs_tab>.
+          ENDIF.
+        ENDLOOP.
+
+      ENDIF.
+
+    ENDIF.
+
+* Data de atualização
+    IF <fs_vbak>-aedat IS INITIAL.
+      WRITE: <fs_vbak>-erdat TO w_data-dt_atual
+                                USING EDIT MASK '__/__/____'.
+    ELSE.
+      WRITE: <fs_vbak>-aedat TO w_data-dt_atual
+                                USING EDIT MASK '__/__/____'.
+    ENDIF.
+
+* Adiciona o registro na tabela de saída
+    CLEAR: v_text.
+    CONCATENATE w_data-id_cliente w_data-principal w_data-part_cliente
+                w_data-id_unid w_data-num_unid w_data-tp_unid
+                w_data-util_unid w_data-area_util w_data-area_priv
+                w_data-dt_escrit w_data-dt_contrato w_data-dt_parc_inad
+                w_data-permut w_data-distrato w_data-dt_distrato
+                w_data-vl_venda w_data-vl_entrada w_data-dt_fim_pagto
+                w_data-qtd_parc w_data-tp_pagto w_data-dt_persline
+                w_data-pers_line w_data-dt_chaves w_data-dt_bvu_ass
+                w_data-dt_vistoria w_data-tp_planta w_data-vl_pline
+                w_data-dt_contr_crm w_data-dt_contr_esc w_data-dt_contr_ass
+                w_data-tp_contr w_data-dt_habtse w_data-num_cart
+                w_data-num_matr w_data-num_averb w_data-num_espec
+                w_data-gestao w_data-part_emp w_data-dt_atual
+                INTO v_text SEPARATED BY cl_sep.
+    APPEND v_text TO t_text.
+
+  ENDLOOP.
+
+* Unassign field_symbols.
+  UNASSIGN: <fs_vbak>, <fs_unid>, <fs_vimi01>, <fs_vbap>, <fs_vbrk>,
+            <fs_vbrp>, <fs_iflo>, <fs_vsort>, <fs_vzgpo>, <fs_carac>.
+
+ENDFORM.                    " F_APPEND_DATA
+*&---------------------------------------------------------------------*
+*&      Form  F_DOWNLOAD_DATA
+*&---------------------------------------------------------------------*
+*       Download dos dados para um arquivo no local informado
+*----------------------------------------------------------------------*
+FORM f_download_data .
+
+  DATA: vl_file  TYPE string,
+        vl_mess  TYPE string,
+        vl_lines LIKE sy-tabix.
+
+* Mensagem de informação se tabela estiver vazia, exceto header/trailer
+  DESCRIBE TABLE t_text LINES vl_lines.
+  IF vl_lines LE 2.
+    MESSAGE i000 WITH text-m01.
+    EXIT.
+  ENDIF.
+
+* Exportação para a Rede
+  IF rb_rede EQ 'X'.
+
+    MOVE: p_path TO vl_file.
+
+* Download dos dados para a rede
+    CALL FUNCTION 'GUI_DOWNLOAD'
+      EXPORTING
+        filename                = vl_file
+      TABLES
+        data_tab                = t_text
+      EXCEPTIONS
+        file_write_error        = 1
+        no_batch                = 2
+        gui_refuse_filetransfer = 3
+        invalid_type            = 4
+        no_authority            = 5
+        unknown_error           = 6
+        header_not_allowed      = 7
+        separator_not_allowed   = 8
+        filesize_not_allowed    = 9
+        header_too_long         = 10
+        dp_error_create         = 11
+        dp_error_send           = 12
+        dp_error_write          = 13
+        unknown_dp_error        = 14
+        access_denied           = 15
+        dp_out_of_memory        = 16
+        disk_full               = 17
+        dp_timeout              = 18
+        file_not_found          = 19
+        dataprovider_exception  = 20
+        control_flush_error     = 21
+        OTHERS                  = 22.
+
+* mensagem de sucesso ou erro na exportação do arquivo
+    IF sy-subrc EQ 0.
+      MESSAGE i000 WITH text-m02.
+    ELSE.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+
+  ELSE.
+
+    OPEN DATASET p_path FOR APPENDING IN TEXT MODE
+                            ENCODING DEFAULT
+                            WITH SMART LINEFEED
+                            MESSAGE vl_mess.
+
+    IF sy-subrc EQ 0.
+
+      LOOP AT t_text INTO w_text.
+        TRANSFER w_text TO p_path.
+      ENDLOOP.
+
+      CLOSE DATASET p_path.
+
+    ENDIF.
+
+* mensagem de sucesso ou erro na exportação do arquivo
+    IF sy-subrc EQ 0.
+      MESSAGE i000 WITH text-m02.
+    ELSE.
+      MESSAGE i000 WITH vl_mess.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " F_DOWNLOAD_DATA
+*&---------------------------------------------------------------------*
+*&      Form  F_AUTHORITY_CHECK
+*&---------------------------------------------------------------------*
+*       Verifica se o usuário tem autorização para processar os dados da
+*       empresa informada (normalmente Gafisa - 0010 e de A* até J*)
+*----------------------------------------------------------------------*
+FORM f_authority_check.
+
+  CONSTANTS: cl_object TYPE agr_1251-object VALUE 'F_BKPF_BUK',
+             cl_bukrs  TYPE agr_1251-field  VALUE 'BUKRS',
+             cl_actvt  TYPE agr_1251-field  VALUE 'ACTVT',
+             cl_value  TYPE agr_1251-low    VALUE '03'.
+
+  TYPES: BEGIN OF tp_bukrs,
+           bukrs TYPE t001-bukrs.
+  TYPES: END OF tp_bukrs.
+
+  DATA: tl_bukrs TYPE TABLE OF tp_bukrs.
+
+  FIELD-SYMBOLS: <fs_bukrs> LIKE LINE OF tl_bukrs.
+
+  SELECT bukrs FROM t001 INTO TABLE tl_bukrs
+               WHERE bukrs IN s_bukrs.
+
+* Verifica a Autorização por Empresa
+  LOOP AT tl_bukrs ASSIGNING <fs_bukrs>.
+
+    AUTHORITY-CHECK OBJECT cl_object
+                    ID     cl_bukrs
+                    FIELD  <fs_bukrs>-bukrs
+                    ID     cl_actvt
+                    FIELD  cl_value.
+    IF sy-subrc NE 0.
+      MESSAGE e000 WITH text-m04 <fs_bukrs>-bukrs.
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    " F_AUTHORITY_CHECK
+*&---------------------------------------------------------------------*
+*&      Form  F_APPEND_HEADER
+*&---------------------------------------------------------------------*
+*       Adiciona uma linha de Header das colunas no arquivo
+*----------------------------------------------------------------------*
+FORM f_append_header.
+
+  CONSTANTS: cl_sep(01) VALUE '|'.
+
+  TYPES: BEGIN OF tp_tab,
+           coluna LIKE ztbcs_crm-coluna.
+  TYPES END OF tp_tab.
+
+  DATA: tl_tab TYPE TABLE OF tp_tab.
+
+  REFRESH: tl_tab.
+
+* Seleciona o header das colunas do arquivo
+  SELECT coluna FROM ztbcs_crm INTO TABLE tl_tab
+           WHERE programa EQ sy-repid.
+  CHECK sy-subrc EQ 0.
+
+  CONCATENATE LINES OF tl_tab INTO v_text SEPARATED BY cl_sep.
+  APPEND v_text TO t_text.
+
+ENDFORM.                    " F_APPEND_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  F_APPEND_TRAILLER
+*&---------------------------------------------------------------------*
+*       Adiciona uma linha de Trailler no arquivo
+*----------------------------------------------------------------------*
+FORM f_append_trailler.
+
+  CONSTANTS: cl_sep(01) VALUE '|'.
+
+  DATA: vl_lines(06) TYPE n, vl_datum(10).
+
+  DATA: vl_file(50), vl_process(50), vl_reg(50).
+
+  DATA: vl_longfile LIKE dbmsgora-filename,
+        vl_purefile LIKE sdbah-actid,
+        vl_pureext  LIKE sdbad-funct.
+
+  CLEAR: vl_longfile, vl_purefile, vl_pureext,
+         vl_file, vl_process, vl_reg, v_text.
+
+* Monta a String "FIM 'ARQUIVO'.TXT" em vl_file
+  WRITE: p_path TO vl_longfile.
+  CALL FUNCTION 'SPLIT_FILENAME'
+    EXPORTING
+      long_filename  = vl_longfile
+    IMPORTING
+      pure_filename  = vl_purefile
+      pure_extension = vl_pureext.
+
+  IF vl_pureext NE space.
+    CONCATENATE vl_purefile vl_pureext
+                INTO vl_purefile SEPARATED BY '.' .
+  ENDIF.
+  CONCATENATE text-001 vl_purefile INTO vl_file SEPARATED BY space.
+
+* Monta a String "PROCESSADO EM DD/MM/AAAA" em vl_process
+  WRITE: sy-datum TO vl_datum USING EDIT MASK '__/__/____'.
+  CONCATENATE text-002 vl_datum INTO vl_process SEPARATED BY space.
+
+* Monta a String "XXXXXXX REGISTROS" em vl_reg.
+  DESCRIBE TABLE t_text LINES vl_lines.
+  ADD 1 TO vl_lines.
+  SHIFT vl_lines LEFT DELETING LEADING '0'.
+  CONCATENATE vl_lines text-003 INTO vl_reg SEPARATED BY space.
+
+* Seleciona o header das colunas do arquivo
+  CONCATENATE vl_file vl_process vl_reg
+              INTO v_text SEPARATED BY cl_sep.
+  APPEND v_text TO t_text.
+
+ENDFORM.                    " F_APPEND_TRAILLER

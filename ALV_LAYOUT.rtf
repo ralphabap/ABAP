@@ -1,0 +1,2044 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1038\cocoasubrtf360
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww9000\viewh8400\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\ql\qnatural\pardirnatural
+
+\f0\fs24 \cf0 *---------------------------------------------------------------------*\
+* Programa : ZRSCFIR045_CX_REL_ANALITICO\
+* Cliente : RODOBENS\
+* M\'f3dulo : FI\
+* Transa\'e7\'e3o: ZFI0161\
+* Descri\'e7\'e3o: Relat\'f3rio Anal\'edtico\
+* Autor : Thiago Farias Gomes                       Data: 23/05/2012\
+*---------------------------------------------------------------------*\
+* Hist\'f3rico de Altera\'e7\'f5es:\
+*---------------------------------------------------------------------*\
+*Data       |Request #  | Autor              | Altera\'e7\'e3o\
+*---------------------------------------------------------------------*\
+*23/05/2012 |ECDK926822 |Thiago Farias Gomes |Desenvolvimento Inicial\
+*---------------------------------------------------------------------*\
+REPORT zrscfir045_cx_rel_analitico MESSAGE-ID zfi01.\
+\
+*---------------------------------------------------------------------*\
+* Defini\'e7\'e3o de type-pools\
+*---------------------------------------------------------------------*\
+TYPE-POOLS slis.\
+\
+*---------------------------------------------------------------------*\
+* Defini\'e7\'e3o do Dicion\'e1rio de dados\
+*---------------------------------------------------------------------*\
+TABLES: ztbfi064,ztbfi070.\
+\
+*---------------------------------------------------------------------*\
+* Defini\'e7\'e3o de Constantes\
+*---------------------------------------------------------------------*\
+CONSTANTS:\
+   c_x(01)     TYPE c VALUE'X'         ,"Flag Geral\
+   c_a(01)     TYPE c VALUE'A'         ,"Save Variant\
+*** Constantes para tipos de mensagem\
+   c_error(01) TYPE c VALUE'E'         ,"Msg Erro\
+*** Constante para tipo de documento\
+   c_cx(02)    TYPE c VALUE'CX'        ,"Tipo Documento\
+*** Constante para fun\'e7\'e3o pega dom\'ednio\
+  c_m_space    TYPE dcdomaget       VALUE'M  '     ,"Func. pega dom.\
+  c_doma       TYPE dd01l-domname   VALUE'ZDOFI039',"Dom. Stat.Cheque\
+  c_text       TYPE ddrefstruc-bool VALUE'X'       ,"Func. pega dom.\
+*** Constantes para as colunas do alv\
+  c_bukrs(05)    TYPE c VALUE'BUKRS'   ,"Empresa\
+  c_bupla(05)    TYPE c VALUE'BUPLA'   ,"Filial\
+  c_caixa(05)    TYPE c VALUE'CAIXA'   ,"Caixa\
+  c_dtabe(05)    TYPE c VALUE'DTABE'   ,"Data Movimento\
+  c_idmov(05)    TYPE c VALUE'IDMOV'   ,"Id Movimento\
+  c_tpdoc(05)    TYPE c VALUE'TPDOC'   ,"Tipo Documento\
+  c_numch(05)    TYPE c VALUE'NUMCH'   ,"N\'ba Cheque\
+  c_emche(05)    TYPE c VALUE'EMCHE'   ,"Emitente Cheque\
+  c_banco(05)    TYPE c VALUE'BANCO'   ,"Banco\
+  c_agenc(05)    TYPE c VALUE'AGENC'   ,"Ag\'eancia\
+  c_bankn(05)    TYPE c VALUE'BANKN'   ,"Conta Corrente\
+  c_dtven(05)    TYPE c VALUE'DTVEN'   ,"Data Vencimento\
+  c_cmc7(05)     TYPE c VALUE'CMC7'    ,"C\'f3digo CMC7\
+  c_status(06)   TYPE c VALUE'STATUS'  ,"Status Movimento\
+  c_uscri(05)    TYPE c VALUE'USCRI'   ,"Usu\'e1rio Caixa\
+  c_usliq(05)    TYPE c VALUE'USLIQ'   ,"Usu\'e1rio Processamento\
+  c_uslib(05)    TYPE c VALUE'USLIB'   ,"Usu\'e1rio Aprovador\
+  c_txtop(05)    TYPE c VALUE'TXTOP'   ,"Texto Opera\'e7\'e3o\
+  c_vllan(05)    TYPE c VALUE'VLLAN'   ,"Valor Lan\'e7amento\
+  c_belnr(05)    TYPE c VALUE'BELNR'   ,"N\'ba Documento\
+  c_dtcri(05)    TYPE c VALUE'DTCRI'   ,"Data Documento\
+  c_hrcri(05)    TYPE c VALUE'HRCRI'   ,"Hora Documento\
+  c_stche(05)    TYPE c VALUE'STCHE'   ,"Status Cheque\
+  c_descr(05)    TYPE c VALUE'DESCR'   ,"Trans. Cont\'e1bil\
+  c_monta(05)    TYPE c VALUE'MONTA'   ,"Montante\
+  c_stdms(05)    TYPE c VALUE'STDMS'   ,"Status DMS\
+  c_vljur(05)    TYPE c VALUE'VLJUR'   ,"Juros\
+  c_vlmul(05)    TYPE c VALUE'VLMUL'   ,"Multa\
+  c_vldes(05)    TYPE c VALUE'VLDES'   ,"Desconto\
+  c_autor(05)    TYPE c VALUE'AUTOR'   ,"Autoriza\'e7\'e3o\
+  c_codbp(05)    TYPE c VALUE'CODBP'   ,"C\'f3d. BP\
+  c_nambp(05)    TYPE c VALUE'NAMBP'   ,"Nome BP\
+  c_mepag(05)    TYPE c VALUE'MEPAG'   ,"D\'e9bito/Cr\'e9dito\
+  c_admca(05)    TYPE c VALUE'ADMCA'   ,"BP Administradora\
+  c_xblnr(05)    TYPE c VALUE'XBLNR'   ,"Refer\'eancia\
+  c_zuonr(05)    TYPE c VALUE'ZUONR'   ,"Atribui\'e7\'e3o\
+  c_prctr(05)    TYPE c VALUE'PRCTR'   ,"Centro Lucro\
+  c_aufnr(05)    TYPE c VALUE'AUFNR'   ,"Ordem Interna\
+  c_kostl(05)    TYPE c VALUE'KOSTL'   ,"Centro Custo\
+  c_projk(05)    TYPE c VALUE'PROJK'   ,"Elemento PEP\
+  c_stlan(05)    TYPE c VALUE'STLAN'   ,"Status Lan\'e7amento\
+  c_dapro(05)    TYPE c VALUE'DAPRO'   ,"Qtde Dias Aprov.\
+  c_dcomp(05)    TYPE c VALUE'DCOMP'   ,"Qtde Dias Compen.\
+  c_vertn(05)    TYPE c VALUE'VERTN'   ,"Contrato\
+  c_sgtxt(05)    TYPE c VALUE'SGTXT'   ,"Texto Partida\
+  c_dtliq(05)    TYPE c VALUE'DTLIQ'   ,"Data Compensa\'e7\'e3o\
+  c_hrliq(05)    TYPE c VALUE'HRLIQ'   ,"Hora Compensa\'e7\'e3o\
+  c_vlcom(05)    TYPE c VALUE'VLCOM'   ,"Valor Compensa\'e7\'e3o\
+  c_txcom(05)    TYPE c VALUE'TXCOM'   ,"Texto Compensa\'e7\'e3o\
+  c_tabalv(10)   TYPE c VALUE'GW_ALV'  ,"Tab. Interna Alv\
+  c_align(01)    TYPE c VALUE'L'       ,"Alinham. Coluna alv\
+  c_texto(01)    TYPE c VALUE'L'       ,"Tam. texto Col. alv\
+  c_bel_comp(10) TYPE c VALUE'BELNR_COMP',"Docum. Compensa\'e7\'e3o\
+  c_ztbfi064(08) TYPE c VALUE'ZTBFI064',"Ref. ztbfi064\
+  c_ztbfi067(08) TYPE c VALUE'ZTBFI067',"Ref. ztbfi067\
+  c_ztbfi070(08) TYPE c VALUE'ZTBFI070',"Ref. ztbfi070\
+  c_ztbfi071(08) TYPE c VALUE'ZTBFI071',"Ref. ztbfi071\
+  c_ztbfi075(08) TYPE c VALUE'ZTBFI075',"Ref. ztbfi075\
+  c_kna1(04)     TYPE c VALUE'KNA1'    ,"Ref. kna1\
+  c_bseg(04)     TYPE c VALUE'BSEG'    ,"Ref. bseg\
+  c_bkpf(04)     TYPE c VALUE'BKPF'    ."Ref. bkpf\
+\
+*--------------------------------------------------------------------*\
+* Defini\'e7\'e3o de Tipos\
+*--------------------------------------------------------------------*\
+TYPES:\
+*** Tipo para select-options\
+BEGIN OF s_opt_type,\
+  status TYPE zdefi161,\
+END OF s_opt_type,\
+\
+*** Tipo tabela ALV\
+BEGIN OF alv_type,\
+bukrs      TYPE ztbfi064-bukrs     ,"Empresa\
+bupla      TYPE ztbfi064-bupla     ,"Filial\
+caixa      TYPE ztbfi064-caixa     ,"Livro Caixa\
+dtabe      TYPE ztbfi064-dtabe     ,"Data Movimento\
+stcod(02)  TYPE n                  ,"C\'f3d. status movimento\
+status     TYPE string             ,"Status Movimento\
+uscri      TYPE ztbfi070-uscri     ,"Usu\'e1rio Caixa\
+usliq      TYPE ztbfi064-usliq     ,"Usu\'e1rio Processamento\
+uslib      TYPE ztbfi064-uslib     ,"Usu\'e1rio Aprovador\
+idmov      TYPE ztbfi069-idmov     ,"Id do Movimento\
+tpdoc(02)  TYPE c                  ,"Tipo Documento\
+belnr      TYPE ztbfi070-belnr     ,"N\'ba Documento\
+dtcri      TYPE ztbfi070-dtcri     ,"Data Documento\
+hrcri      TYPE ztbfi070-hrcri     ,"Hora Documento\
+stche      TYPE string             ,"Status Cheque\
+descr      TYPE ztbfi075-descr     ,"Transa\'e7\'e3o Cont\'e1bil\
+monta      TYPE ztbfi070-vllan     ,"Montante\
+stdms(03)  TYPE c                  ,"Status DMS\
+emche      TYPE ztbfi067-tname     ,"Emitente Cheque\
+txtop      TYPE ztbfi075-texto     ,"Texto Opera\'e7\'e3o\
+vllan      TYPE ztbfi070-vllan     ,"Valor Lan\'e7amento\
+vljur      TYPE ztbfi071-vljur     ,"Juros\
+vlmul      TYPE ztbfi071-vlmul     ,"Multa\
+vldes      TYPE ztbfi071-vldes     ,"Desconto\
+autor(03)  TYPE c                  ,"Autorizado\
+codbp      TYPE kna1-kunnr         ,"C\'f3digo BP\
+nambp      TYPE kna1-name1         ,"Nome BP\
+mepag      TYPE ztbfi070-mepag     ,"D\'e9bito/Cr\'e9dito\
+admca      TYPE ztbfi070-admca     ,"BP Administradora\
+dtven      TYPE ztbfi067-dtven     ,"Data Vencimento\
+xblnr      TYPE bkpf-xblnr         ,"Refer\'eancia\
+zuonr      TYPE bseg-zuonr         ,"Atribui\'e7\'e3o\
+prctr      TYPE bseg-prctr         ,"Centro Lucro\
+banco      TYPE ztbfi067-banco     ,"C\'f3digo Banco\
+agenc      TYPE ztbfi067-agenc     ,"Ag\'eancia\
+bankn      TYPE ztbfi067-bankn     ,"Conta Corrente\
+numch      TYPE ztbfi067-numch     ,"N\'ba Cheque\
+cmc7       TYPE ztbfi067-cmc7      ,"CMC7\
+aufnr      TYPE bseg-aufnr         ,"Ordem Interna\
+kostl      TYPE bseg-kostl         ,"Centro Custo\
+projk      TYPE bseg-projk         ,"Elemento PEP\
+stlan      TYPE string             ,"Status Lan\'e7amento\
+dapro      TYPE i                  ,"Qtde Dias Aprova\'e7\'e3o\
+dcomp      TYPE i                  ,"Qtde Dias Compensa\'e7\'e3o\
+vertn      TYPE bseg-vertn         ,"Contrato\
+sgtxt      TYPE bseg-sgtxt         ,"Texto Partida\
+belnr_comp TYPE ztbfi070-belnr_comp,"Documento Compensa\'e7\'e3o\
+dtliq      TYPE ztbfi070-dtliq     ,"Data Compensa\'e7\'e3o\
+hrliq      TYPE ztbfi070-hrliq     ,"Hora Compensa\'e7\'e3o\
+vlcom      TYPE ztbfi070-vllan     ,"Valor Compensa\'e7\'e3o\
+txcom      TYPE string             ,"Texto Compensa\'e7\'e3o\
+END OF alv_type.\
+\
+*--------------------------------------------------------------------*\
+* Defini\'e7\'e3o de Tabelas Internas Globais\
+*--------------------------------------------------------------------*\
+DATA:\
+*** Tabelas para sele\'e7\'e3o referente \'e0 ZTBFI070\
+  gw_064     TYPE STANDARD TABLE OF ztbfi064,\
+  gw_067_70  TYPE STANDARD TABLE OF ztbfi067,\
+  gw_069     TYPE STANDARD TABLE OF ztbfi069,\
+  gw_070     TYPE STANDARD TABLE OF ztbfi070,\
+  gw_075_70  TYPE STANDARD TABLE OF ztbfi075,\
+  gw_080_70  TYPE STANDARD TABLE OF ztbfi080,\
+  gw_bseg_70 TYPE STANDARD TABLE OF bseg,\
+  gw_kna1_70 TYPE STANDARD TABLE OF kna1,\
+  gw_bkpf_70 TYPE STANDARD TABLE OF bkpf,\
+*** Tabelas para sele\'e7\'e3o referente \'e0 ZTBFI071\
+  gw_071     TYPE STANDARD TABLE OF ztbfi071,\
+  gw_080_71  TYPE STANDARD TABLE OF ztbfi080,\
+  gw_bseg_71 TYPE STANDARD TABLE OF bseg,\
+  gw_bkpf_71 TYPE STANDARD TABLE OF bkpf,\
+  gw_kna1_69 TYPE STANDARD TABLE OF kna1,\
+  gw_alv     TYPE STANDARD TABLE OF alv_type,\
+  gw_stach   TYPE STANDARD TABLE OF dd07v,\
+*** Tabela de ordena\'e7\'e3o do alv\
+  gw_sortinfo   TYPE STANDARD TABLE OF slis_sortinfo_alv,\
+*** Tabela de montagem das colunas do alv\
+  gw_fieldcat   TYPE STANDARD TABLE OF slis_fieldcat_alv.\
+\
+*--------------------------------------------------------------------*\
+* Defini\'e7\'e3o de Estruturas Globais\
+*--------------------------------------------------------------------*\
+DATA:\
+  gs_variant  TYPE disvariant,\
+  gs_alv      TYPE alv_type,\
+  gs_fieldcat TYPE slis_fieldcat_alv,\
+  gs_layout   TYPE slis_layout_alv.\
+\
+*--------------------------------------------------------------------*\
+* Defini\'e7\'e3o de Ponteiros\
+*--------------------------------------------------------------------*\
+FIELD-SYMBOLS:\
+*** Ponteiros referentes \'e0 tabela ZTBFI070\
+ <fs_064_70>  TYPE ztbfi064,\
+ <fs_067_70>  TYPE ztbfi067,\
+ <fs_069_70>  TYPE ztbfi069,\
+ <fs_070>     TYPE ztbfi070,\
+ <fs_075_70>  TYPE ztbfi075,\
+ <fs_080_70>  TYPE ztbfi080,\
+ <fs_bseg_70> TYPE bseg,\
+ <fs_bkpf_70> TYPE bkpf,\
+ <fs_kna1_70> TYPE kna1,\
+*** Ponteiros referentes \'e0 tabela ZTBFI071\
+ <fs_064_71>  TYPE ztbfi064,\
+ <fs_069_71>  TYPE ztbfi069,\
+ <fs_071>     TYPE ztbfi071,\
+ <fs_080_71>  TYPE ztbfi080,\
+ <fs_bseg_71> TYPE bseg,\
+ <fs_bkpf_71> TYPE bkpf,\
+ <fs_kna1_69> TYPE kna1,\
+ <fs_stach>   TYPE dd07v.\
+\
+*--------------------------------------------------------------------*\
+* Defini\'e7\'e3o de Vari\'e1veis Globais\
+*--------------------------------------------------------------------*\
+DATA:\
+   gv_status TYPE zdefi161,"Status do movimento\
+   gc_erro   TYPE c.\
+\
+*--------------------------------------------------------------------*\
+* Defini\'e7\'e3o das Telas de Sele\'e7\'f5es\
+*--------------------------------------------------------------------*\
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.\
+\
+SELECT-OPTIONS:\
+  s_empr  FOR ztbfi064-bukrs        ,"Empresa\
+  s_fil   FOR ztbfi064-bupla        ,"Filial\
+  s_caixa FOR ztbfi064-caixa        ,"Caixa\
+  s_dtmov FOR ztbfi064-dtabe        ,"Data de movimento\
+  s_stat  FOR gv_status             ,"Status do movimento\
+  s_uscri FOR ztbfi070-uscri        ,"Usu\'e1rio oper. do caixa\
+  s_uslib FOR ztbfi064-uslib        ,"Usu\'e1rio de process. de caixa\
+  s_usliq FOR ztbfi064-usliq        ."Usu\'e1rio aprov. de caixa\
+\
+SELECTION-SCREEN END OF BLOCK b1.\
+\
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.\
+\
+PARAMETERS:\
+  p_layout TYPE disvariant-variant.\
+\
+SELECTION-SCREEN END OF BLOCK b2.\
+\
+*** Cria ajuda de pesquisa para layout\
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_layout.\
+  PERFORM zf_alv_f4.\
+\
+*---------------------------------------------------------------------*\
+* In\'edcializa eventos\
+*---------------------------------------------------------------------*\
+INITIALIZATION.\
+\
+*** Variante do ALV\
+  PERFORM zf_alv_init.\
+\
+*---------------------------------------------------------------------*\
+* In\'edcio das sele\'e7\'f5es\
+*---------------------------------------------------------------------*\
+START-OF-SELECTION.\
+\
+*** Agrupa os forms para sele\'e7\'e3o dos dados\
+  PERFORM zf_selecao_dados.\
+\
+*** Pega textos do dom\'ednio do status do cheque\
+  PERFORM zf_dominio_st_cheque.\
+\
+*** Processa e preenche as colunas do ALV com base na tabela ztbfi070\
+  PERFORM zf_processa_dados_70.\
+\
+*** Processa e preenche as colunas do ALV com base na tabela ztbfi071\
+  PERFORM zf_processa_dados_71.\
+\
+*** Este form executa a montagem do alv atrav\'e9s dos performs\
+  PERFORM zf_montar_alv.\
+\
+*&--------------------------------------------------------------------*\
+*& Form  zf_alv_f4\
+*&--------------------------------------------------------------------*\
+*& Ajuda de pesquisa para layout\
+*---------------------------------------------------------------------*\
+FORM zf_alv_f4 .\
+\
+  gs_variant-report = sy-repid.\
+\
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'\
+    EXPORTING\
+      is_variant = gs_variant\
+      i_save     = c_a\
+    IMPORTING\
+      es_variant = gs_variant\
+    EXCEPTIONS\
+      not_found  = 2.\
+\
+  IF sy-subrc = 2.\
+    MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno\
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.\
+  ELSE.\
+    p_layout = gs_variant-variant.\
+  ENDIF.\
+\
+ENDFORM.                                                    " zf_alv_f4\
+\
+*&--------------------------------------------------------------------*\
+*& Form  zf_alv_init\
+*&--------------------------------------------------------------------*\
+*& Inicia as variants para o alv\
+*---------------------------------------------------------------------*\
+FORM zf_alv_init .\
+\
+  gs_variant-report = sy-repid.\
+\
+  CALL FUNCTION 'REUSE_ALV_VARIANT_DEFAULT_GET'\
+    EXPORTING\
+      i_save     = c_a\
+    CHANGING\
+      cs_variant = gs_variant\
+    EXCEPTIONS\
+      not_found  = 2.\
+  IF sy-subrc IS INITIAL.\
+    p_layout = gs_variant-variant.\
+  ENDIF.\
+\
+ENDFORM.                                " zf_alv_init\
+\
+*&--------------------------------------------------------------------*\
+*& Form zf_selecao_dados\
+*&--------------------------------------------------------------------*\
+*& Agrupa todas as sele\'e7\'f5es de dados\
+*---------------------------------------------------------------------*\
+FORM zf_selecao_dados.\
+\
+*** Verifica se os campos obrigat\'f3rios est\'e3o preenchidos\
+  IF s_empr    IS INITIAL\
+    OR s_fil   IS INITIAL\
+    OR s_caixa IS INITIAL.\
+\
+*** Mensagem - Preencha os campos obrigat\'f3rios\
+    MESSAGE s006 WITH text-003 DISPLAY LIKE c_error.\
+    LEAVE LIST-PROCESSING.\
+\
+  ELSE.\
+\
+*** Sele\'e7\'e3o tabela ztbfi064\
+    PERFORM zf_selecao064.\
+*** Sele\'e7\'e3o tabela ztbfi069\
+    PERFORM zf_selecao069.\
+*** Chama rotina das sele\'e7\'f5es para ztbfi070\
+    PERFORM zf_selecoes_70.\
+*** Chama rotina das sele\'e7\'f5es para ztbfi071\
+    PERFORM zf_selecoes_71.\
+\
+  ENDIF.\
+\
+ENDFORM.                             " zf_selecao_dados\
+\
+*&--------------------------------------------------------------------*\
+*& Form zf_selecoes_70\
+*&--------------------------------------------------------------------*\
+*& Agrupa todas as sele\'e7\'f5es de dados para tabela ztbfi070\
+*---------------------------------------------------------------------*\
+FORM zf_selecoes_70.\
+  PERFORM zf_selecaokna1_69.\
+  PERFORM zf_selecao070    .\
+  PERFORM zf_selecaobseg_70.\
+  PERFORM zf_selecao067_70 .\
+  PERFORM zf_selecaokna1_70.\
+  PERFORM zf_selecao075_70 .\
+  PERFORM zf_selecao080_70 .\
+  PERFORM zf_selecaobkpf_70.\
+ENDFORM.                             " zf_selecoes_70\
+\
+*&---------------------------------------------------------------------*\
+*& Form  zf_selecoes_71\
+*&---------------------------------------------------------------------*\
+*  Agrupa todas as sele\'e7\'f5es de dados para tabela ztbfi071\
+*----------------------------------------------------------------------*\
+FORM zf_selecoes_71.\
+  PERFORM zf_selecao071    .\
+  PERFORM zf_selecao080_71 .\
+  PERFORM zf_selecaobseg_71.\
+  PERFORM zf_selecaobkpf_71.\
+ENDFORM.                    " zf_selecoes_71\
+\
+*&--------------------------------------------------------------------*\
+*& Form zf_selecao064\
+*&--------------------------------------------------------------------*\
+*& Sele\'e7\'e3o dos dados na tabela ztbfi064\
+*---------------------------------------------------------------------*\
+FORM zf_selecao064.\
+\
+  REFRESH: gw_064[].\
+  SELECT *\
+    INTO TABLE gw_064\
+    FROM ztbfi064\
+    WHERE bukrs IN s_empr\
+      AND bupla IN s_fil\
+      AND caixa IN s_caixa\
+      AND dtabe IN s_dtmov\
+      AND usliq IN s_usliq\
+      AND uslib IN s_uslib.\
+\
+  IF sy-subrc IS INITIAL.\
+\
+    SORT gw_064 BY bukrs ASCENDING\
+                   bupla ASCENDING\
+                   caixa ASCENDING.\
+  ENDIF.\
+\
+ENDFORM.                             " zf_selecao064\
+\
+*&--------------------------------------------------------------------*\
+*& Form zf_selecao069\
+*&--------------------------------------------------------------------*\
+*& Sele\'e7\'e3o dos dados na tabela ztbfi069\
+*---------------------------------------------------------------------*\
+FORM zf_selecao069.\
+\
+  IF gw_064[] IS INITIAL.\
+\
+*** Mensagem - N\'e3o existem registros para este filtro\
+    MESSAGE s006 WITH text-004 DISPLAY LIKE c_error.\
+    LEAVE LIST-PROCESSING.\
+\
+  ELSE.\
+\
+    REFRESH: gw_069[].\
+    SELECT *\
+       INTO TABLE gw_069\
+       FROM ztbfi069\
+       FOR ALL ENTRIES IN gw_064\
+       WHERE bukrs =  gw_064-bukrs\
+         AND bupla =  gw_064-bupla\
+         AND caixa =  gw_064-caixa\
+         AND dtabe IN s_dtmov.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_069 BY bukrs ASCENDING\
+                     bupla ASCENDING\
+                     caixa ASCENDING\
+                     idmov ASCENDING.\
+\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                             " zf_selecao069\
+\
+*&--------------------------------------------------------------------*\
+*& Form zf_selecaokna1_69\
+*&--------------------------------------------------------------------*\
+*& Sele\'e7\'e3o dos dados na tabela kna1 para tabela ztbfi069\
+*---------------------------------------------------------------------*\
+FORM zf_selecaokna1_69.\
+\
+  IF gw_069[] IS INITIAL.\
+\
+*** Mensagem - N\'e3o existem registros para este filtro\
+    MESSAGE s006 WITH text-004 DISPLAY LIKE c_error.\
+    LEAVE LIST-PROCESSING.\
+\
+  ELSE.\
+\
+    REFRESH: gw_kna1_69[].\
+    SELECT *\
+      INTO TABLE gw_kna1_69\
+      FROM kna1\
+      FOR ALL ENTRIES IN gw_069\
+      WHERE kunnr = gw_069-kunnr.\
+\
+    IF sy-subrc IS INITIAL.\
+      SORT gw_kna1_69 BY kunnr ASCENDING.\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                             " zf_selecaokna1_69\
+\
+*&--------------------------------------------------------------------*\
+*& Form zf_selecao070\
+*&--------------------------------------------------------------------*\
+*& Sele\'e7\'e3o dos dados na tabela ztbfi070\
+*---------------------------------------------------------------------*\
+FORM zf_selecao070.\
+\
+  IF NOT gw_069[] IS INITIAL.\
+\
+    REFRESH: gw_070[].\
+    SELECT *\
+      INTO TABLE gw_070\
+      FROM ztbfi070\
+      FOR ALL ENTRIES IN gw_069\
+      WHERE bukrs = gw_069-bukrs\
+        AND bupla = gw_069-bupla\
+        AND caixa = gw_069-caixa\
+        AND idmov = gw_069-idmov\
+        AND uscri IN s_uscri.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_070 BY bukrs ASCENDING\
+                     bupla ASCENDING\
+                     caixa ASCENDING\
+                     idmov ASCENDING\
+                     idlan ASCENDING.\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                             " zf_selecao070\
+\
+*&---------------------------------------------------------------------*\
+*& Form  zf_selecaobseg_70\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela bseg para tabela ztbfi070\
+*----------------------------------------------------------------------*\
+FORM zf_selecaobseg_70.\
+\
+  IF NOT gw_070[] IS INITIAL.\
+\
+    REFRESH: gw_bseg_70[].\
+    SELECT *\
+       INTO TABLE gw_bseg_70\
+       FROM bseg\
+       FOR ALL ENTRIES IN gw_070\
+       WHERE bukrs = gw_070-bukrs\
+         AND belnr = gw_070-belnr\
+         AND gjahr = gw_070-gjahr\
+         AND buzei = gw_070-buzei.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_bseg_70 BY bukrs ASCENDING\
+                         belnr ASCENDING\
+                         gjahr ASCENDING\
+                         buzei ASCENDING.\
+    ENDIF.\
+\
+  ENDIF.\
+\
+ENDFORM.                    " zf_selecaobseg_70\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_selecao067_70\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela ztbfi067 para tabela gw_070\
+*----------------------------------------------------------------------*\
+FORM zf_selecao067_70.\
+\
+  IF NOT gw_070[] IS INITIAL.\
+\
+    REFRESH: gw_067_70[].\
+    SELECT *\
+      INTO TABLE gw_067_70\
+      FROM ztbfi067\
+      FOR ALL ENTRIES IN gw_070\
+      WHERE bukrs = gw_070-bukrs\
+        AND bupla = gw_070-bupla\
+        AND caixa = gw_070-caixa\
+        AND idche = gw_070-idche.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_067_70 BY bukrs ASCENDING\
+                        bupla ASCENDING\
+                        caixa ASCENDING.\
+\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                    " zf_selecao067_70\
+\
+*&---------------------------------------------------------------------*\
+*& Form  zf_selecaokna1_70\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela kna1 para tabela gw_067_70\
+*----------------------------------------------------------------------*\
+FORM zf_selecaokna1_70.\
+\
+  IF NOT gw_067_70[] IS INITIAL.\
+\
+    REFRESH: gw_kna1_70[].\
+    SELECT *\
+       INTO TABLE gw_kna1_70\
+       FROM kna1\
+       FOR ALL ENTRIES IN gw_067_70\
+       WHERE kunnr = gw_067_70-kunnr.\
+\
+    IF sy-subrc IS INITIAL.\
+      SORT gw_kna1_70 BY kunnr ASCENDING.\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                    " zf_selecaokna1_70\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_selecao075_70\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela ztbfi075 para a tabela gw_075_70\
+*----------------------------------------------------------------------*\
+FORM zf_selecao075_70.\
+\
+  IF NOT gw_070[] IS INITIAL.\
+\
+    REFRESH: gw_075_70[].\
+    SELECT *\
+       INTO TABLE gw_075_70\
+       FROM ztbfi075\
+       FOR ALL ENTRIES IN gw_070\
+       WHERE bukrs = gw_070-bukrs\
+         AND opera = gw_070-opera.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_075_70 BY bukrs ASCENDING.\
+\
+    ENDIF.\
+  ENDIF.\
+ENDFORM.                    " zf_selecao075_70\
+\
+*&---------------------------------------------------------------------*\
+*&  Form zf_selecao080_70\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela ztbfi080 para gw_080_70\
+*----------------------------------------------------------------------*\
+FORM zf_selecao080_70.\
+\
+  IF NOT gw_070[] IS INITIAL.\
+\
+    REFRESH: gw_080_70[].\
+    SELECT *\
+       INTO TABLE gw_080_70\
+       FROM ztbfi080\
+       FOR ALL ENTRIES IN gw_070\
+       WHERE bukrs = gw_070-bukrs\
+         AND bupla = gw_070-bupla\
+         AND caixa = gw_070-caixa\
+         AND idmov = gw_070-idmov\
+         AND idlan = gw_070-idlan.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_080_70 BY bukrs ASCENDING\
+                        bupla ASCENDING\
+                        caixa ASCENDING\
+                        idmov ASCENDING.\
+\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                            " zf_selecao080_70\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_selecaobkpf_70\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela bkpf para gw_bkpa_70\
+*----------------------------------------------------------------------*\
+FORM zf_selecaobkpf_70.\
+\
+  IF NOT gw_070[] IS INITIAL.\
+\
+    REFRESH: gw_bkpf_70[].\
+    SELECT *\
+       INTO TABLE gw_bkpf_70\
+       FROM bkpf\
+       FOR ALL ENTRIES IN gw_070\
+       WHERE bukrs = gw_070-bukrs\
+         AND belnr = gw_070-belnr\
+         AND gjahr = gw_070-gjahr.\
+\
+    IF sy-subrc IS INITIAL.\
+      SORT gw_bkpf_70 BY bukrs ASCENDING\
+                         belnr ASCENDING\
+                         gjahr ASCENDING.\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                    " zf_selecaobkpf_70\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_selecao071\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela ztbfi071\
+*----------------------------------------------------------------------*\
+FORM zf_selecao071.\
+\
+  IF NOT gw_069[] IS INITIAL.\
+\
+    REFRESH: gw_071[].\
+    SELECT *\
+       INTO TABLE gw_071\
+       FROM ztbfi071\
+       FOR ALL ENTRIES IN gw_069\
+       WHERE bukrs =  gw_069-bukrs\
+         AND bupla =  gw_069-bupla\
+         AND caixa =  gw_069-caixa\
+         AND idmov =  gw_069-idmov\
+         AND uscri IN s_uscri.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_071 BY bukrs ASCENDING\
+                     bupla ASCENDING\
+                     caixa ASCENDING\
+                     idmov ASCENDING.\
+\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                    " zf_selecao071\
+\
+*&---------------------------------------------------------------------*\
+*&  Form zf_selecao080_71\
+*&---------------------------------------------------------------------*\
+*   Sele\'e7\'e3o dos dados na tabela ztbfi080 para gw_071\
+*----------------------------------------------------------------------*\
+FORM zf_selecao080_71.\
+\
+  IF NOT gw_071[] IS INITIAL.\
+\
+    REFRESH: gw_080_71[].\
+    SELECT *\
+       INTO TABLE gw_080_71\
+       FROM ztbfi080\
+       FOR ALL ENTRIES IN gw_071\
+       WHERE bukrs = gw_071-bukrs\
+         AND bupla = gw_071-bupla\
+         AND caixa = gw_071-caixa\
+         AND idmov = gw_071-idmov.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_080_71 BY bukrs ASCENDING\
+                        bupla ASCENDING\
+                        caixa ASCENDING\
+                        idmov ASCENDING.\
+\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                    " zf_selecao080_71\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_selecaobseg_71\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela bseg para tabela gw_071\
+*----------------------------------------------------------------------*\
+FORM zf_selecaobseg_71.\
+\
+  IF NOT gw_071[] IS INITIAL.\
+\
+    REFRESH: gw_bseg_71[].\
+    SELECT *\
+       INTO TABLE gw_bseg_71\
+       FROM bseg\
+       FOR ALL ENTRIES IN gw_071\
+       WHERE bukrs = gw_071-bukrs\
+         AND belnr = gw_071-belnr\
+         AND gjahr = gw_071-gjahr\
+         AND buzei = gw_071-buzei.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_bseg_71 BY bukrs ASCENDING\
+                         belnr ASCENDING\
+                         gjahr ASCENDING\
+                         buzei ASCENDING.\
+    ENDIF.\
+\
+  ENDIF.\
+\
+ENDFORM.                    " zf_selecaobseg_71\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_selecaobkpf_71\
+*&---------------------------------------------------------------------*\
+*  Sele\'e7\'e3o dos dados na tabela bkpf para a tabela gw_071\
+*----------------------------------------------------------------------*\
+FORM zf_selecaobkpf_71.\
+\
+  IF NOT gw_071[] IS INITIAL.\
+\
+    REFRESH: gw_bkpf_71[].\
+    SELECT *\
+       INTO TABLE gw_bkpf_71\
+       FROM bkpf\
+       FOR ALL ENTRIES IN gw_071\
+       WHERE bukrs = gw_071-bukrs\
+         AND belnr = gw_071-belnr\
+         AND gjahr = gw_071-gjahr.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+      SORT gw_bkpf_71 BY bukrs ASCENDING\
+                         belnr ASCENDING\
+                         gjahr ASCENDING.\
+\
+    ENDIF.\
+  ENDIF.\
+\
+ENDFORM.                        " zf_selecaobkpf_71\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_processa_dados_70\
+*&---------------------------------------------------------------------*\
+*  Processa e preenche as colunas do ALV com base na tabela ztbfi070\
+*----------------------------------------------------------------------*\
+FORM zf_processa_dados_70.\
+\
+  CLEAR: gs_alv.\
+  LOOP AT gw_070 ASSIGNING <fs_070>.\
+\
+*** L\'ea a tabela interna 069\
+    UNASSIGN <fs_069_70>.\
+    READ TABLE gw_069\
+    WITH KEY bukrs = <fs_070>-bukrs\
+             bupla = <fs_070>-bupla\
+             caixa = <fs_070>-caixa\
+             idmov = <fs_070>-idmov\
+    BINARY SEARCH ASSIGNING <fs_069_70>.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+*** L\'ea a tabela interna 064\
+      UNASSIGN <fs_064_70>.\
+      READ TABLE gw_064\
+      WITH KEY bukrs = <fs_069_70>-bukrs\
+               bupla = <fs_069_70>-bupla\
+               caixa = <fs_069_70>-caixa\
+               dtabe = <fs_069_70>-dtabe\
+      BINARY SEARCH ASSIGNING <fs_064_70>.\
+\
+      IF sy-subrc IS INITIAL.\
+\
+        gs_alv-bukrs = <fs_064_70>-bukrs.\
+        gs_alv-bupla = <fs_064_70>-bupla.\
+        gs_alv-caixa = <fs_064_70>-caixa.\
+        gs_alv-dtabe = <fs_064_70>-dtabe.\
+        gs_alv-usliq = <fs_064_70>-usliq.\
+        gs_alv-uslib = <fs_064_70>-uslib.\
+\
+\
+        IF NOT <fs_069_70>-estor IS INITIAL.\
+          gs_alv-stcod  = 05.      "C\'f3d. Estornado\
+          gs_alv-status = text-062."Txt. Estornado\
+        ELSE.\
+\
+          IF <fs_064_70>-cxfec IS INITIAL.\
+\
+            gs_alv-stcod  = 01.      "C\'f3d. Aberto\
+            gs_alv-status = text-059."Txt. Aberto\
+\
+          ELSEIF NOT <fs_064_70>-cxfec IS INITIAL\
+             AND <fs_064_70>-liber IS INITIAL.\
+\
+            gs_alv-stcod  = 02.      "C\'f3d. Fechado\
+            gs_alv-status = text-060."Txt. Fechado\
+\
+          ELSEIF NOT <fs_064_70>-cxfec IS INITIAL\
+             AND NOT <fs_064_70>-liber IS INITIAL\
+             AND <fs_064_70>-compe IS INITIAL.\
+\
+            gs_alv-stcod  = 03.      "C\'f3d. Aprovado\
+            gs_alv-status = text-061."Txt. Aprovado\
+\
+          ELSEIF NOT <fs_064_70>-cxfec IS INITIAL\
+             AND NOT <fs_064_70>-liber IS INITIAL\
+             AND NOT <fs_064_70>-compe IS INITIAL.\
+\
+            gs_alv-stcod  = 04.      "C\'f3d. Compensado\
+            gs_alv-status = text-007."Txt. Compensado\
+\
+          ENDIF.\
+        ENDIF.\
+\
+*** Verifica se o registro \'e9 compensado\
+        IF NOT <fs_064_70>-cxfec    IS INITIAL\
+          AND NOT <fs_064_70>-liber IS INITIAL\
+          AND NOT <fs_064_70>-compe IS INITIAL.\
+          gs_alv-stlan  = text-007."Compensado\
+        ENDIF.\
+\
+*** Calcula diferen\'e7a em dias entre as datas informadas(Aprova\'e7\'e3o)\
+        CLEAR: gc_erro.\
+        PERFORM zf_calc_dias USING <fs_064_70>-dtlib\
+                                   <fs_064_70>-dtfec\
+                          CHANGING gs_alv-dapro\
+                                   gc_erro.\
+\
+*** Calcula diferen\'e7a em dias entre as datas informadas(Compensa\'e7\'e3o)\
+        CLEAR: gc_erro.\
+        PERFORM zf_calc_dias USING <fs_064_70>-dtliq\
+                                   <fs_064_70>-dtlib\
+                          CHANGING gs_alv-dcomp\
+                                   gc_erro.\
+\
+        gs_alv-idmov = <fs_069_70>-idmov.\
+\
+*** L\'ea a tabela interna kna1 da 069\
+        UNASSIGN <fs_kna1_69>.\
+        READ TABLE gw_kna1_69\
+        WITH KEY kunnr = <fs_069_70>-kunnr\
+        BINARY SEARCH ASSIGNING <fs_kna1_69>.\
+\
+        IF sy-subrc IS INITIAL.\
+          gs_alv-codbp = <fs_kna1_69>-kunnr.\
+          gs_alv-nambp = <fs_kna1_69>-name1.\
+        ENDIF.\
+\
+*** L\'ea a tabela interna 067\
+        UNASSIGN <fs_067_70>.\
+        READ TABLE gw_067_70\
+        WITH KEY bukrs = <fs_070>-bukrs\
+                 bupla = <fs_070>-bupla\
+                 caixa = <fs_070>-caixa\
+                 idche = <fs_070>-idche\
+        BINARY SEARCH ASSIGNING <fs_067_70>.\
+\
+        IF sy-subrc IS INITIAL.\
+\
+          gs_alv-dtven = <fs_067_70>-dtven.\
+          gs_alv-banco = <fs_067_70>-banco.\
+          gs_alv-agenc = <fs_067_70>-agenc.\
+          gs_alv-bankn = <fs_067_70>-bankn.\
+          gs_alv-numch = <fs_067_70>-numch.\
+          gs_alv-cmc7  = <fs_067_70>-cmc7.\
+\
+*** L\'ea a tabela com os valores fixos do dom\'ednio\
+          UNASSIGN <fs_stach>.\
+          READ TABLE gw_stach\
+          WITH KEY domvalue_l = <fs_067_70>-stach\
+          BINARY SEARCH ASSIGNING <fs_stach>.\
+\
+          IF sy-subrc IS INITIAL.\
+            gs_alv-stche = <fs_stach>-ddtext.\
+          ENDIF.\
+\
+*** L\'ea a tabela interna kna1 da 067\
+          UNASSIGN <fs_kna1_70>.\
+          READ TABLE gw_kna1_70\
+          WITH KEY kunnr = <fs_067_70>-kunnr\
+          BINARY SEARCH ASSIGNING <fs_kna1_70>.\
+\
+          IF sy-subrc IS INITIAL.\
+\
+            IF NOT <fs_067_70>-terce IS INITIAL.\
+              gs_alv-emche = <fs_067_70>-tname.\
+            ELSE.\
+              IF NOT <fs_kna1_70>-name1 IS INITIAL.\
+                gs_alv-emche = <fs_kna1_70>-name1.\
+              ENDIF.\
+            ENDIF.\
+\
+          ENDIF.\
+        ENDIF.\
+\
+*** L\'ea a tabela interna 075\
+        UNASSIGN <fs_075_70>.\
+        READ TABLE gw_075_70\
+        WITH KEY bukrs = <fs_070>-bukrs\
+                 opera = <fs_070>-opera\
+        BINARY SEARCH ASSIGNING <fs_075_70>.\
+\
+        IF sy-subrc IS INITIAL.\
+          gs_alv-descr = <fs_075_70>-descr.\
+\
+*** Fun\'e7\'e3o para retornar o texto de complemento da opera\'e7\'e3o\
+          CALL FUNCTION 'ZRSCFIM018_CX_TEXTO_OPERA'\
+            EXPORTING\
+              i_texto = <fs_075_70>-texto\
+              i_compl = <fs_070>-compl\
+            IMPORTING\
+              e_texto = gs_alv-txtop.\
+\
+        ENDIF.\
+\
+*** L\'ea a tabela interna 080\
+        UNASSIGN <fs_080_70>.\
+        READ TABLE gw_080_70\
+        WITH KEY bukrs = <fs_070>-bukrs\
+                 bupla = <fs_070>-bupla\
+                 caixa = <fs_070>-caixa\
+                 idmov = <fs_070>-idmov\
+                 idlan = <fs_070>-idlan\
+        BINARY SEARCH ASSIGNING <fs_080_70>.\
+\
+        IF sy-subrc IS INITIAL.\
+          gs_alv-stdms = text-005."Sim\
+        ELSE.\
+          gs_alv-stdms = text-006."N\'e3o\
+        ENDIF.\
+\
+*** L\'ea a tabela interna bkpf\
+        UNASSIGN <fs_bkpf_70>.\
+        READ TABLE gw_bkpf_70\
+        WITH KEY bukrs = <fs_070>-bukrs\
+                 belnr = <fs_070>-belnr\
+                 gjahr = <fs_070>-gjahr\
+        BINARY SEARCH ASSIGNING <fs_bkpf_70>.\
+\
+        IF sy-subrc IS INITIAL.\
+          gs_alv-xblnr = <fs_bkpf_70>-xblnr.\
+        ENDIF.\
+\
+*** L\'ea a tabela interna bseg\
+        UNASSIGN <fs_bseg_70>.\
+        READ TABLE gw_bseg_70\
+        WITH KEY bukrs = <fs_070>-bukrs\
+                 belnr = <fs_070>-belnr\
+                 gjahr = <fs_070>-gjahr\
+                 buzei = <fs_070>-buzei\
+        BINARY SEARCH ASSIGNING <fs_bseg_70>.\
+\
+        IF sy-subrc IS INITIAL.\
+          gs_alv-zuonr = <fs_bseg_70>-zuonr.\
+          gs_alv-prctr = <fs_bseg_70>-prctr.\
+          gs_alv-aufnr = <fs_bseg_70>-aufnr.\
+          gs_alv-kostl = <fs_bseg_70>-kostl.\
+          gs_alv-projk = <fs_bseg_70>-projk.\
+          gs_alv-vertn = <fs_bseg_70>-vertn.\
+          gs_alv-sgtxt = <fs_bseg_70>-sgtxt.\
+        ENDIF.\
+\
+        UNASSIGN <fs_071>.\
+        READ TABLE gw_071\
+        WITH KEY bukrs =  <fs_070>-bukrs\
+                 bupla =  <fs_070>-bupla\
+                 caixa =  <fs_070>-caixa\
+                 idmov =  <fs_070>-idmov\
+        BINARY SEARCH ASSIGNING <fs_071>.\
+\
+        IF sy-subrc IS INITIAL.\
+          IF NOT <fs_071>-belnr_comp IS INITIAL.\
+            gs_alv-txcom = text-008."DOC. COMPENSA\'c7\'c3O\
+          ENDIF.\
+        ENDIF.\
+\
+        gs_alv-tpdoc      = c_cx.\
+        gs_alv-belnr      = <fs_070>-belnr.\
+        gs_alv-uscri      = <fs_070>-uscri.\
+        gs_alv-dtcri      = <fs_070>-dtcri.\
+        gs_alv-hrcri      = <fs_070>-hrcri.\
+        gs_alv-monta      = <fs_070>-vllan.\
+        gs_alv-vllan      = <fs_070>-vllan.\
+        gs_alv-mepag      = <fs_070>-mepag.\
+        gs_alv-admca      = <fs_070>-admca.\
+        gs_alv-belnr_comp = <fs_070>-belnr_comp.\
+        gs_alv-dtliq      = <fs_070>-dtliq.\
+        gs_alv-hrliq      = <fs_070>-hrliq.\
+        gs_alv-vlcom      = <fs_070>-vllan.\
+\
+*** Verifica autoriza\'e7\'e3o\
+        IF gs_alv-stcod  = 03  "Aprovado\
+         OR gs_alv-stcod = 04. "Compensado\
+          gs_alv-autor = text-005." Sim\
+        ELSE.\
+          gs_alv-autor = text-006." N\'e3o\
+        ENDIF.\
+\
+        APPEND gs_alv TO gw_alv.\
+        CLEAR: gs_alv.\
+\
+      ENDIF.\
+    ENDIF.\
+\
+  ENDLOOP.\
+\
+ENDFORM.                    " zf_processa_dados_70\
+\
+*&---------------------------------------------------------------------*\
+*&  Form zf_processa_dados_71\
+*&---------------------------------------------------------------------*\
+*   Processa e preenche as colunas do ALV com base na tabela ztbfi071\
+*----------------------------------------------------------------------*\
+FORM zf_processa_dados_71.\
+\
+  LOOP AT gw_071 ASSIGNING <fs_071>.\
+\
+*** L\'ea a tabela interna 069\
+    UNASSIGN <fs_069_71>.\
+    READ TABLE gw_069\
+    WITH KEY bukrs = <fs_071>-bukrs\
+             bupla = <fs_071>-bupla\
+             caixa = <fs_071>-caixa\
+             idmov = <fs_071>-idmov\
+    BINARY SEARCH ASSIGNING <fs_069_71>.\
+\
+    IF sy-subrc IS INITIAL.\
+\
+*** L\'ea a tabela interna 064\
+      UNASSIGN <fs_064_71>.\
+      READ TABLE gw_064\
+      WITH KEY bukrs = <fs_069_71>-bukrs\
+               bupla = <fs_069_71>-bupla\
+               caixa = <fs_069_71>-caixa\
+               dtabe = <fs_069_71>-dtabe\
+      BINARY SEARCH ASSIGNING <fs_064_71>.\
+\
+      IF sy-subrc IS INITIAL.\
+\
+        IF NOT <fs_069_71>-estor IS INITIAL.\
+          gs_alv-stcod  = 05.      "C\'f3d. Estornado\
+          gs_alv-status = text-062."Txt. Estornado\
+        ELSE.\
+\
+          IF <fs_064_71>-cxfec IS INITIAL.\
+\
+            gs_alv-stcod  = 01.      "C\'f3d. Aberto\
+            gs_alv-status = text-059."Txt. Aberto\
+\
+          ELSEIF NOT <fs_064_71>-cxfec IS INITIAL\
+             AND <fs_064_71>-liber     IS INITIAL.\
+\
+            gs_alv-stcod  = 02.      "C\'f3d. Fechado\
+            gs_alv-status = text-060."Txt. Fechado\
+\
+          ELSEIF NOT <fs_064_71>-cxfec IS INITIAL\
+             AND NOT <fs_064_71>-liber IS INITIAL\
+             AND <fs_064_71>-compe     IS INITIAL.\
+\
+            gs_alv-stcod  = 03.      "C\'f3d. Aprovado\
+            gs_alv-status = text-061."Txt. Aprovado\
+\
+          ELSEIF NOT <fs_064_71>-cxfec IS INITIAL\
+             AND NOT <fs_064_71>-liber IS INITIAL\
+             AND NOT <fs_064_71>-compe IS INITIAL.\
+\
+            gs_alv-stcod  = 04.      "C\'f3d. Compensado\
+            gs_alv-status = text-007."Txt. Compensado\
+\
+          ENDIF.\
+        ENDIF.\
+\
+        gs_alv-bukrs = <fs_064_71>-bukrs.\
+        gs_alv-bupla = <fs_064_71>-bupla.\
+        gs_alv-caixa = <fs_064_71>-caixa.\
+        gs_alv-dtabe = <fs_064_71>-dtabe.\
+        gs_alv-usliq = <fs_064_71>-usliq.\
+        gs_alv-uslib = <fs_064_71>-uslib.\
+\
+        gs_alv-idmov = <fs_069_71>-idmov.\
+\
+*** L\'ea a tabela interna kna1_069\
+        UNASSIGN <fs_kna1_69>.\
+        READ TABLE gw_kna1_69\
+        WITH KEY kunnr = <fs_069_71>-kunnr\
+        BINARY SEARCH ASSIGNING <fs_kna1_69>.\
+\
+        IF sy-subrc IS INITIAL.\
+          gs_alv-codbp = <fs_kna1_69>-kunnr.\
+          gs_alv-nambp = <fs_kna1_69>-name1.\
+        ENDIF.\
+\
+*** L\'ea a tabela interna bkpf pela tab. interna 071\
+        UNASSIGN <fs_bkpf_71>.\
+        READ TABLE gw_bkpf_71\
+        WITH KEY bukrs = <fs_071>-bukrs\
+                 belnr = <fs_071>-belnr\
+                 gjahr = <fs_071>-gjahr\
+        BINARY SEARCH ASSIGNING <fs_bkpf_71>.\
+\
+        IF sy-subrc IS INITIAL.\
+          gs_alv-tpdoc = <fs_bkpf_71>-blart.\
+          gs_alv-xblnr = <fs_bkpf_71>-xblnr.\
+        ENDIF.\
+\
+*** L\'ea a tabela interna bseg pela tab. interna 071\
+        UNASSIGN <fs_bseg_71>.\
+        READ TABLE gw_bseg_71\
+        WITH KEY bukrs = <fs_071>-bukrs\
+                 belnr = <fs_071>-belnr\
+                 gjahr = <fs_071>-gjahr\
+                 buzei = <fs_071>-buzei\
+        BINARY SEARCH ASSIGNING <fs_bseg_71>.\
+\
+        IF sy-subrc IS INITIAL.\
+\
+          gs_alv-zuonr  = <fs_bseg_71>-zuonr.\
+          gs_alv-prctr  = <fs_bseg_71>-prctr.\
+          gs_alv-aufnr  = <fs_bseg_71>-aufnr.\
+          gs_alv-kostl  = <fs_bseg_71>-kostl.\
+          gs_alv-projk  = <fs_bseg_71>-projk.\
+          gs_alv-vertn  = <fs_bseg_71>-vertn.\
+          gs_alv-sgtxt  = <fs_bseg_71>-sgtxt.\
+\
+        ENDIF.\
+\
+*** L\'ea a tabela interna 080 pela tab. interna 071\
+        UNASSIGN <fs_080_71>.\
+        READ TABLE gw_080_71\
+        WITH KEY bukrs = <fs_071>-bukrs\
+                 bupla = <fs_071>-bupla\
+                 caixa = <fs_071>-caixa\
+                 idmov = <fs_071>-idmov\
+        BINARY SEARCH ASSIGNING <fs_080_71>.\
+\
+        IF sy-subrc IS INITIAL.\
+          gs_alv-stdms = text-005."Sim\
+        ELSE.\
+          gs_alv-stdms = text-006."N\'e3o\
+        ENDIF.\
+\
+*** L\'ea a tabela interna 070 pela tab. interna 071\
+        UNASSIGN <fs_070>.\
+        READ TABLE gw_070\
+        WITH KEY bukrs = <fs_071>-bukrs\
+                 bupla = <fs_071>-bupla\
+                 caixa = <fs_071>-caixa\
+                 idmov = <fs_071>-idmov\
+        BINARY SEARCH ASSIGNING <fs_070>.\
+\
+        IF sy-subrc IS INITIAL.\
+          IF NOT <fs_070>-belnr_comp IS INITIAL.\
+            gs_alv-txcom = text-008."DOC. COMPENSA\'c7\'c3O\
+          ENDIF.\
+        ENDIF.\
+\
+        gs_alv-belnr      = <fs_071>-belnr.\
+        gs_alv-uscri      = <fs_071>-uscri.\
+        gs_alv-dtcri      = <fs_071>-dtcri.\
+        gs_alv-hrcri      = <fs_071>-hrcri.\
+        gs_alv-monta      = <fs_071>-vllan.\
+        gs_alv-vllan      = <fs_071>-vllan.\
+        gs_alv-vljur      = <fs_071>-vljur.\
+        gs_alv-vlmul      = <fs_071>-vlmul.\
+        gs_alv-vldes      = <fs_071>-vldes.\
+        gs_alv-dtven      = <fs_071>-dtven.\
+        gs_alv-dtliq      = <fs_071>-dtliq.\
+        gs_alv-hrliq      = <fs_071>-hrliq.\
+        gs_alv-vlcom      = <fs_071>-vllan.\
+        gs_alv-belnr_comp = <fs_071>-belnr_comp.\
+\
+*** Verifica autoriza\'e7\'e3o\
+        IF gs_alv-stcod  = 03  "Aprovado\
+         OR gs_alv-stcod = 04. "Compensado\
+          gs_alv-autor = text-005." Sim\
+        ELSE.\
+          gs_alv-autor = text-006." N\'e3o\
+        ENDIF.\
+\
+        APPEND gs_alv TO gw_alv.\
+        CLEAR: gs_alv.\
+\
+      ENDIF.\
+    ENDIF.\
+\
+  ENDLOOP.\
+\
+*** Deleta do alv conforme o filtro do select-options\
+  DELETE gw_alv WHERE stcod NOT IN s_stat.\
+\
+  IF gw_alv IS INITIAL.\
+\
+*** Mensagem - N\'e3o existem registros para este filtro\
+    MESSAGE s006 WITH text-004 DISPLAY LIKE c_error.\
+    LEAVE LIST-PROCESSING.\
+\
+  ENDIF.\
+\
+ENDFORM.                      " zf_processa_dados_71\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_dominio_st_cheque\
+*&---------------------------------------------------------------------*\
+*  Pega os textos fixos no dom\'ednio do status do cheque\
+*----------------------------------------------------------------------*\
+FORM zf_dominio_st_cheque.\
+\
+  REFRESH: gw_stach[].\
+*** Fun\'e7\'e3o para pagar o texto fixo referente ao dom\'ednio informado\
+  CALL FUNCTION 'DD_DOMA_GET'\
+    EXPORTING\
+      domain_name   = c_doma\
+      get_state     = c_m_space\
+      langu         = sy-langu\
+      prid          = 0\
+      withtext      = c_text\
+    TABLES\
+      dd07v_tab_a   = gw_stach\
+      dd07v_tab_n   = gw_stach\
+    EXCEPTIONS\
+      illegal_value = 1\
+      op_failure    = 2\
+      OTHERS        = 3.\
+\
+  IF sy-subrc = 0.\
+\
+*** Deleta os resgistros que n\'e3o tem o texto do dom\'ednio\
+    DELETE gw_stach WHERE ddtext EQ space.\
+\
+*** Ordena os valores fixos contidos no dom\'ednio\
+    SORT gw_stach BY domvalue_l ASCENDING.\
+\
+  ENDIF.\
+\
+ENDFORM.                       " zf_dominio_st_cheque\
+\
+*&---------------------------------------------------------------------*\
+*&  Form zf_calc_dias\
+*&---------------------------------------------------------------------*\
+*   Calcula qtde de dias entre duas datas\
+*----------------------------------------------------------------------*\
+*  -->P_DAT1  Primeira data\
+*  -->P_DAT2  Segunda data\
+*  <--P_DIAS  Dias entre as datas\
+*  <--P_ERRO  Erro(sy-subrc)\
+*----------------------------------------------------------------------*\
+FORM zf_calc_dias USING p_dat1 TYPE dats\
+                        p_dat2 TYPE dats\
+               CHANGING p_dias TYPE i\
+                        p_erro TYPE c.\
+\
+  CLEAR: p_dias, p_erro.\
+  CALL FUNCTION 'DAYS_BETWEEN_TWO_DATES'\
+    EXPORTING\
+      i_datum_bis             = p_dat1\
+      i_datum_von             = p_dat2\
+    IMPORTING\
+      e_tage                  = p_dias\
+    EXCEPTIONS\
+      days_method_not_defined = 1\
+      OTHERS                  = 2.\
+\
+  IF sy-subrc <> 0.\
+    p_erro = sy-subrc.\
+  ENDIF.\
+\
+ENDFORM.                        " zf_calc_dias\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_montar_alv\
+*&---------------------------------------------------------------------*\
+*  Constru\'e7ao das colunas do alv\
+*----------------------------------------------------------------------*\
+FORM zf_montar_alv.\
+****Monta a fieldcat\
+  PERFORM zf_criarfieldcatalv.\
+***Monta o layout\
+  PERFORM zf_criarlayoutalv.\
+***Chama o ALV\
+  PERFORM zf_chamaralv.\
+ENDFORM.                               " zf_montar_alv\
+\
+*&---------------------------------------------------------------------*\
+*& Form  zf_criarlayoutalv\
+*&---------------------------------------------------------------------*\
+*  Define o layout do alv\
+*----------------------------------------------------------------------*\
+FORM zf_criarlayoutalv.\
+  gs_layout-colwidth_optimize = c_x.\
+  gs_layout-zebra             = c_x.\
+ENDFORM.                                  " zf_criarlayoutalv\
+\
+*&---------------------------------------------------------------------*\
+*& Form zf_criarfieldcatalv\
+*&---------------------------------------------------------------------*\
+*  Monta as colunas do ALV\
+*----------------------------------------------------------------------*\
+FORM zf_criarfieldcatalv.\
+\
+*** C\'f3digo da empresa\
+  gs_fieldcat-fieldname     = c_bukrs.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-009.\
+  gs_fieldcat-seltext_m     = text-009.\
+  gs_fieldcat-seltext_s     = text-009.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_bukrs.\
+  gs_fieldcat-ref_tabname   = c_ztbfi064.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** C\'f3digo da filial\
+  gs_fieldcat-fieldname     = c_bupla.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-010.\
+  gs_fieldcat-seltext_m     = text-010.\
+  gs_fieldcat-seltext_s     = text-010.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_bupla.\
+  gs_fieldcat-ref_tabname   = c_ztbfi064.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** C\'f3digo do caixa\
+  gs_fieldcat-fieldname     = c_caixa.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-011.\
+  gs_fieldcat-seltext_m     = text-011.\
+  gs_fieldcat-seltext_s     = text-011.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_caixa.\
+  gs_fieldcat-ref_tabname   = c_ztbfi064.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Data movimento\
+  gs_fieldcat-fieldname     = c_dtabe.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-012.\
+  gs_fieldcat-seltext_m     = text-012.\
+  gs_fieldcat-seltext_s     = text-012.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_dtabe.\
+  gs_fieldcat-ref_tabname   = c_ztbfi064.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Status movimento\
+  gs_fieldcat-fieldname     = c_status.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-013.\
+  gs_fieldcat-seltext_m     = text-013.\
+  gs_fieldcat-seltext_s     = text-013.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Usu\'e1rio caixa\
+  gs_fieldcat-fieldname     = c_uscri.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-014.\
+  gs_fieldcat-seltext_m     = text-014.\
+  gs_fieldcat-seltext_s     = text-014.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_uscri.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Usu\'e1rio processamento\
+  gs_fieldcat-fieldname     = c_usliq.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-015.\
+  gs_fieldcat-seltext_m     = text-015.\
+  gs_fieldcat-seltext_s     = text-015.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_usliq.\
+  gs_fieldcat-ref_tabname   = c_ztbfi064.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Usu\'e1rio aprovador\
+  gs_fieldcat-fieldname     = c_uslib.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-016.\
+  gs_fieldcat-seltext_m     = text-016.\
+  gs_fieldcat-seltext_s     = text-016.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_uslib.\
+  gs_fieldcat-ref_tabname   = c_ztbfi064.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Id de movimento\
+  gs_fieldcat-fieldname     = c_idmov.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-017.\
+  gs_fieldcat-seltext_m     = text-017.\
+  gs_fieldcat-seltext_s     = text-017.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_idmov.\
+  gs_fieldcat-ref_tabname   = c_ztbfi064.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Tipo de documento\
+  gs_fieldcat-fieldname     = c_tpdoc.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-018.\
+  gs_fieldcat-seltext_m     = text-018.\
+  gs_fieldcat-seltext_s     = text-018.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** N\'ba do documento\
+  gs_fieldcat-fieldname     = c_belnr.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-019.\
+  gs_fieldcat-seltext_m     = text-019.\
+  gs_fieldcat-seltext_s     = text-019.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_belnr.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Data documento\
+  gs_fieldcat-fieldname     = c_dtcri.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-020.\
+  gs_fieldcat-seltext_m     = text-020.\
+  gs_fieldcat-seltext_s     = text-020.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_dtcri.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Hora documento\
+  gs_fieldcat-fieldname     = c_hrcri.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-021.\
+  gs_fieldcat-seltext_m     = text-021.\
+  gs_fieldcat-seltext_s     = text-021.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_hrcri.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Status cheque\
+  gs_fieldcat-fieldname     = c_stche.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-022.\
+  gs_fieldcat-seltext_m     = text-022.\
+  gs_fieldcat-seltext_s     = text-022.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Transa\'e7\'e3o cont\'e1bil\
+  gs_fieldcat-fieldname     = c_descr.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-023.\
+  gs_fieldcat-seltext_m     = text-023.\
+  gs_fieldcat-seltext_s     = text-023.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_descr.\
+  gs_fieldcat-ref_tabname   = c_ztbfi075.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Montante\
+  gs_fieldcat-fieldname     = c_monta.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-024.\
+  gs_fieldcat-seltext_m     = text-024.\
+  gs_fieldcat-seltext_s     = text-024.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_monta.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Status DMS\
+  gs_fieldcat-fieldname     = c_stdms.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-025.\
+  gs_fieldcat-seltext_m     = text-025.\
+  gs_fieldcat-seltext_s     = text-025.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Emitente Cheque\
+  gs_fieldcat-fieldname     = c_emche.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-026.\
+  gs_fieldcat-seltext_m     = text-026.\
+  gs_fieldcat-seltext_s     = text-026.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_emche.\
+  gs_fieldcat-ref_tabname   = c_ztbfi067.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Texto Opera\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_txtop.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-027.\
+  gs_fieldcat-seltext_m     = text-027.\
+  gs_fieldcat-seltext_s     = text-027.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_txtop.\
+  gs_fieldcat-ref_tabname   = c_ztbfi075.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Valor Lan\'e7amento\
+  gs_fieldcat-fieldname     = c_vllan.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-028.\
+  gs_fieldcat-seltext_m     = text-028.\
+  gs_fieldcat-seltext_s     = text-028.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_vllan.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Juros\
+  gs_fieldcat-fieldname     = c_vljur.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-029.\
+  gs_fieldcat-seltext_m     = text-029.\
+  gs_fieldcat-seltext_s     = text-029.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_vljur.\
+  gs_fieldcat-ref_tabname   = c_ztbfi071.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Multa\
+  gs_fieldcat-fieldname     = c_vlmul.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-030.\
+  gs_fieldcat-seltext_m     = text-030.\
+  gs_fieldcat-seltext_s     = text-030.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_vlmul.\
+  gs_fieldcat-ref_tabname   = c_ztbfi071.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Desconto\
+  gs_fieldcat-fieldname     = c_vldes.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-031.\
+  gs_fieldcat-seltext_m     = text-031.\
+  gs_fieldcat-seltext_s     = text-031.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_vldes.\
+  gs_fieldcat-ref_tabname   = c_ztbfi071.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Autoriza\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_autor.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-032.\
+  gs_fieldcat-seltext_m     = text-032.\
+  gs_fieldcat-seltext_s     = text-032.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** C\'f3digo BP\
+  gs_fieldcat-fieldname     = c_codbp.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-033.\
+  gs_fieldcat-seltext_m     = text-033.\
+  gs_fieldcat-seltext_s     = text-033.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_codbp.\
+  gs_fieldcat-ref_tabname   = c_kna1.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Nome BP\
+  gs_fieldcat-fieldname     = c_nambp.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-034.\
+  gs_fieldcat-seltext_m     = text-034.\
+  gs_fieldcat-seltext_s     = text-034.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_nambp.\
+  gs_fieldcat-ref_tabname   = c_kna1.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** D\'e9bito/Cr\'e9dito\
+  gs_fieldcat-fieldname     = c_mepag.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-035.\
+  gs_fieldcat-seltext_m     = text-035.\
+  gs_fieldcat-seltext_s     = text-035.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_mepag.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** BP Administradora\
+  gs_fieldcat-fieldname     = c_admca.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-036.\
+  gs_fieldcat-seltext_m     = text-036.\
+  gs_fieldcat-seltext_s     = text-036.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_admca.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Data vencimento\
+  gs_fieldcat-fieldname     = c_dtven.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-037.\
+  gs_fieldcat-seltext_m     = text-037.\
+  gs_fieldcat-seltext_s     = text-037.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_dtven.\
+  gs_fieldcat-ref_tabname   = c_ztbfi067.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Refer\'eancia\
+  gs_fieldcat-fieldname     = c_xblnr.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-038.\
+  gs_fieldcat-seltext_m     = text-038.\
+  gs_fieldcat-seltext_s     = text-038.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_xblnr.\
+  gs_fieldcat-ref_tabname   = c_bkpf.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Atribui\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_zuonr.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-039.\
+  gs_fieldcat-seltext_m     = text-039.\
+  gs_fieldcat-seltext_s     = text-039.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_zuonr.\
+  gs_fieldcat-ref_tabname   = c_bseg.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Centro lucro\
+  gs_fieldcat-fieldname     = c_prctr.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-040.\
+  gs_fieldcat-seltext_m     = text-040.\
+  gs_fieldcat-seltext_s     = text-040.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_prctr.\
+  gs_fieldcat-ref_tabname   = c_bseg.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Banco\
+  gs_fieldcat-fieldname     = c_banco.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-041.\
+  gs_fieldcat-seltext_m     = text-041.\
+  gs_fieldcat-seltext_s     = text-041.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_banco.\
+  gs_fieldcat-ref_tabname   = c_ztbfi067.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Ag\'eancia\
+  gs_fieldcat-fieldname     = c_agenc.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-042.\
+  gs_fieldcat-seltext_m     = text-042.\
+  gs_fieldcat-seltext_s     = text-042.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_agenc.\
+  gs_fieldcat-ref_tabname   = c_ztbfi067.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Conta Corrente\
+  gs_fieldcat-fieldname     = c_bankn.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-043.\
+  gs_fieldcat-seltext_m     = text-043.\
+  gs_fieldcat-seltext_s     = text-043.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_bankn.\
+  gs_fieldcat-ref_tabname   = c_ztbfi067.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** N\'ba cheque\
+  gs_fieldcat-fieldname     = c_numch.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-044.\
+  gs_fieldcat-seltext_m     = text-044.\
+  gs_fieldcat-seltext_s     = text-044.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_numch.\
+  gs_fieldcat-ref_tabname   = c_ztbfi067.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** CMC7\
+  gs_fieldcat-fieldname     = c_cmc7.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-045.\
+  gs_fieldcat-seltext_m     = text-045.\
+  gs_fieldcat-seltext_s     = text-045.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_cmc7.\
+  gs_fieldcat-ref_tabname   = c_ztbfi067.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Ordem Interna\
+  gs_fieldcat-fieldname     = c_aufnr.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-046.\
+  gs_fieldcat-seltext_m     = text-046.\
+  gs_fieldcat-seltext_s     = text-046.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_aufnr.\
+  gs_fieldcat-ref_tabname   = c_bseg.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Centro Custo\
+  gs_fieldcat-fieldname     = c_kostl.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-047.\
+  gs_fieldcat-seltext_m     = text-047.\
+  gs_fieldcat-seltext_s     = text-047.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_kostl.\
+  gs_fieldcat-ref_tabname   = c_bseg.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Elemento PEP\
+  gs_fieldcat-fieldname     = c_projk.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-048.\
+  gs_fieldcat-seltext_m     = text-048.\
+  gs_fieldcat-seltext_s     = text-048.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_projk.\
+  gs_fieldcat-ref_tabname   = c_bseg.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Status lan\'e7amento\
+  gs_fieldcat-fieldname     = c_stlan.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-049.\
+  gs_fieldcat-seltext_m     = text-049.\
+  gs_fieldcat-seltext_s     = text-049.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Qtde de dias para aprova\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_dapro.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-050.\
+  gs_fieldcat-seltext_m     = text-050.\
+  gs_fieldcat-seltext_s     = text-050.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Qtde de dias para compensa\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_dcomp.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-051.\
+  gs_fieldcat-seltext_m     = text-051.\
+  gs_fieldcat-seltext_s     = text-051.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Contrato\
+  gs_fieldcat-fieldname     = c_vertn.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-052.\
+  gs_fieldcat-seltext_m     = text-052.\
+  gs_fieldcat-seltext_s     = text-052.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_vertn.\
+  gs_fieldcat-ref_tabname   = c_bseg.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Texto Partida\
+  gs_fieldcat-fieldname     = c_sgtxt.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-053.\
+  gs_fieldcat-seltext_m     = text-053.\
+  gs_fieldcat-seltext_s     = text-053.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_sgtxt.\
+  gs_fieldcat-ref_tabname   = c_bseg.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Documento Compensa\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_bel_comp.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-054.\
+  gs_fieldcat-seltext_m     = text-054.\
+  gs_fieldcat-seltext_s     = text-054.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_bel_comp.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Data Compensa\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_dtliq.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-055.\
+  gs_fieldcat-seltext_m     = text-055.\
+  gs_fieldcat-seltext_s     = text-055.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_dtliq.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Hora Compensa\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_hrliq.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-056.\
+  gs_fieldcat-seltext_m     = text-056.\
+  gs_fieldcat-seltext_s     = text-056.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_hrliq.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Valor Compensa\'e7\'e3o\
+  gs_fieldcat-fieldname     = c_vlcom.\
+  gs_fieldcat-tabname       = c_tabalv.\
+  gs_fieldcat-just          = c_align.\
+  gs_fieldcat-seltext_l     = text-057.\
+  gs_fieldcat-seltext_m     = text-057.\
+  gs_fieldcat-seltext_s     = text-057.\
+  gs_fieldcat-ddictxt       = c_texto.\
+  gs_fieldcat-ref_fieldname = c_vlcom.\
+  gs_fieldcat-ref_tabname   = c_ztbfi070.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+*** Texto compensa\'e7\'e3o\
+  gs_fieldcat-fieldname  = c_txcom.\
+  gs_fieldcat-tabname    = c_tabalv.\
+  gs_fieldcat-just       = c_align.\
+  gs_fieldcat-seltext_l  = text-058.\
+  gs_fieldcat-seltext_m  = text-058.\
+  gs_fieldcat-seltext_s  = text-058.\
+  gs_fieldcat-ddictxt    = c_texto.\
+  APPEND gs_fieldcat TO gw_fieldcat.\
+  CLEAR gs_fieldcat.\
+\
+ENDFORM.                              " zf_criarfieldcatalv\
+\
+*&---------------------------------------------------------------------*\
+*&  Form zf_chamaralv\
+*&---------------------------------------------------------------------*\
+*  Chamada do ALV\
+*----------------------------------------------------------------------*\
+FORM zf_chamaralv.\
+\
+*** Atribui o layout escolhido na tela de sele\'e7\'e3o\
+  gs_variant-variant = p_layout.\
+\
+***Chama a fun\'e7\'e3o que exibe o ALV\
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'\
+    EXPORTING\
+      i_callback_program = sy-repid\
+      is_layout          = gs_layout\
+      it_fieldcat        = gw_fieldcat\
+      it_sort            = gw_sortinfo\
+      i_default          = ' '\
+      i_save             = c_a\
+      is_variant         = gs_variant\
+    TABLES\
+      t_outtab           = gw_alv\
+    EXCEPTIONS\
+      program_error      = 1\
+      OTHERS             = 2.\
+\
+  IF sy-subrc <> 0.\
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno\
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.\
+  ENDIF.\
+\
+ENDFORM.                    " zf_chamaralv}

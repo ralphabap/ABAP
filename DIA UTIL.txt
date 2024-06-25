@@ -1,0 +1,14 @@
+* Busca calendário de fabrica
+ CLEAR vl_fabkl.
+ SELECT SINGLE fabkl
+   FROM t001w
+   INTO vl_fabkl
+   WHERE werks = vl_werks.
+
+FVD_MD_TOOLS_CHECK_WORKDAY
+
+
+
+Segunda Opção:
+
+DATE_CONVERT_TO_FACTORYDATE

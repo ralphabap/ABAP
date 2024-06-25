@@ -1,0 +1,8 @@
+
+
+Field Exit: FIELD_EXIT_ANZPK
+
+Exit cálculo de volumes: MV50AFZ1
+
+
+ENHENCEMENT:  MV50AF0F_FELDAUSWAHL (MV50AF0F)

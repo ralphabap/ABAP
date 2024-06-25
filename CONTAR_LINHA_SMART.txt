@@ -1,0 +1,1494 @@
+*-----------------------------------------------------------------------
+* WEG EQUIPAMENTOS ELÉTRICOS S.A.
+* Implementador: Procwork Informática LTDA.
+*
+* ID     Request        Data          Nome
+* JL     ED0K902203     23/04/2007    Leonardo  Bruno de Freitas Tércio
+*
+* Descrição  : - SapScript - Folha Rota Desenho Verso
+*              - Cópia do programa standard PSFCOBJL
+*
+*-----------------------------------------------------------------------
+* Histórico de Alterações do Objeto
+*-----------------------------------------------------------------------
+* ID    Request      Data          Nome
+* MRNC  ED0K906185   18/07/2007    Marcio Roberto Nunes da Costa
+*
+* Descrição: - Declarações necessárias variáveis, constantes, tipos, etc;
+*            - Seleção dos dados e impressão do formulário.
+*-----------------------------------------------------------------------
+* ID    Request      Data          Nome
+* DAO   ED0K906185   21/08/2007    Diogo Augusto de Oliveira
+* EC    EDOK906185   23/08/2007    Edgar Cinelli
+* Descrição: - Declarações necessárias variáveis, constantes, tipos, etc;
+*            - Seleção dos dados e impressão do formulário.
+*-----------------------------------------------------------------------
+REPORT zpppr_024 MESSAGE-ID co.
+
+*---------------------------------------------------------------------*
+*                                                                     *
+* PPS-Print: Object list (Objektübersicht                             *
+*                                                                     *
+*---------------------------------------------------------------------*
+
+*>>>MRNC - 18.07.2007
+*---------------------------------------------------------------------*
+* Constantes                                                          *
+*---------------------------------------------------------------------*
+CONSTANTS: c_print(7)    TYPE c                VALUE 'PRINTER'  ,     " Impressora
+           c_objek       TYPE thead-tdobject   VALUE 'AUFK'     ,     " Objek Read Text
+           c_id          TYPE thead-tdid       VALUE 'AVOT'     ,     " ID Read Text
+           c_item        TYPE vbap-posnr       VALUE '0001'     ,     " Item
+           c_extensao(3) TYPE c                VALUE 'pdf'      ,     " Extensão Arquivo PDF
+           c_zeros(2)    TYPE c                VALUE '00'       ,     " Zeros
+           c_minuto(3)   TYPE c                VALUE 'MIN'      ,     " Minutos
+           c_hora(1)     TYPE c                VALUE 'H'        ,     " Hora
+           c_true        TYPE c                VALUE 'X'        ,     " Marcado
+           c_dpontos     TYPE c                VALUE ':'        ,     " Dois Pontos
+           c_ponto       TYPE c                VALUE '.'        ,     " Ponto
+*>>>DAO 21/08/2007
+           c_fase(7)     TYPE c                VALUE 'FASE : '  .     " Código: fase
+*<<<DAO 21/08/2007
+
+*---------------------------------------------------------------------*
+* Tipos                                                               *
+*---------------------------------------------------------------------*
+TYPES: y_pp_008 TYPE TABLE OF zstpp_008.
+
+* Tipo para tabela de operação quantidades/datas/valores
+TYPES: BEGIN OF y_afvv,
+         aufpl TYPE afvv-aufpl,                          " Nº de roteiro de operações na ordem
+         aplzl TYPE afvv-aplzl,                          " Numerador geral da ordem
+         bmsch TYPE afvv-bmsch,                          " Quantidade básica
+         vge01 TYPE afvv-vge01,                          " Unidade de medida do valor standard
+         vgw01 TYPE afvv-vgw01,                          " Valor standard
+         vge03 TYPE afvv-vge03,                          " Unidade de medida do valor standard
+         vgw03 TYPE afvv-vgw03,                          " Valor standard
+         fsavd TYPE afvv-fsavd,                          " Primeiro início programado possível: executar (data)
+         fsavz TYPE afvv-fsavz,                          " Primeiro início programado possível: executar (hora)
+  END OF y_afvv.
+
+* Recebe o resultado da função read_text
+TYPES: BEGIN OF y_text,
+        tdformat TYPE tline-tdformat,                    " Coluna de formato
+        tdline   TYPE tline-tdline,                      " Linha de texto
+ END OF y_text.
+
+TYPES: BEGIN OF y_objid,
+        lo_objid TYPE dms_doc2loio-lo_objid,             " Documento lógico
+END OF y_objid.
+
+TYPES: BEGIN OF y_filename,
+        filename TYPE dms_phio2file-filename,            " Arquivo Original do documento
+END OF y_filename.
+
+TYPES: BEGIN OF y_prop08,
+        prop08 TYPE char32,                              " Característica atributo
+END OF y_prop08.
+
+*>>>DAO 21/08/2007
+TYPES: BEGIN OF y_afvc,
+        plnnr TYPE afvc-plnnr,
+        aufpl TYPE afvc-aufpl,                           " Nº de roteiro de operações na ordem
+        aplzl TYPE afvc-aplzl,                           " Numerador geral da ordem
+        plnkn TYPE afvc-plnkn,                           " Nº nó de lista de tarefas
+        phflg TYPE afvc-phflg,                           " Código: fase
+      END OF y_afvc.
+*<<<DAO 21/08/2007
+
+*>>>EC 23/08/2007
+TYPES: BEGIN OF y_plmk,
+        plnnr       TYPE plmk-plnnr,
+        plnkn       TYPE plmk-plnkn,
+        qpmk_zaehl  TYPE plmk-qpmk_zaehl,
+        verwmerkm   TYPE plmk-verwmerkm,
+        mkversion   TYPE plmk-mkversion,
+        mkversdat   TYPE plmk-mkversdat,
+        kurztext    TYPE plmk-kurztext,
+        sollwert    TYPE plmk-sollwert,
+        toleranzun  TYPE plmk-toleranzun,
+        toleranzob  TYPE plmk-toleranzob,
+        pmethode    TYPE plmk-pmethode,
+        dummy10     TYPE plmk-dummy10,
+        dummy20     TYPE plmk-dummy20,
+        dummy40     TYPE plmk-dummy40,
+        pruefeinh   TYPE plmk-pruefeinh,
+        masseinhsw  TYPE plmk-masseinhsw,
+      END OF y_plmk.
+
+TYPES: BEGIN OF y_qpmk,
+        zaehler     TYPE qpmk-zaehler,
+        mkmnr       TYPE qpmk-mkmnr,
+        version     TYPE qpmk-version,
+        merkgew     TYPE qpmk-merkgew,
+        dumy40      TYPE qpmk-dummy40,
+        qauth       TYPE qpmk-qauth,
+       END OF y_qpmk.
+*<<<EC 23/08/2007
+*---------------------------------------------------------------------*
+* Tabelas Internas                                                    *
+*---------------------------------------------------------------------*
+*  Tabela e Work área para operação quantidades/datas/valores
+DATA: t_afvv       TYPE TABLE OF y_afvv,                   " Tabela Interna operação quantidades/datas/valores
+      t_objid      TYPE TABLE OF y_objid,                  " Tabela interna para buscas da figura
+      t_prop08     TYPE TABLE OF y_prop08,                 " Tabela interna para buscas da figura
+      t_filename   TYPE TABLE OF y_filename,               " Tabela Interna com nome do arquivo da figura
+*>>>EC 23/08/2007
+      t_afvc       TYPE TABLE OF y_afvc,
+      t_desc_itens TYPE TABLE OF zstpp_012,                " Descrição do item (smartforms)
+      t_plmk       TYPE TABLE OF y_plmk,                   " Tabela Figura de caracteristicas de qualidade
+      t_qpmk       TYPE TABLE OF y_qpmk.                   " Tabela
+*<<<EC 23/08/2007
+*---------------------------------------------------------------------*
+* Variaveis                                                           *
+*---------------------------------------------------------------------*
+DATA: v_hora      TYPE string,                           " Auxiliar para converter hora
+      v_minu      TYPE string,                           " Auxiliar para converter minuto
+      v_segu      TYPE string,                           " Auxiliar para converter segundo
+      v_vgw0_aux  TYPE string,                           " Valor a ser convertido para o formato HH:MM:SS
+*>>> EC 30/08/2007
+      v_linhas    TYPE i.
+*<<< EC 30/08/2007
+
+*---------------------------------------------------------------------*
+* Work-Area                                                           *
+*---------------------------------------------------------------------*
+DATA: wa_afvv     TYPE y_afvv,                           " Work Area operação quantidades/datas/valores
+      wa_filename TYPE y_filename,                       " Work Area com nome do arquivo da figura
+*>>> DAO 21/08/2007
+      wa_afvc     TYPE y_afvc,                           " Work Area Operação da ordem
+*<<< DAO 21/08/2007
+*>>>EC 23/08/2007
+      wa_plmk     TYPE y_plmk,                           " Work Aread Figura de caracteristicas de qualidade
+      wa_qpmk     TYPE y_qpmk.                           " Work Aread Figura de caracteristicas de qualidade
+*<<<EC 23/08/2007
+
+*<<<MRNC - 18.07.2007
+
+* DATA-Statements general
+INCLUDE ppcoincl.
+* DATA-Statements specific for production orders
+INCLUDE codrgt10.
+
+* entry to print
+PERFORM print_sub.
+
+*---------------------------------------------------------------------*
+*       FORM PRINT_SUB                                                *
+*---------------------------------------------------------------------*
+*       ........                                                      *
+*---------------------------------------------------------------------*
+FORM print_sub.
+
+* Document-tables
+  INCLUDE lcodrinc.
+
+  LOOP AT itab_tdr WHERE object = obj-pos
+                   OR    object = obj-sop
+                   OR    object = obj-mat
+                   OR    object = obj-fhm
+                   AND   aufnr  = print_co-aufnr.           "New 3.0
+    EXIT.
+  ENDLOOP.
+
+  CHECK sy-subrc IS INITIAL.
+* check if SAPscript form was maintained
+  IF print_co-forml = space.
+    IF sy-batch = space AND sy-binpt = space.
+      MESSAGE e298(c2) WITH print_co-lstid
+      print_co-auart
+      print_co-repid
+      print_co-drvar.
+    ELSE.
+      MESSAGE i298(c2) WITH print_co-lstid
+      print_co-auart
+      print_co-repid
+      print_co-drvar.
+    ENDIF.
+  ENDIF.
+
+* fill workarea of header (probably more than 1 order is to be printed)
+
+  LOOP AT itab_tdr WHERE object = obj-alt
+                   AND   aufnr  = print_co-aufnr.           "New 3.0
+* Save Indextable of header
+    itab_ord = itab_tdr.
+
+    LOOP AT caufvd_tab WHERE aufnr = itab_ord-aufnr.
+      PERFORM pppr_std_init_order USING caufvd_tab.
+*     Get position
+      READ TABLE afpod_tab WITH KEY aufnr = caufvd-aufnr
+                                    posnr = c_item.
+      afpod = afpod_tab.
+      DO print_co-copys TIMES.
+        IF sy-index GT 1.
+          MOVE text-dup TO print_co-drtxt.
+        ENDIF.
+*>>>MRNC - 18.07.2007
+*   Seleciona os dados e imprime o formulario
+        PERFORM zf_print_form.
+*<<<MRNC - 18.07.2007
+      ENDDO.
+    ENDLOOP.
+  ENDLOOP.
+
+* Limpa tabelas internas da memória
+  PERFORM zf_limpa_memoria.
+
+ENDFORM.                    "PRINT_SUB
+
+*---------------------------------------------------------------------*
+*       FORM zf_print_form
+*---------------------------------------------------------------------*
+*   Seleciona os dados e imprime o formulario                         *
+*---------------------------------------------------------------------*
+FORM zf_print_form .
+
+  DATA: vl_header       TYPE zstpp_007,               " Cabeçalho do processo de fabricação
+        tl_itens        TYPE TABLE OF zstpp_008.      " Itens processo de fabricação
+
+
+*  Carrega tabela interna de tempo
+  PERFORM zf_carrega_afvv.
+
+* Imprime informações do cabeçalho do Formulário
+  PERFORM zf_imprime_cabecalho CHANGING vl_header.
+
+* Busca endereços das figuras relacionadas.
+  PERFORM zf_busca_figuras USING vl_header-vl_des.
+
+* Imprime informações do corpo do Formulário
+  PERFORM zf_imprime_corpo TABLES  tl_itens .
+
+* Chama o smartform
+  PERFORM zf_imprime_relatorio TABLES tl_itens
+                                USING vl_header.
+
+ENDFORM.                    "zf_print_form
+
+
+INCLUDE codrgett.                      "PSFC-form-routinen: get_tables
+INCLUDE codrif01.          "PSFC-Form-Routinen: Druck-Parts lesen
+INCLUDE codrif02.          "PSFC-Form-Routinen: Open/Close Form
+INCLUDE codrif03.          "PSFC-Form-Routinen: print_prodnet_info
+INCLUDE codrif04.          "PSFC-Form-Routinen: read_mat
+INCLUDE codrif05.          "PSFC-Form-Routinen: print_activities
+INCLUDE codrif06.          "PSFC-Form-Routinen: print_prod_note
+INCLUDE codrif07.          "PSFC-Form-Routinen: print_ord_text
+INCLUDE codrif08.          "PSFC-Form-Routinen: print_configuration
+INCLUDE codrif09.          "PSFC-Form-Routinen: print_prt_to_opr
+*                          "                    (+ Include CODRIF12)
+INCLUDE codrif10.          "PSFC-Form-Routinen: print_opr_text
+INCLUDE codrif14.          "PSFC-Form-Routinen: print_cmp_to_opr
+*                          "                    (+ Include CODRIF13)
+INCLUDE codrif15.          "PSFC-Form-Routinen: get_components
+INCLUDE codrif16.          "PSFC-Form-Routinen: print_seq_header
+*                          "                    (+ Include CODRIF11)
+INCLUDE codrif17.          "PSFC-Form-Routinen: std_init_operation
+INCLUDE codrif18.          "PSFC-Form-Routinen: print_routing_text
+*&---------------------------------------------------------------------*
+*&      Form  zf_imprime_cabecalho
+*&---------------------------------------------------------------------*
+*    Imprime dados do cabeçalho
+*----------------------------------------------------------------------*
+FORM zf_imprime_cabecalho CHANGING p_header TYPE zstpp_007.
+
+  CLEAR: p_header.
+
+*>>> DAO 21/08/2007
+  p_header-dt_ter   = caufvd_tab-gltrs.  "Fim programado
+  p_header-dt_ini   = caufvd_tab-gstrs.  "Início programado (data)
+*<<< DAO 21/08/2007
+
+  p_header-vl_qtd   = caufvd_tab-gamng.
+  p_header-hr_ter   = caufvd_tab-gluzs.
+  p_header-hr_ini   = caufvd_tab-gsuzs.
+  p_header-nr_plan  = caufvd_tab-dispo.
+  p_header-nr_depos = afpod_tab-lgort.
+  p_header-nr_mat   = caufvd_tab-plnbez.
+
+* Busca dados para 'Desenho/Norma'
+  PERFORM zf_desenho_norma CHANGING p_header.
+
+* Preenche código de barras Ordem Venda / Projeto
+  PERFORM zf_barcode_vend_proj CHANGING p_header.
+
+* Preenche código de barras Ordem Produção e Material
+  PERFORM zf_barcode_prodmat CHANGING p_header-cd_bar2.
+
+* Preenche informações do material
+  PERFORM zf_matnr CHANGING p_header.
+
+ENDFORM.                    " zf_imprime_cabecalho
+*&---------------------------------------------------------------------*
+*&      Form  zf_Desenho_Norma
+*&---------------------------------------------------------------------*
+*       Preenche janela H_GAMNG
+*----------------------------------------------------------------------*
+
+FORM zf_desenho_norma CHANGING p_header TYPE zstpp_007.
+
+  DATA:  vl_doknr     TYPE crvd_b-doknr,   " Desenho
+         vl_dokvr     TYPE crvd_b-dokvr,   " Norma
+         vl_objid     TYPE crvd_a-objid.   " Variavel auxiliar seleção e preenchimento do campo 'Desenho / Norma'
+
+  CLEAR affhd_tab.
+  READ TABLE affhd_tab WITH KEY aufpl = caufvd_tab-aufpl
+                                loekz = space.
+  IF sy-subrc = 0.
+*   Selecionar Identificação de objeto para recurso
+    SELECT objid UP TO 1 ROWS                               "#EC *
+      FROM crvd_a
+      INTO vl_objid
+      WHERE objid = affhd_tab-objid.
+    ENDSELECT.
+
+    IF sy-subrc = 0.
+*     Selecionar Nº documento e item
+      SELECT doknr dokvr UP TO 1 ROWS                       "#EC *
+        FROM crvd_b
+        INTO (vl_doknr, vl_dokvr)
+        WHERE objid = vl_objid.
+      ENDSELECT.
+
+      IF sy-subrc = 0.
+        p_header-vl_des = vl_doknr.
+        p_header-vl_nor = vl_dokvr.
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " zf_Desenho_Norma
+*&---------------------------------------------------------------------*
+*&      Form  zf_matnr
+*&---------------------------------------------------------------------*
+*       Informações sobre o material
+*----------------------------------------------------------------------*
+FORM zf_matnr CHANGING p_header TYPE zstpp_007.
+
+  DATA: vl_tmatnr    TYPE makt-maktx,     " Texto de material
+        vl_name1     TYPE t001w-name1,    " Nome da Empresa
+        vl_bismt     TYPE mara-bismt.     " Material Antigo
+
+* Busca Texto de material
+  SELECT SINGLE maktx
+    FROM makt
+    INTO vl_tmatnr
+    WHERE matnr = caufvd_tab-plnbez AND
+          spras = sy-langu.
+* Se encontrar escreve no Formulário
+  IF sy-subrc = 0.
+    p_header-ds_mat = vl_tmatnr.
+  ENDIF.
+
+* Busca Nome da empresa
+  SELECT SINGLE name1
+    FROM t001w
+    INTO vl_name1
+    WHERE werks = afpod_tab-pwerk.
+* Se encontrar escreve no Formulário
+  IF sy-subrc = 0.
+    p_header-ds_emp = vl_name1.
+    p_header-nm_emp = vl_name1+0(8).
+  ENDIF.
+
+* Busca Material Antigo
+  SELECT SINGLE bismt
+    FROM mara
+    INTO vl_bismt
+    WHERE matnr = caufvd_tab-plnbez.
+* Se encontrar escreve no Formulário
+  IF sy-subrc = 0.
+    p_header-nr_mat_ant = vl_bismt.
+  ENDIF.
+
+ENDFORM.                    " zf_matnr
+*&---------------------------------------------------------------------*
+*&      Form  zf_imprime_corpo
+*&---------------------------------------------------------------------*
+*       Informações do Corpo do Formulário
+*----------------------------------------------------------------------*
+FORM zf_imprime_corpo TABLES tp_itens TYPE y_pp_008.
+
+  DATA: wa_itens      TYPE zstpp_008,  " Itens processo de fabricação
+        wa_desc_itens TYPE zstpp_012.  " Itens processo de fabricação
+
+  REFRESH tp_itens.
+
+
+*>>> DAO 21/08/2007
+* Busca na tabela Operação da ordem
+  SELECT plnnr aufpl aplzl plnkn phflg
+  FROM afvc
+  INTO TABLE t_afvc
+  WHERE aufpl = caufvd_tab-aufpl.
+*<<< DAO 21/08/2007
+
+*>>> EC 23/08/2007
+* Carregar PLMK
+  PERFORM zf_carrega_plmk.
+
+*<<< EC 23/08/2007
+
+  LOOP AT afvgd_tab WHERE aufpl = caufvd_tab-aufpl.
+
+    READ TABLE t_afvc INTO wa_afvc WITH KEY aufpl = afvgd_tab-aufpl
+                                            aplzl = afvgd_tab-aplzl BINARY SEARCH.
+
+    wa_itens-nr_ope = afvgd_tab-vornr.
+
+    READ TABLE work_tab WITH KEY arbid = afvgd_tab-arbid.
+    IF sy-subrc = 0.
+      wa_itens-nr_cent = work_tab-arbpl.
+    ENDIF.
+
+*   Seleciona dados da Fabricação Operação
+    PERFORM zf_dados_fabricacao CHANGING wa_itens.
+
+*   Seleciona Texto longo da operação
+    PERFORM zf_texto_longo_operacao CHANGING wa_itens-ds_ope.
+
+*>>> EC 23/08/2007
+
+    PERFORM zf_carrega_caract_qualidade.
+    PERFORM zf_carrega_caract_processo.
+
+*<<< EC 23/08/2007
+
+
+    APPEND wa_itens TO tp_itens.
+    CLEAR wa_itens.
+
+  ENDLOOP.
+
+ENDFORM.                    " zf_imprime_corpo
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_dadoS_FABRICACAO
+*&---------------------------------------------------------------------*
+*       Seleciona dados da operação fabricação
+*----------------------------------------------------------------------*
+
+FORM zf_dados_fabricacao CHANGING p_itens TYPE zstpp_008.
+
+  CLEAR wa_afvv.
+  SORT t_afvv BY aufpl aplzl.
+* Busca tempo
+  READ TABLE t_afvv INTO wa_afvv WITH KEY aufpl = afvgd_tab-aufpl
+                                          aplzl = afvgd_tab-aplzl BINARY SEARCH.
+  CHECK sy-subrc = 0.
+
+  p_itens-dt_ini = wa_afvv-fsavd.
+  p_itens-hr_ini = wa_afvv-fsavz.
+
+* Converte tempo de setup para o formato HH:MM:SS
+  PERFORM zf_preenche_tp_setup CHANGING p_itens-tp_setup.
+
+* Converte tempo de execução para o formato HH:MM:SS
+  PERFORM zf_preenche_tp_exec CHANGING p_itens-tp_exec.
+
+ENDFORM.                    " zf_dadoS_FABRICACAO
+*&---------------------------------------------------------------------*
+*&      Form  zf_texto_longo_operacao
+*&---------------------------------------------------------------------*
+*      Preenche o campo de texto longo do formulário
+*----------------------------------------------------------------------*
+FORM zf_texto_longo_operacao CHANGING p_desc TYPE zstpp_008-ds_ope.
+
+* Variável auxiliar para parametro da função read_text
+  DATA: vl_name   TYPE thead-tdname,    " Nome para Read_Text
+        vl_cont   TYPE i,               " Contador
+        vl_desc   TYPE char100,         " Campo Descrição da Operação do Formulário
+        tl_text   TYPE TABLE OF y_text, " Tabela Interna para função Read_text
+        wa_text   TYPE y_text.          " Work Area para Read_text
+
+* Concatenação: mandante, Nº de roteiro de operações na ordem, Numerador geral da ordem.
+  CONCATENATE sy-mandt afvgd_tab-aufpl afvgd_tab-aplzl INTO vl_name.
+
+  CALL FUNCTION 'READ_TEXT'
+    EXPORTING
+      id                      = c_id
+      language                = sy-langu
+      name                    = vl_name
+      object                  = c_objek
+    TABLES
+      lines                   = tl_text
+    EXCEPTIONS
+      id                      = 1
+      language                = 2
+      name                    = 3
+      not_found               = 4
+      object                  = 5
+      reference_check         = 6
+      wrong_access_to_archive = 7
+      OTHERS                  = 8.
+
+  IF sy-subrc = 0.
+    LOOP AT tl_text INTO wa_text.
+      IF wa_text-tdline IS INITIAL.
+        vl_cont = 1.
+      ENDIF.
+
+      IF vl_cont IS INITIAL.
+        CONCATENATE vl_desc wa_text-tdline INTO vl_desc SEPARATED BY space.
+      ENDIF.
+
+    ENDLOOP.
+  ENDIF.
+
+*>>> DAO 21/08/2007
+* Verfica se o Código: fase está marcado
+  IF wa_afvc-phflg EQ c_true.
+    CONCATENATE c_fase vl_desc INTO vl_desc.
+  ENDIF.
+*<<< DAO 21/08/2007
+
+  IF vl_desc IS INITIAL.
+    p_desc = afvgd_tab-ltxa1.
+  ELSE.
+    p_desc = vl_desc.
+  ENDIF.
+
+ENDFORM.                    " zf_texto_longo_operacao
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_preenche_tp_setup
+*&---------------------------------------------------------------------*
+*       Preenche o campo TP Setup
+*----------------------------------------------------------------------*
+
+FORM zf_preenche_tp_setup CHANGING p_setup TYPE zstpp_008-tp_setup.
+
+  DATA: vl_setuph(2) TYPE n VALUE 00,     " Hora
+        vl_setupm(2) TYPE n VALUE 00,     " Minuto
+        vl_setups(2) TYPE n VALUE 00,     " Segundo
+        vl_tminus TYPE i,                 " Minuto
+        vl_tsegus TYPE i.                 " Segundo
+
+  v_vgw0_aux = wa_afvv-vgw01.
+  IF wa_afvv-vge01 = c_minuto.
+*   Transforma minutos para o formato HH:MM:SS
+    PERFORM zf_converte_minuto.
+
+    vl_setuph = v_hora.
+
+    vl_tminus = STRLEN( v_minu ).
+    IF vl_tminus > 2.
+      vl_setupm = v_minu(2).
+    ELSE.
+      vl_setupm = v_minu.
+    ENDIF.
+
+    vl_tsegus = STRLEN( v_segu ).
+    IF vl_tsegus > 2.
+      vl_setups = v_segu(2).
+    ELSE.
+      vl_setups = v_segu.
+    ENDIF.
+
+    CONCATENATE vl_setuph c_dpontos vl_setupm c_dpontos vl_setups INTO p_setup.
+
+*   Limpa as variáveis utilizadas na converção formato HH:MM:SS
+    CLEAR: v_hora,
+           v_minu,
+           v_segu ,
+           v_vgw0_aux,
+           vl_setuph,
+           vl_setupm,
+           vl_setups.
+
+  ELSEIF wa_afvv-vge01 = c_hora.
+* Transforma Horas para o Formato HH:MM:SS
+    PERFORM zf_converte_hora.
+
+    vl_setuph = v_hora.
+    vl_setupm = v_minu(2).
+    vl_setups = v_segu(2).
+    CONCATENATE vl_setuph c_dpontos vl_setupm c_dpontos vl_setups INTO p_setup.
+
+*   Limpa as variáveis utilizadas na converção formato HH:MM:SS
+    CLEAR: v_hora,
+           v_minu,
+           v_segu ,
+           v_vgw0_aux,
+           vl_setuph,
+           vl_setupm,
+           vl_setups.
+  ENDIF.
+
+ENDFORM.                    " zf_preenche_tp_setup
+*&---------------------------------------------------------------------*
+*&      Form  zf_preenche_tp_exec
+*&---------------------------------------------------------------------*
+* Seleciona e preenche o campo tempo de execução
+*----------------------------------------------------------------------*
+
+FORM zf_preenche_tp_exec CHANGING p_exec TYPE zstpp_008-tp_exec.
+
+  DATA: vl_exech(2) TYPE n VALUE 00,     " Hora
+        vl_execm(2) TYPE n VALUE 00,     " Minutos
+        vl_execs(2) TYPE n VALUE 00,     " Segundos
+        vl_tminu    TYPE i,              " Minutos
+        vl_tsegu    TYPE i.              " Segundos
+
+  wa_afvv-vgw03 = wa_afvv-vgw03 * caufvd_tab-gamng.
+  v_vgw0_aux = wa_afvv-vgw03.
+* Transforma minutos para o formato HH:MM:SS
+  IF wa_afvv-vge03 = c_minuto.
+    PERFORM zf_converte_minuto.
+
+    vl_exech = v_hora.
+    vl_tminu = STRLEN( v_minu ).
+    IF vl_tminu > 2.
+      vl_execm = v_minu(2).
+    ELSE.
+      vl_execm = v_minu.
+    ENDIF.
+
+    vl_tsegu = STRLEN( v_segu ).
+    IF vl_tsegu > 2.
+      vl_execs = v_segu(2).
+    ELSE.
+      vl_execs = v_segu.
+    ENDIF.
+
+    CONCATENATE vl_exech c_dpontos vl_execm c_dpontos vl_execs INTO p_exec.
+
+    CLEAR: v_hora,
+           v_minu,
+           v_segu ,
+           v_vgw0_aux,
+           vl_exech,
+           vl_execm,
+           vl_execs.
+
+  ELSEIF wa_afvv-vge03 = c_hora.
+*   Transforma Horas para o Formato HH:MM:SS
+    PERFORM zf_converte_hora.
+
+    vl_exech = v_hora.
+    vl_tminu = STRLEN( v_minu ).
+    IF vl_tminu > 2.
+      vl_execm = v_minu(2).
+    ELSE.
+      vl_execm = v_minu.
+    ENDIF.
+
+    vl_tsegu = STRLEN( v_segu ).
+    IF vl_tsegu > 2.
+      vl_execs = v_segu(2).
+    ELSE.
+      vl_execs = v_segu.
+    ENDIF.
+
+    CONCATENATE vl_exech c_dpontos vl_execm c_dpontos vl_execs INTO p_exec.
+
+    CLEAR: v_hora,
+           v_minu,
+           v_segu ,
+           v_vgw0_aux,
+           vl_exech,
+           vl_execm,
+           vl_execs.
+  ENDIF.
+
+ENDFORM.                    " zf_preenche_tp_exec
+*&---------------------------------------------------------------------*
+*&      Form  zf_converte_hora
+*&---------------------------------------------------------------------*
+* converte numero na unidade MINUTO para o padrão HH:MM:SS
+*----------------------------------------------------------------------*
+
+FORM zf_converte_minuto .
+
+  SPLIT v_vgw0_aux AT c_ponto INTO v_minu v_segu.
+  IF v_minu <= 59.
+    v_hora = 00.
+    v_segu = ( v_segu * 60 ) / 1000.
+  ELSE.
+    v_hora = v_minu / 60.
+    SPLIT v_hora AT c_ponto INTO v_hora v_minu.
+*>>>MRNC - 18.07.2007
+    v_minu = ( v_minu * 60 ) / 1000.
+*<<<MRNC - 18.07.2007
+    v_segu = ( v_segu * 60 ) / 1000.
+  ENDIF.
+
+  IF v_hora = 0 OR v_hora = 000 OR v_hora IS INITIAL.
+    v_hora = c_zeros.
+  ENDIF.
+
+  IF v_minu = 0 OR v_minu = 000 OR v_minu IS INITIAL.
+    v_minu = c_zeros.
+  ENDIF.
+
+  IF v_segu = 0 OR v_segu = 000 OR v_segu IS INITIAL.
+    v_segu = c_zeros.
+  ENDIF.
+
+ENDFORM.                    " zf_converte_hora
+*&---------------------------------------------------------------------*
+*&      Form  zf_converte_hora
+*&---------------------------------------------------------------------*
+* converte numero na unidade HORA para o padrão HH:MM:SS
+*----------------------------------------------------------------------*
+
+FORM zf_converte_hora .
+
+  SPLIT v_vgw0_aux AT c_ponto INTO v_hora v_minu.
+  v_segu = v_minu MOD 60.
+  v_segu = ( v_segu * 60 ) / 100.
+  v_minu = ( v_minu * 60 ) / 1000.
+
+  IF v_hora = 0 OR v_hora = 000 OR v_hora IS INITIAL.
+    v_hora = c_zeros.
+  ENDIF.
+
+  IF v_minu = 0 OR v_minu = 000 OR v_minu IS INITIAL.
+    v_minu = c_zeros.
+  ENDIF.
+
+  IF v_segu = 0 OR v_segu = 000 OR v_segu IS INITIAL.
+    v_segu = c_zeros.
+  ENDIF.
+
+ENDFORM.                    " zf_converte_hora
+*&---------------------------------------------------------------------*
+*&      Form  zf_barcode_prodmat
+*&---------------------------------------------------------------------*
+*Gera a sequencia numérica para o código de barras e imprime no relatório
+*----------------------------------------------------------------------*
+
+FORM zf_barcode_prodmat CHANGING p_cod_bar TYPE zstpp_007-cd_bar2.
+
+* Sequencia numérica para geração do código de barras
+  CONCATENATE afpod_tab-aufnr caufvd_tab-plnbez INTO p_cod_bar.
+
+ENDFORM.                    " zf_barcode_prodmat
+*&---------------------------------------------------------------------*
+*&      Form  zf_barcode_Vend_Proj
+*&---------------------------------------------------------------------*
+* Seleciona sequencia numerica para código de barras Venda / Projeto
+*----------------------------------------------------------------------*
+
+FORM zf_barcode_vend_proj CHANGING p_header TYPE zstpp_007.
+
+* Se ambos os campos estiverem preenchidos ou vazios prevalece label PROJETO
+  IF ( NOT afpod_tab-projn IS INITIAL  AND
+       NOT afpod_tab-kdauf IS INITIAL ) OR
+     ( NOT afpod_tab-projn IS INITIAL  AND
+       afpod_tab-kdauf     IS INITIAL ) OR
+     ( afpod_tab-projn     IS INITIAL  AND
+       afpod_tab-kdauf IS INITIAL     ).
+
+*  Concatenar código de barras
+    p_header-ds_label = text-001.
+    CONCATENATE afpod_tab-projn afpod_tab-kdpos INTO p_header-cd_bar1.
+
+  ELSEIF ( afpod_tab-projn     IS INITIAL  AND
+           NOT afpod_tab-kdauf IS INITIAL ) .
+
+    p_header-ds_label = text-002.
+    CONCATENATE afpod_tab-kdauf afpod_tab-kdpos INTO p_header-cd_bar1.
+
+  ENDIF.
+
+ENDFORM.                    " zf_barcode_Vend_Proj
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CARREGA_AFVV
+*&---------------------------------------------------------------------*
+*       Carrega tabela para obtenção dos tempos
+*----------------------------------------------------------------------*
+
+FORM zf_carrega_afvv .
+
+* Selecionar Estrutura BD da operação quantidades/datas/valores
+  SELECT aufpl
+         aplzl
+         bmsch
+         vge01
+         vgw01
+         vge03
+         vgw03
+         fsavd
+         fsavz
+  FROM afvv
+  INTO TABLE t_afvv
+  WHERE aufpl = caufvd_tab-aufpl.
+
+  IF sy-subrc <> 0.
+    CLEAR: t_afvv[],
+           wa_afvv.
+  ENDIF.
+ENDFORM.                    " ZF_CARREGA_AFVV
+*>>> EC 23/08/2007
+*&---------------------------------------------------------------------*
+*&      Form  zf_carrega_plmk
+*&---------------------------------------------------------------------*
+*  Carregar tabela: Figura de caracteristicas de qualidade
+*----------------------------------------------------------------------*
+FORM zf_carrega_plmk .
+
+*Tabela interna
+  DATA: tl_plmk_aux TYPE TABLE OF y_plmk,  "Tabela auxiliar da PLMK
+        tl_afvc_aux TYPE TABLE OF y_afvc.  "Tabela auxiliar da AFVC
+
+*Variavel
+  DATA: v_q1(30)  TYPE c,
+        v_q2(30)  TYPE c,
+        v_q3(30)  TYPE c,
+        v_q4(30)  TYPE c,
+        v_q5(30)  TYPE c,
+        v_q6(30)  TYPE c,
+        v_concatenate(76)  TYPE c,
+        v_toleranzun(33) TYPE c,
+        v_toleranzob(33) TYPE c,
+        v_sollwert(33) TYPE c.
+
+*Work-area
+  DATA: wa_desc_itens TYPE zstpp_012.
+
+  CHECK t_afvc IS NOT INITIAL.
+
+*Apagar registros duplicado For all entries
+  tl_afvc_aux[] = t_afvc[].
+  SORT tl_afvc_aux BY plnkn.
+  DELETE ADJACENT DUPLICATES FROM tl_afvc_aux COMPARING plnkn.
+  CHECK tl_afvc_aux IS NOT INITIAL.
+
+*Selecionar dados da PLMK
+  SELECT plnnr
+         plnkn
+         qpmk_zaehl
+         verwmerkm
+         mkversion
+         mkversdat
+         kurztext
+         sollwert
+         toleranzun
+         toleranzob
+         pmethode
+         dummy10
+         dummy20
+         dummy40
+         pruefeinh
+         masseinhsw
+    FROM plmk
+    INTO TABLE t_plmk
+    FOR ALL ENTRIES IN tl_afvc_aux
+    WHERE plnnr = tl_afvc_aux-plnnr
+      AND plnkn = tl_afvc_aux-plnkn
+      AND plnty = 'N'.
+
+  CHECK sy-subrc = 0.
+
+*Apagar registros duplicado For all entries
+  tl_plmk_aux[] = t_plmk[].
+  SORT tl_plmk_aux BY verwmerkm.
+  DELETE ADJACENT DUPLICATES FROM tl_plmk_aux COMPARING verwmerkm.
+
+  IF tl_plmk_aux IS NOT INITIAL.
+
+*Selecionar dados da QPMK
+    SELECT zaehler mkmnr version merkgew dummy40 qauth
+      FROM qpmk
+      INTO TABLE t_qpmk
+      FOR ALL ENTRIES IN tl_plmk_aux
+      WHERE mkmnr = tl_plmk_aux-verwmerkm
+        AND werks = afpod_tab-pwerk
+        AND loekz = 2
+        AND ( qauth = '00000002' OR qauth = '00000001' ).
+  ENDIF.
+
+
+
+ENDFORM.                    " zf_carrega_plmk
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_carrega_caract_qualidade
+*&---------------------------------------------------------------------*
+*   Carregar a caracteristicas de qualidade
+*----------------------------------------------------------------------*
+FORM zf_carrega_caract_qualidade .
+
+*Variaveis
+  DATA: v_q1(30)  TYPE c,                            "Campos para concatenção conforme ET
+        v_q2(30)  TYPE c,                            "Campos para concatenção conforme ET
+        v_q3(30)  TYPE c,                            "Campos para concatenção conforme ET
+        v_q4(30)  TYPE c,                            "Campos para concatenção conforme ET
+        v_q5(30)  TYPE c,                            "Campos para concatenção conforme ET
+        v_q6(30)  TYPE c,                            "Campos para concatenção conforme ET
+        vl_index  TYPE sy-tabix,                     "Index da tabela
+        v_concatenate(76)  TYPE c,                   "Concaternar valores
+        v_toleranzun(12) TYPE c,                     "Armarzenar em caracter o valor do toleranzun
+        v_toleranzun_aux TYPE p LENGTH 16 DECIMALS 3, "Armarzenar em caracter o valor do toleranzun
+        v_toleranzob_aux TYPE p LENGTH 16 DECIMALS 3, "Armarzenar em caracter o valor do toleranzob
+        v_toleranzob(12) TYPE c,                     "Armarzenar em caracter o valor do toleranzob
+        v_sollwert(12) TYPE c,                       "Armarzenar em caracter o valor do sollwert
+        v_sollwert_aux TYPE p LENGTH 16 DECIMALS 3.   "Armarzenar em caracter o valor do sollwert
+
+*Work-area
+  DATA: wa_desc_itens TYPE zstpp_012.
+
+  CLEAR wa_plmk.
+
+  SORT t_plmk BY plnkn plnnr.
+
+*Le a tabela com chave e encontrar o indice para o LOOP
+  READ TABLE t_plmk INTO wa_plmk WITH KEY plnkn = wa_afvc-plnkn
+                                          plnnr = wa_afvc-plnnr
+                                          BINARY SEARCH.
+  vl_index = sy-tabix.
+
+  SORT t_qpmk BY zaehler mkmnr version.
+*  SORT t_plmk BY qpmk_zaehl verwmerkm.
+
+  CLEAR wa_plmk .
+
+*Loop com o indice encontrado anteriormente
+  LOOP AT t_plmk INTO wa_plmk FROM vl_index.
+
+*Se o registro lido nao faz parte do indice sair do loop.
+    IF wa_plmk-plnkn NE wa_afvc-plnkn OR wa_plmk-plnnr NE wa_afvc-plnnr.
+
+      EXIT.
+
+    ENDIF.
+
+*Ler a tabela com as chaves para concatenar os valores nas v_q*
+    READ TABLE t_qpmk INTO wa_qpmk WITH KEY zaehler = wa_plmk-qpmk_zaehl
+                                            mkmnr   = wa_plmk-verwmerkm
+                                            version = wa_plmk-mkversion
+                                            qauth   = '00000001'
+                                            BINARY SEARCH.
+
+*Atribuindo valor para Q1
+    v_q1 = wa_plmk-kurztext.
+
+*Atribuindo valor para Q2
+    IF wa_qpmk-merkgew EQ 1.
+
+      v_q2 = '#'.
+
+    ELSE.
+
+      CLEAR: v_q2.
+
+    ENDIF.
+
+
+    v_toleranzun_aux = wa_plmk-toleranzun.
+    v_toleranzob_aux = wa_plmk-toleranzob.
+    v_sollwert_aux   = wa_plmk-sollwert.
+
+    PERFORM zf_tratar_decimal USING: v_toleranzun_aux CHANGING v_toleranzun,
+                                     v_toleranzob_aux CHANGING v_toleranzob,
+                                     v_sollwert_aux   CHANGING v_sollwert.
+
+*Atribuindo valor Q3
+*Regra 1
+    IF wa_plmk-toleranzun IS NOT INITIAL AND wa_plmk-toleranzob IS NOT INITIAL.
+
+      CONCATENATE v_toleranzun '-' v_toleranzob wa_plmk-masseinhsw INTO v_q3 SEPARATED BY space.
+
+    ELSE.
+
+*Regra 2
+      IF wa_plmk-toleranzun IS INITIAL AND wa_plmk-toleranzob IS INITIAL.
+
+        CONCATENATE v_sollwert wa_plmk-masseinhsw INTO v_q3 SEPARATED BY space.
+
+      ELSE.
+
+*Regra 4
+        IF wa_plmk-toleranzun IS NOT INITIAL AND wa_plmk-toleranzob IS INITIAL AND
+           wa_plmk-masseinhsw IS INITIAL.
+
+          CONCATENATE '>=' v_toleranzun wa_plmk-masseinhsw INTO v_q3 SEPARATED BY space.
+
+        ELSE.
+
+*Regra 5
+          IF  wa_plmk-toleranzun IS INITIAL AND wa_plmk-toleranzob IS INITIAL AND
+              wa_plmk-masseinhsw IS INITIAL.
+
+            v_q3 = wa_plmk-dummy20.
+
+          ELSE.
+
+*Regra 6
+            IF wa_plmk-toleranzun IS INITIAL AND wa_plmk-toleranzob IS NOT INITIAL AND
+               wa_plmk-masseinhsw IS INITIAL.
+
+              CONCATENATE '<=' v_toleranzob wa_plmk-masseinhsw INTO v_q3 SEPARATED BY space.
+
+            ENDIF.
+
+          ENDIF.
+
+        ENDIF.
+
+      ENDIF.
+
+    ENDIF.
+
+*Atribuindo valor para Q4
+
+    v_q4 = wa_plmk-pmethode.
+
+*Atribuindo valor para Q5
+
+    v_q5 = wa_plmk-dummy40.
+
+*Atribuindo valor para Q6
+
+    IF caufvd_tab-prueflos NE 0.
+
+      v_q6 = caufvd_tab-prueflos.
+
+    ELSE.
+
+      CLEAR v_q6.
+
+    ENDIF.
+
+    CONCATENATE v_q1 v_q2 v_q3 v_q4 v_q5 v_q6 INTO v_concatenate SEPARATED BY space.
+
+    CHECK v_concatenate IS NOT INITIAL.
+
+    wa_desc_itens-nr_ope  = afvgd_tab-vornr.
+    wa_desc_itens-nr_cent = work_tab-arbpl.
+    wa_desc_itens-ds_item = v_concatenate.
+
+    APPEND wa_desc_itens TO t_desc_itens.
+
+    CLEAR wa_desc_itens.
+
+  ENDLOOP.
+
+
+ENDFORM.                    " zf_carrega_caract_qualidade
+
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_carrega_caract_processo
+*&---------------------------------------------------------------------*
+*  Carregar a caracteristicas de processo
+*----------------------------------------------------------------------*
+FORM zf_carrega_caract_processo .
+
+  DATA: tl_plmk_aux TYPE TABLE OF y_plmk.
+
+  DATA: vl_index TYPE sy-tabix.
+
+  DATA: v_p1(30)  TYPE c,
+        v_p2(30)  TYPE c,
+        v_p3(30)  TYPE c,
+        v_p4(30)  TYPE c,
+        v_p5(30)  TYPE c,
+        v_p6(30)  TYPE c,
+        v_concatenate(76)  TYPE c,
+        v_toleranzun(12) TYPE c,                     "Armarzenar em caracter o valor do toleranzun
+        v_toleranzun_aux TYPE p LENGTH 16 DECIMALS 3, "Armarzenar em caracter o valor do toleranzun
+        v_toleranzob_aux TYPE p LENGTH 16 DECIMALS 3, "Armarzenar em caracter o valor do toleranzob
+        v_toleranzob(12) TYPE c,                     "Armarzenar em caracter o valor do toleranzob
+        v_sollwert(12) TYPE c,                       "Armarzenar em caracter o valor do sollwert
+        v_sollwert_aux TYPE p LENGTH 16 DECIMALS 3.   "Armarzenar em caracter o valor do sollwert
+
+  DATA: wa_desc_itens TYPE zstpp_012.
+
+  CLEAR wa_plmk.
+
+  SORT t_plmk BY plnkn plnnr.
+
+  READ TABLE t_plmk INTO wa_plmk WITH KEY plnkn = wa_afvc-plnkn
+                                          plnnr = wa_afvc-plnnr
+                                          BINARY SEARCH.
+  vl_index = sy-tabix.
+
+  SORT t_qpmk BY zaehler mkmnr version.
+*  SORT t_plmk BY qpmk_zaehl verwmerkm.
+
+  CLEAR wa_plmk .
+
+  LOOP AT t_plmk INTO wa_plmk FROM vl_index.
+
+    IF wa_plmk-plnkn NE wa_afvc-plnkn OR wa_plmk-plnnr NE wa_afvc-plnnr.
+
+      EXIT.
+
+    ENDIF.
+
+    CLEAR wa_qpmk.
+
+    READ TABLE t_qpmk INTO wa_qpmk WITH KEY zaehler = wa_plmk-qpmk_zaehl
+                                            mkmnr   = wa_plmk-verwmerkm
+                                            version = wa_plmk-mkversion
+                                            qauth   = '00000002'
+                                            BINARY SEARCH.
+
+    v_toleranzun_aux = wa_plmk-toleranzun.
+    v_toleranzob_aux = wa_plmk-toleranzob.
+    v_sollwert_aux   = wa_plmk-sollwert.
+
+    PERFORM zf_tratar_decimal USING: v_toleranzun_aux CHANGING v_toleranzun,
+                                     v_toleranzob_aux CHANGING v_toleranzob,
+                                     v_sollwert_aux   CHANGING v_sollwert.
+
+
+*Campo 1
+    v_p1 = wa_plmk-kurztext.
+
+*Campo 5
+    v_p5 = wa_plmk-masseinhsw.
+
+*Campo 6
+    v_p6 = wa_plmk-dummy10.
+
+*Campo 2
+    v_p2 = v_sollwert.
+
+*Campo 3
+    v_p3 = v_toleranzun.
+
+*Campo 4
+    v_p4 = v_toleranzob.
+
+    CONCATENATE v_p1 v_p2 v_p3 v_p4 v_p5 v_p6 INTO v_concatenate SEPARATED BY space.
+
+    CHECK v_concatenate IS NOT INITIAL.
+
+    wa_desc_itens-nr_ope  = afvgd_tab-vornr.
+    wa_desc_itens-nr_cent = work_tab-arbpl.
+    wa_desc_itens-ds_item = v_concatenate.
+
+    APPEND wa_desc_itens TO t_desc_itens.
+
+    CLEAR: wa_plmk, wa_desc_itens.
+  ENDLOOP.
+
+ENDFORM.                    " zf_carrega_caract_processo
+
+
+*<<< EC 23/08/2007
+*&---------------------------------------------------------------------*
+*&      Form  zf_limpa_memoria
+*&---------------------------------------------------------------------*
+*     Limpa Tabelas internas da memoria
+*----------------------------------------------------------------------*
+
+FORM zf_limpa_memoria .
+
+  FREE: caufvd_tab,
+        afpod_tab,
+        affhd_tab,
+        afvgd_tab,
+        t_afvv.
+
+ENDFORM.                    " zf_limpa_memoria
+*&---------------------------------------------------------------------*
+*&      Form  zf_busca_figuras
+*&---------------------------------------------------------------------*
+*       Busca Desenhos relacionados ao processo de Fabricação
+*----------------------------------------------------------------------*
+FORM zf_busca_figuras USING p_doknr TYPE crvd_b-doknr.
+
+  DATA: vl_extencao TYPE char3,                        " Extenção do arquivo (deve ser considerada apenas os PDF's)
+        vl_strtam   TYPE i,                            " Tamanho da string do arquivo
+        r_dokar     TYPE RANGE OF dms_doc2loio-dokar.  " Range para select
+
+* Selecionar Documento lógico
+  SELECT lo_objid
+    FROM dms_doc2loio
+    INTO TABLE t_objid
+    WHERE dokar IN r_dokar
+      AND doknr = p_doknr.
+
+  IF sy-subrc = 0.
+    CHECK t_objid IS NOT INITIAL.
+
+* Selecionar Característica atributo
+    SELECT prop08
+      FROM dms_ph_cd1
+      INTO TABLE t_prop08
+      FOR ALL ENTRIES IN t_objid
+      WHERE loio_id = t_objid-lo_objid.
+
+    IF sy-subrc = 0.
+      CHECK t_prop08 IS NOT INITIAL.
+*     Selecionar nome do arquivo
+      SELECT filename
+        FROM dms_phio2file
+        INTO TABLE t_filename
+        FOR ALL ENTRIES IN t_prop08
+        WHERE file_id = t_prop08-prop08.
+
+      IF sy-subrc <> 0.
+        CLEAR: t_objid,
+               t_prop08,
+               t_filename.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+* Deleta da tabela interna os arquivos que não são PDF.
+  LOOP AT t_filename INTO wa_filename.
+    vl_strtam = STRLEN( wa_filename-filename ).
+    vl_strtam = vl_strtam - 3.
+    vl_extencao = wa_filename-filename+vl_strtam(3).
+    IF vl_extencao <> c_extensao.
+      DELETE t_filename INDEX sy-tabix.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                    " zf_busca_figuras
+
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_imprime_relatorio
+*&---------------------------------------------------------------------*
+*       Chama o smartform
+*----------------------------------------------------------------------*
+FORM zf_imprime_relatorio TABLES tp_itens       TYPE y_pp_008
+                           USING p_header       TYPE zstpp_007.
+
+  DATA: wa_imp      TYPE ssfcompop,    " SAP Smart Forms: opções Smart Composer (transferência)
+        wa_control  TYPE ssfctrlop,    " Smart Forms: estrutura de controle
+        vl_fname    TYPE rs38l_fnam,   " Nome da função para chamar Smartform.
+        vl_formname TYPE tdsfname,     "Nome do formulário
+        vl_fm_name  TYPE rs38l_fnam.   "Retorno de função
+
+
+* Obtem a impressora de destino
+  vl_formname = print_co-forml.
+
+* Configuracao dos parametros de impressao
+  wa_control-device    = c_print.                "setar impressora
+  wa_control-no_dialog = c_true.                 "nao habilitar caixa de dialogo
+  wa_control-preview   = c_true.                 "Pre Visualizacao
+
+  wa_imp-tddelete      = c_true.                 "Parâmetro de impressão: eliminar após saída
+  wa_imp-tdnewid       = c_true.                 "Parâmetro de impressão, nova ordem SPOOL
+
+* Recupera nome de função que chama o Smartform.
+  CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+    EXPORTING
+      formname           = vl_formname
+    IMPORTING
+      fm_name            = vl_fname
+    EXCEPTIONS
+      no_form            = 1
+      no_function_module = 2
+      OTHERS             = 3.
+
+  IF sy-subrc <> 0.
+    MESSAGE e195.
+  ELSE.
+
+* Insere comando de start de impressão
+    CLEAR wa_control.
+    wa_control-no_open   = c_true.
+    wa_control-no_close  = c_true.
+    wa_control-device    = c_print.
+    wa_control-no_dialog = c_true.
+
+* Localiza Impressora de Saída
+    wa_imp-tddest = 'LOCL'.
+    wa_imp-tdnewid = c_true.
+
+    CALL FUNCTION 'SSF_OPEN'
+      EXPORTING
+        user_settings      = ' '
+        output_options     = wa_imp
+        control_parameters = wa_control
+      EXCEPTIONS
+        formatting_error   = 1
+        internal_error     = 2
+        send_error         = 3
+        user_canceled      = 4
+        OTHERS             = 5.
+
+    IF sy-subrc <> 0.
+
+*** Erro ao carregar o formulário
+      MESSAGE i000(zlpp01) WITH text-003.
+
+    ENDIF.
+
+* Controles de Impressão Principal
+    CLEAR wa_control.
+    wa_control-no_open   = c_true.
+    wa_control-no_dialog = c_true.
+
+    CLEAR wa_imp.
+    wa_imp-tddest = 'LOCL'.
+    wa_imp-tdnewid = c_true.
+
+*>>> EC 30/08/2007
+    PERFORM zf_contar_linhas_rodape TABLES tp_itens.
+*<<< EC 30/08/2007
+
+*  CHAMA FUNÇÃO SMARTFORM
+    CALL FUNCTION vl_fname
+      EXPORTING
+        control_parameters = wa_control
+        output_options     = wa_imp
+        user_settings      = space
+        header             = p_header
+      TABLES
+        t_itens            = tp_itens
+        t_desc_itens       = t_desc_itens
+      EXCEPTIONS
+        formatting_error   = 1
+        internal_error     = 2
+        send_error         = 3
+        user_canceled      = 4
+        OTHERS             = 5.
+
+    IF sy-subrc <> 0.
+      MESSAGE e195.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " zf_imprime_relatorio
+*&---------------------------------------------------------------------*
+*&      Form  ZF_TRATAR_DECIMAL
+*&---------------------------------------------------------------------*
+*     Tratar casas decimais
+*----------------------------------------------------------------------*
+*      -->VL_TOLERANZUN_AUX  text
+*      <--VL_TOLERANZUN      text
+*-----------------------------------------------------------------------*
+FORM zf_tratar_decimal  USING    vl_toleranzun_aux
+                        CHANGING vl_toleranzun.
+
+  vl_toleranzun = vl_toleranzun_aux.
+
+  SHIFT vl_toleranzun LEFT DELETING LEADING space.
+
+  IF vl_toleranzun EQ '0.000' OR vl_toleranzun IS INITIAL.
+
+    CLEAR vl_toleranzun.
+    EXIT.
+
+  ENDIF.
+  vl_toleranzun = FRAC( vl_toleranzun_aux ).
+
+  SHIFT vl_toleranzun LEFT DELETING LEADING space.
+
+  IF vl_toleranzun = '0'.
+    vl_toleranzun = TRUNC( vl_toleranzun_aux ).
+  ENDIF.
+
+  SHIFT vl_toleranzun LEFT DELETING LEADING space.
+
+ENDFORM.                    " ZF_TRATAR_DECIMAL
+*&---------------------------------------------------------------------*
+*&      Form  ZF_CONTAR_LINHAS_RODAPE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM zf_contar_linhas_rodape TABLES tl_itens TYPE y_pp_008.
+
+*  DATA: vl_pag TYPE i VALUE 54,
+*        vl_rod TYPE i VALUE 8,
+*        vl_linha_aux TYPE i,
+*        vl_resto TYPE p LENGTH 3 DECIMALS 2,
+*        vl_resul(10) TYPE c,
+*        vl_linha TYPE i,
+*        vl_caract TYPE i,
+*        vl_indice TYPE sy-tabix,
+*        vl_deci(10) TYPE c.
+*
+*  DATA: wa_itens TYPE zstpp_008,
+*        wa_desc_itens TYPE zstpp_012.
+*
+**  break ter-fabsw03.
+*
+*  SORT tl_itens BY nr_ope nr_cent.
+*  SORT t_desc_itens BY nr_ope nr_cent.
+*
+*  CLEAR: wa_itens, v_linhas.
+*  LOOP AT tl_itens INTO wa_itens.
+*
+*    vl_caract = STRLEN( wa_itens-ds_ope ).
+*
+*    IF vl_caract > 76 .
+*
+*      v_linhas = v_linhas + 2.
+*
+*    ELSE.
+*
+*      v_linhas = v_linhas + 1.
+*
+*    ENDIF.
+*
+*    CLEAR wa_desc_itens.
+*    READ TABLE t_desc_itens INTO wa_desc_itens WITH KEY nr_ope = wa_itens-nr_ope
+*                                                        nr_cent = wa_itens-nr_cent
+*                                                        BINARY SEARCH.
+*    IF sy-subrc IS INITIAL.
+*
+*      vl_indice = sy-tabix.
+*
+*      CLEAR wa_desc_itens.
+*      LOOP AT t_desc_itens INTO wa_desc_itens FROM vl_indice.
+*
+*        IF wa_desc_itens-nr_ope NE wa_itens-nr_ope OR wa_desc_itens-nr_cent NE wa_itens-nr_cent.
+*
+*          EXIT.
+*
+*        ENDIF.
+*
+*        CLEAR vl_caract.
+*
+*        vl_caract = STRLEN( wa_desc_itens-ds_item ).
+*
+*        IF vl_caract > 76.
+*
+*          v_linhas = v_linhas + 2.
+*
+*        ELSE.
+*
+*          v_linhas = v_linhas + 1.
+*
+*        ENDIF.
+*
+*      ENDLOOP.
+*
+*    ELSE.
+*
+*      v_linhas = v_linhas + 1.
+*
+*    ENDIF.
+*
+*  ENDLOOP.
+*
+*  vl_resul = v_linhas / vl_pag.
+*  vl_resto = FRAC( vl_resul ).
+*  vl_linha_aux = ( vl_pag - ( vl_pag * vl_resto ) ).
+*
+*  IF vl_linha_aux < vl_rod.
+*
+*    vl_linha_aux = vl_linha_aux + ( vl_pag - vl_rod ).
+*
+*  ELSE.
+*
+*    vl_linha_aux = vl_linha_aux - vl_rod.
+*
+*  ENDIF.
+*
+*  DO vl_linha_aux TIMES.
+*
+*    CLEAR wa_itens.
+*    APPEND wa_itens TO tl_itens.
+*
+*  ENDDO.
+
+
+ENDFORM.                    " ZF_CONTAR_LINHAS_RODAPE

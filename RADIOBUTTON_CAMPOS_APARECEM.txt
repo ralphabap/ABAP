@@ -1,0 +1,871 @@
+*$*$*********************************************************************************
+****    PROGRAM ID    : ZGERAR_ARQUIVO_CCB
+****    TITLE         : Generate file to update CCB information
+*$*$    CREATION DATE : 26/08/2010
+*$*$    AUTHOR        : Diogo A. de Oliveira
+*$*$---------------------------------------------------------------------------------
+****    DESCRIPTION   : Through the company account receive information, will be send
+****                    montlhy the customer data to update CCB database
+*$*$*********************************************************************************
+*$*$    AUTHORIZATION CHECKS
+*$*$---------------------------------------------------------------------------------
+*$*$  Object             Authority Fields           ABAP Fields
+*$*$---------------------------------------------------------------------------------
+****                  |                          |
+*$*$*********************************************************************************
+*$*$    CHANGE HISTORY
+*$*$---------------------------------------------------------------------------------
+*$*$ DATE        | T-NUM  | DESCRIPTION                   | REFERENCE
+*$*$*******************************************************CATALOG_END**
+*&---------------------------------------------------------------------*
+*& Report  ZGERAR_ARQUIVO_CCB
+*&
+*&---------------------------------------------------------------------*
+report  zgerar_arquivo_ccb.
+ 
+*$*$********************************************************************
+*$*$    GLOBAL TYPES
+*$*$    NAMING CONVENTION: "Y_NAME"
+*$*$********************************************************************
+*{
+types: begin of ty_bsid,
+        bukrs type bsid-bukrs,
+        kunnr type bsid-kunnr,
+        umsks type bsid-umsks,
+        umskz type bsid-umskz,
+        augdt type bsid-augdt,
+        augbl type bsid-augbl,
+        zuonr type bsid-zuonr,
+        gjahr type bsid-gjahr,
+        belnr type bsid-belnr,
+        buzei type bsid-buzei,
+*       budat TYPE bsid-budat,
+        bldat type bsid-bldat,
+        dmbtr type bsid-dmbtr,
+        zfbdt type bsid-zfbdt,
+        zbd1t type bsid-zbd1t,
+        zbd2t type bsid-zbd2t,
+        zbd3t type bsid-zbd3t,
+      end of ty_bsid.
+types: begin of ty_bseg,
+        bukrs type bseg-bukrs,
+        belnr type bseg-belnr,
+        gjahr type bseg-gjahr,
+        buzei type bseg-buzei,
+        augdt type bseg-augdt,
+        dmbtr type bseg-dmbtr,
+        total type bseg-dmbtr,
+      end of ty_bseg.
+types: begin of ty_kna1,
+        kunnr type kna1-kunnr,
+        name1 type kna1-name1,
+        name2 type kna1-name2,
+        ort01 type kna1-ort01,
+        pstlz type kna1-pstlz,
+        regio type kna1-regio,
+        erdat type kna1-erdat,
+        stcd1 type kna1-stcd1,
+      end of ty_kna1.
+types: begin of ty_output,
+         data_mov    type char2,
+         informante  type char2,
+         cnpj        type char8,
+         raz_social  type char50,
+         clnt_desde  type char11,
+         cidade      type char30,
+         uf          type char2,
+         cep         type char2,
+         dat_mr_fat  type char11,
+         vlr_mr_fat  type n length 11,
+         tot_a_venc  type n length 11,
+         prz_med_vnd type n length 6,
+         venc_en_pgt type n length 11,
+         num_ttl_vnc type n length 6,
+         data_de     type char11,
+         data_ate    type char11,
+         prz_med_atr type n length 6,
+         situacao    type char2,
+         prz_med_pgt type n length 6,
+       end of ty_output.
+types: begin of y_zip_file,
+        name        type string,
+        information type xstring,
+      end of y_zip_file.
+*}
+*$*$********************************************************************
+*$*$    GLOBAL CONSTANTS
+*$*$    NAMING CONVENTION: "K_NAME"
+*$*$********************************************************************
+*{
+constants:
+  k_true         type char1  value 'X',
+  k_u            type char1  value 'U',
+  k_1            type char1  value '1',
+  k_0            type char1  value '0',
+  k_raw          type char3  value 'RAW',
+  c_utf          type char20 value 'UTF-8',
+  k_init_folder  type string value 'C:/',
+  k_bar          type char1  value '/',
+*  k_mail_address TYPE char14 VALUE 'ccb@ccb.inf.br',
+  k_mail_address type char17 value 'diioggo@gmail.com',
+  k_grp_email    type char3  value 'EML',
+  k_grp_save     type char3  value 'SAV',
+  k_ext_zip      type char4  value '.ZIP',
+  k_zip_type     type char3  value 'ZIP',
+  k_param_mail   type char10 value 'P_ML_ADR',
+  k_param_file   type char11 value 'P_FL_NAM'.
+*}
+*$*$********************************************************************
+*$*$    GLOBAL ELEMENTARY VARIABLES
+*$*$    NAMING CONVENTION: "V_NAME"
+*$*$********************************************************************
+*{
+data: v_path        type string,
+      v_convt_file  type string,
+      v_xstr_file   type xstring,
+      v_end_date    type sy-datum.
+*}
+*$*$********************************************************************
+*$*$    GLOBAL STRUCTURES
+*$*$    NAMING CONVENTION: "S_NAME"
+*$*$********************************************************************
+*{
+data: s_bsid     type ty_bsid,
+      s_bseg     type ty_bseg,
+      s_bseg_aux type ty_bseg,
+      s_kna1     type ty_kna1,
+      s_output   type ty_output,
+      s_zip_file type y_zip_file.
+*}
+*$*$********************************************************************
+*$*$    GLOBAL INTERNAL TABLES (CUSTOM STRUCTURE)
+*$*$    NAMING CONVENTION: "T_NAME"
+*$*$********************************************************************
+*{
+data: t_bsid     type table of ty_bsid,
+      t_bseg     type table of ty_bseg,
+      t_bseg_aux type table of ty_bseg,
+      t_kna1     type table of ty_kna1,
+      t_output   type table of ty_output.
+*}
+*$*$********************************************************************
+*$*$    GLOBAL RANGES
+*$*$    NAMING CONVENTION: "R_NAME"
+*$*$********************************************************************
+*{
+*DATA: r_creat TYPE RANGE OF /xnfe/nfehd-createtime.
+*}
+*$*$********************************************************************
+*$*$    GLOBAL FIELD-SYMBOLS
+*$*$    NAMING CONVENTION: "<FS_NAME>"
+*$*$********************************************************************
+*{
+*FIELD-SYMBOLS:
+*}
+*$*$********************************************************************
+*$*$    CLASSES
+*$*$    NAMING CONVENTION: "OB_NAME"
+*$*$********************************************************************
+*{
+data: ob_conv type ref to cl_abap_conv_out_ce,
+      ob_zip type ref to cl_abap_zip.
+*}
+
+*$*$********************************************************************
+*$*$    MACRO
+*$*$    NAMING CONVENTION: "M_NAME"
+*$*$********************************************************************
+*{
+define m_fill_reclist .
+  move: &1      to ls_reclist-receiver,
+        k_true  to ls_reclist-express,
+        k_u     to ls_reclist-rec_type.
+  append ls_reclist to lt_reclist.
+  clear ls_reclist.
+end-of-definition.
+*}
+*$*$********************************************************************
+*$*$    PARAMETERS & SELECT-OPTIONS
+*$*$    NAMING CONVENTION: "P_NAME" & "SO_NAME"
+*$*$********************************************************************
+*{
+selection-screen begin of block ss01 with frame.
+* Informante
+selection-screen begin of block ss02 with frame title text-001.
+parameters: p_infor type char2.
+selection-screen end of block ss02.
+* Save Options
+selection-screen begin of block ss03 with frame title text-002.
+parameters: p_rb_mai   radiobutton group gp1 user-command a1,
+            p_rb_sav   radiobutton group gp1,
+            p_ml_adr   type char30 default k_mail_address modif id eml ,
+            p_ml_opt   type char30 modif id eml,
+            p_path     type rlgrap-filename obligatory default 'C:/' modif id sav ,
+            p_fl_nam   type rlgrap-filename obligatory default 'ATUAL.txt' modif id sav.
+selection-screen end of block ss03.
+selection-screen end of block ss01.
+*}
+*$*$********************************************************************
+*$*$     AT SELECTION-SCREEN on block
+*$*$********************************************************************
+*{
+
+*}
+*$*$********************************************************************
+*$*$    INITIALIZATION
+*$*$********************************************************************
+*{
+initialization.
+* Initialize all variables and tables.
+  perform f_clear_all.
+*$*$********************************************************************
+*$*$    AT SELECTION-SCREEN ON VALUE-REQUEST
+*$*$********************************************************************
+*{
+* Matchcode for Path
+at selection-screen on value-request for p_path.
+  perform f_load_path using p_path.
+* File name validation
+at selection-screen on p_fl_nam.
+  if  p_rb_sav eq k_true
+  and p_fl_nam is initial.
+    message e208(00) with text-003.
+  endif.
+*}
+*$*$********************************************************************
+*$*$    AT SELECTION-SCREEN OUTPUT
+*$*$********************************************************************
+*{
+at selection-screen output.
+* Screen fields treatment
+  perform f_field_treatment.
+*$*$********************************************************************
+*$*$    START-OF-SELECTION
+*$*$********************************************************************
+*{
+start-of-selection.
+* Treatment for the path
+  perform f_create_file_dest.
+* Get all necessary information
+  perform f_get_data.
+* Create the file
+  perform f_create_file.
+* Send or save file
+  perform f_process_file.
+*}
+*$*$********************************************************************
+*$*$    END-OF-SELECTION
+*$*$********************************************************************
+*{
+end-of-selection.
+*  ULINE.
+*
+*  WRITE : /   text-002, v_recordg.
+* Clear all variables/tables and structures
+  perform f_clear_all.
+*}
+*$*$********************************************************************
+*$*$    FORMS
+*$*$    NAMING CONVENTION: "F_NAME"
+*$*$********************************************************************
+*&---------------------------------------------------------------------*
+*&      Form  F_CLEAR_ALL
+*&---------------------------------------------------------------------*
+*       Clear all variables, tables and structures
+*----------------------------------------------------------------------*
+form f_clear_all .
+* CLEAR:
+* FREE:
+
+*  UNASSIGN:
+endform.                    " F_CLEAR_ALL
+*&---------------------------------------------------------------------*
+*&      Form  F_LOAD_PATH
+*&---------------------------------------------------------------------*
+*       Load the path on the screen
+*----------------------------------------------------------------------*
+*      -->US_PATH - Receive the path address
+*----------------------------------------------------------------------*
+form f_load_path  using us_path type rlgrap-filename.
+  data: lv_folder      type string,
+        lv_title       type string,
+        lv_init_folder type string.
+  clear: lv_folder,
+         lv_title,
+         lv_init_folder.
+  move: text-005      to lv_title,
+        k_init_folder to lv_init_folder.
+  call method cl_gui_frontend_services=>directory_browse
+    exporting
+      window_title         = lv_title
+      initial_folder       = lv_init_folder
+    changing
+      selected_folder      = lv_folder
+    exceptions
+      cntl_error           = 1
+      error_no_gui         = 2
+      not_supported_by_gui = 3
+      others               = 4.
+  if sy-subrc <> 0.
+    message id sy-msgid type sy-msgty number sy-msgno
+               with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  endif.
+  move: lv_folder to us_path.
+endform.                    " F_LOAD_PATH
+*&---------------------------------------------------------------------*
+*&      Form  F_FIELD_TREATMENT
+*&---------------------------------------------------------------------*
+*       Screen fields treatment
+*----------------------------------------------------------------------*
+form f_field_treatment .
+* Send Email Visible
+  if p_rb_mai is not initial
+  or ( p_rb_mai is initial
+  and  p_rb_sav is initial ).
+    loop at screen.
+      if screen-group1 eq k_grp_email.
+        screen-invisible = 0.
+        screen-input = 1.
+        modify screen.
+      elseif screen-group1 eq k_grp_save.
+        screen-invisible = 1.
+        screen-input = 0.
+        modify screen.
+      endif.
+    endloop.
+* Save file Visible
+  else.
+    loop at screen.
+      if screen-group1 eq k_grp_save.
+        screen-invisible = 0.
+        screen-input = 1.
+        modify screen.
+      elseif screen-group1 eq k_grp_email.
+        screen-invisible = 1.
+        screen-input = 0.
+        modify screen.
+      endif.
+    endloop.
+  endif.
+  loop at screen.
+    if screen-name eq k_param_mail
+    or screen-name eq k_param_file.
+      screen-input = 0.
+      modify screen.
+    endif.
+  endloop.
+endform.                    " F_FIELD_TREATMENT
+*
+**&---------------------------------------------------------------------*
+**&      Form  f_create_file_dest
+**&---------------------------------------------------------------------*
+**       Treatment for the path
+**----------------------------------------------------------------------*
+form f_create_file_dest.
+  data: lv_carac type i.
+  clear lv_carac.
+  lv_carac = strlen( p_path ).
+  lv_carac = lv_carac - 1.
+  if p_rb_sav is initial.
+    if p_path+lv_carac(1) ne k_bar.
+      concatenate p_path k_bar into v_path.
+    else.
+      move p_path to v_path.
+    endif.
+  endif.
+  concatenate v_path p_fl_nam into v_path.
+endform.           "f_create_file_dest
+**&---------------------------------------------------------------------*
+**&      Form  F_GET_DATA
+**&---------------------------------------------------------------------*
+**       Get customer and account receive information
+**----------------------------------------------------------------------*
+form f_get_data .
+  data: lv_ini_date    type sy-datum,
+        lv_month       type char2,
+        lv_year        type char4,
+        lv_fiscal_year type bsid-gjahr.
+  clear: lv_ini_date,
+         v_end_date,
+         lv_month,
+         lv_year,
+         lv_fiscal_year.
+* Get period from last month
+  if sy-datum+6(2) lt 10.
+    if sy-datum+6(2) eq 1.
+      move 12 to lv_month.
+      lv_year = sy-datum(4) - 1.
+    else.
+      lv_month = sy-datum+4(2) - 1.
+      lv_year = sy-datum(4).
+    endif.
+    concatenate lv_year lv_month '01' into lv_ini_date.
+    concatenate sy-datum(4) sy-datum+4(2) '01' into v_end_date.
+* Get period from current month
+  else.
+    if sy-datum+6(2) eq 12.
+      move 01 to lv_month.
+      lv_year = sy-datum(4) + 1.
+    else.
+      lv_month = sy-datum+4(2) + 1.
+      lv_year = sy-datum(4).
+    endif.
+    concatenate sy-datum(4) sy-datum+4(2) '01' into lv_ini_date.
+    concatenate lv_year lv_month '01' into v_end_date.
+  endif.
+* Calculate fiscal year
+  if sy-datum+4(2) lt 07.
+    lv_fiscal_year = sy-datum(4) - 1.
+  else.
+    move sy-datum(4) to lv_fiscal_year.
+  endif.
+
+  select bukrs
+         kunnr
+         umsks
+         umskz
+         augdt
+         augbl
+         zuonr
+         gjahr
+         belnr
+         buzei
+         bldat
+         dmbtr
+         zfbdt
+         zbd1t
+         zbd3t
+    from bsid
+    into table t_bsid
+   where gjahr eq lv_fiscal_year
+     and bldat ge lv_ini_date
+     and bldat lt v_end_date.
+  if sy-subrc is initial.
+    sort t_bsid by bukrs
+                   belnr
+                   gjahr
+                   buzei.
+*
+*    SELECT bukrs
+*           belnr
+*           gjahr
+*           buzei
+*           augdt
+*           dmbtr
+*      FROM bseg
+*      INTO TABLE t_bseg_aux
+*       FOR ALL ENTRIES IN t_bsid
+*     WHERE bukrs EQ t_bsid-bukrs
+*       AND belnr EQ t_bsid-belnr
+*       AND gjahr EQ t_bsid-gjahr
+*       AND buzei EQ t_bsid-buzei.
+    if sy-subrc is initial.
+      sort t_bseg_aux by bukrs
+                         belnr
+                         gjahr
+                         buzei.
+      sort t_bsid by bukrs
+                     kunnr
+                     umsks
+                     umskz
+                     augdt
+                     augbl
+                     zuonr
+                     gjahr
+                     belnr
+                     buzei.
+    endif.
+    select kunnr
+           name1
+           name2
+           ort01
+           pstlz
+           regio
+           erdat
+           stcd1
+      from kna1
+      into table t_kna1
+       for all entries in t_bsid
+     where kunnr eq t_bsid-kunnr.
+    if sy-subrc is initial.
+      sort t_kna1 by kunnr.
+    endif.
+  endif.
+endform.                    " F_GET_DATA
+*&---------------------------------------------------------------------*
+*&      Form  F_CREATE_FILE
+*&---------------------------------------------------------------------*
+*       Create the file
+*----------------------------------------------------------------------*
+form f_create_file .
+  data: lv_duedate    type bseg-zfbdt,
+        lv_pri_titl   type sy-datum,
+        lv_ult_titl   type sy-datum,
+        lv_tot_atraso type i.
+  clear: lv_duedate,
+         lv_pri_titl,
+         lv_ult_titl,
+         lv_tot_atraso.
+  loop at t_bsid into s_bsid.
+*
+*    CLEAR s_bseg_aux.
+*    READ TABLE t_bseg_aux INTO s_bseg_aux WITH KEY bukrs = s_bsid-bukrs
+*                                                   belnr = s_bsid-belnr
+*                                                   gjahr = s_bsid-gjahr
+*                                                   buzei = s_bsid-buzei
+*                                                   BINARY SEARCH.
+*
+*    IF sy-subrc IS INITIAL.
+*
+*      ADD s_bseg_aux-dmbtr TO s_bseg-total.
+*
+*      IF s_bseg_aux-dmbtr GT s_bseg-dmbtr.
+*
+*        MOVE s_bseg_aux TO s_bseg.
+*
+*      ENDIF.
+*
+*    ENDIF.
+*
+*
+*
+*
+* Valor à Vencer
+    add s_bsid-dmbtr to s_output-tot_a_venc.
+    if s_bsid-dmbtr gt s_output-vlr_mr_fat.
+* Maior Fatura (Data)
+      concatenate s_bsid-bldat+6(2) k_bar s_bsid-bldat+4(2) k_bar s_bsid-bldat(4) into s_output-dat_mr_fat.
+* Valor Maior Fatura
+      s_output-vlr_mr_fat = trunc( s_bsid-dmbtr ).
+    endif.
+    clear lv_duedate.
+    call function 'J_1B_FI_NETDUE'
+      exporting
+        zfbdt   = s_bsid-zfbdt
+        zbd1t   = s_bsid-zbd1t
+        zbd2t   = s_bsid-zbd2t
+        zbd3t   = s_bsid-zbd3t
+      importing
+        duedate = lv_duedate
+      exceptions
+        others  = 1.
+    if  lv_duedate is not initial.
+* Vencidos e Não Pagos
+      if lv_duedate lt sy-datum.
+        s_output-venc_en_pgt = trunc( s_bsid-dmbtr ).
+* Nº de Títulos Vencidos
+        add 1 to s_output-venc_en_pgt.
+* Total de dias de Atraso para cálculo do Prazo Méd. Atraso
+        lv_tot_atraso = sy-datum - lv_duedate.
+        add lv_tot_atraso to s_output-prz_med_atr.
+      endif.
+* De (Data)
+      if lv_duedate lt lv_pri_titl.
+        move lv_duedate to lv_pri_titl.
+        concatenate lv_pri_titl+6(2) k_bar lv_pri_titl+4(2) k_bar lv_pri_titl(4) into s_output-data_de.
+      endif.
+* Até (Data)
+      if lv_duedate lt lv_ult_titl.
+        move lv_duedate to lv_ult_titl.
+        concatenate lv_ult_titl+6(2) k_bar lv_ult_titl+4(2) k_bar lv_ult_titl(4) into s_output-data_ate.
+      endif.
+    endif.
+
+* Move remaining fields
+    at new kunnr.
+      clear s_kna1.
+      read table t_kna1 into s_kna1 with key kunnr = s_bsid-kunnr
+                                                     binary search.
+      if sy-subrc is initial.
+* Data do movimento
+        concatenate v_end_date+6(2) k_bar v_end_date+4(2) k_bar v_end_date(4) into s_output-data_mov.
+* Informante
+        move p_infor to s_output-informante.
+* CNPJ
+        replace all occurrences of '.' in s_kna1-stcd1 with space.
+        replace all occurrences of '/' in s_kna1-stcd1 with space.
+        condense s_kna1-stcd1.
+        move s_kna1-stcd1 to s_output-cnpj.
+* Razão Social
+        concatenate s_kna1-name1 s_kna1-name2 into s_output-raz_social.
+* Cliente Desde (Data)
+        concatenate s_kna1-erdat+6(2) k_bar s_kna1-erdat+4(2) k_bar s_kna1-erdat(4) into s_output-clnt_desde.
+* Cidade
+        move s_kna1-ort01 to s_output-cidade.
+* CEP
+        move s_kna1-pstlz to s_output-cep.
+
+* Prazo Méd. Vendas
+*?????
+* Prazo Méd. Atraso
+        s_output-prz_med_atr = s_output-prz_med_atr / s_output-venc_en_pgt.
+* Situação
+* TBD
+* sELECT BLA BLA BLA
+* Prazo Méd. Pagamentos
+*?????
+        append s_output to t_output.
+        clear s_output.
+      endif.
+    endat.
+  endloop.
+ 
+ 
+
+  move p_fl_nam to s_zip_file-name.
+  create object ob_zip.
+  check t_output is not initial.
+  concatenate lines of t_output into v_convt_file.
+*    CONDENSE w_auxs NO-GAPS.
+* Convert the output to UTF-8
+  clear s_zip_file.
+  ob_conv = cl_abap_conv_out_ce=>create( encoding = c_utf ).
+  ob_conv->convert( exporting data = v_convt_file importing buffer = s_zip_file-information ).
+  ob_zip->add( name = s_zip_file-name content = s_zip_file-information ).
+*-------------------------------------------------------------------------*
+*" ZIP the XML in XString
+  v_xstr_file = ob_zip->save( ).
+  free ob_zip.
+endform.                    " F_CREATE_FILE
+*&---------------------------------------------------------------------*
+*&      Form  F_PROCESS_FILE
+*&---------------------------------------------------------------------*
+*       Send or save file
+*----------------------------------------------------------------------*
+form f_process_file .
+  if p_rb_mai eq k_true.
+* Send Email
+    perform f_send_email.
+  else.
+* Save File
+    perform f_save_file.
+  endif.
+
+endform.                    " F_PROCESS_FILE
+**&---------------------------------------------------------------------*
+**&      Form  F_SEND_EMAIL
+**&---------------------------------------------------------------------*
+**       Send email to customer
+**----------------------------------------------------------------------*
+form f_send_email .
+  data:
+        lt_objhex     type standard table of solix,
+        lt_objtxt     type standard table of solisti1,
+        lt_objhead    type soli_tab,
+        lt_objpack    type standard table of sopcklsti1,
+        lt_reclist    type standard table of somlreci1.
+  data:
+        ls_objpack    type sopcklsti1,
+        ls_objhex     type solix,
+        ls_docdata    type sodocchgi1,
+        ls_objhead    type soli,
+        ls_objtxt     type solisti1,
+        ls_reclist    type somlreci1,
+        lv_cnpj       type char18,
+        lv_datum      type char10,
+        lv_ch_time    type char26.
+  field-symbols: <fs_reclist> type somlreci1.
+  data: lv_tab_lines type i,
+        lv_len       type i,
+        lv_add_data  type string,
+        lv_tabix     type sy-tabix,
+        lv_answer    type char1.
+
+  clear: ls_reclist,
+         ls_objpack,
+         ls_objhex,
+         ls_docdata,
+         ls_objtxt,
+         ls_reclist,
+         ls_objhead,
+         lv_tab_lines,
+         lv_cnpj,
+         lv_datum,
+         lv_ch_time,
+         lv_add_data,
+         lv_tabix,
+         lv_answer.
+  free: lt_reclist,
+        lt_objhex,
+        lt_objtxt,
+        lt_objhead,
+        lt_objpack,
+        lt_reclist.
+* Fill receiver list
+  m_fill_reclist p_ml_adr.
+  if p_ml_opt is not initial.
+    m_fill_reclist p_ml_opt.
+  endif.
+*  SORT lt_email_list BY id.
+*-------------------------------------------------------------------------*
+* Object name
+  move text-006 to ls_docdata-obj_name.
+*-------------------------------------------------------------------------*
+* E-mail subject
+*
+** Protocolo
+*  CONCATENATE text-045
+*              <fs_nfehd>-authcod
+*         INTO ls_objtxt SEPARATED BY space.
+*  APPEND ls_objtxt TO lt_objtxt.
+*
+** Blank line
+*  CLEAR ls_objtxt.
+*  APPEND ls_objtxt TO lt_objtxt.
+*
+** Footer
+*  MOVE text-046 TO ls_objtxt.
+*  APPEND ls_objtxt TO lt_objtxt.
+  clear: ls_objtxt,
+         lv_tab_lines.
+  describe table lt_objtxt lines lv_tab_lines.
+  read table lt_objtxt index lv_tab_lines into ls_objtxt.
+  ls_docdata-doc_size = ( lv_tab_lines - 1 ) * 255 + strlen( ls_objtxt ).
+* Creating the entry for the compressed document
+  clear ls_objpack-transf_bin.
+  move: k_1          to ls_objpack-head_start,
+        k_0          to ls_objpack-head_num,
+        k_1          to ls_objpack-body_start,
+        lv_tab_lines to ls_objpack-body_num,
+        k_raw        to ls_objpack-doc_type.
+  append ls_objpack to lt_objpack.
+  clear ls_objpack.
+*-------------------------------------------------------------------------*
+* File name
+  concatenate p_fl_nam k_ext_zip into ls_objhead-line.
+  append ls_objhead to lt_objhead.
+* Convert File in attachment
+  move: k_zip_type to ls_objpack-doc_type.
+  while v_xstr_file is not initial.
+    clear lv_len.
+    lv_len = xstrlen( v_xstr_file ).
+    if lv_len ge 255.
+      move: v_xstr_file(255) to ls_objhex-line,
+            v_xstr_file+255  to v_xstr_file.
+      append ls_objhex to lt_objhex.
+      clear ls_objhex.
+    else.
+      move v_xstr_file(lv_len) to ls_objhex-line.
+      clear v_xstr_file.
+      append ls_objhex to lt_objhex.
+      clear ls_objhex.
+*" Blank characters
+      lv_len = 255 - lv_len.
+    endif.
+  endwhile.
+*-------------------------------------------------------------------------*
+* Creating the entry for the compressed attachment
+  describe table lt_objhex lines lv_tab_lines.
+  ls_objpack-doc_size   = ( lv_tab_lines * 255 ) - lv_len.
+  move: k_true           to ls_objpack-transf_bin,
+        k_1              to ls_objpack-head_start,
+        k_1              to ls_objpack-head_num,
+        k_1              to ls_objpack-body_start,
+        lv_tab_lines     to ls_objpack-body_num,
+        text-007         to ls_objpack-obj_name,
+        text-008         to ls_objpack-obj_descr.
+  append ls_objpack to lt_objpack.
+  call function 'POPUP_TO_CONFIRM'
+    exporting
+     titlebar                    = text-016
+*   DIAGNOSE_OBJECT             = ' '
+      text_question               = text-017
+     text_button_1               = text-018
+*   ICON_BUTTON_1               = ' '
+     text_button_2               = text-019
+*   ICON_BUTTON_2               = ' '
+    importing
+      answer                      = lv_answer
+   exceptions
+     text_not_found              = 1
+     others                      = 2 .
+  if sy-subrc <> 0.
+    message id sy-msgid type sy-msgty number sy-msgno
+            with sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  endif.
+  if lv_answer ne '1'.
+    message s208(00) display like 'E' with text-020.
+  else.
+* Sending the document
+    call function 'SO_NEW_DOCUMENT_ATT_SEND_API1'
+      exporting
+        document_data              = ls_docdata
+        put_in_outbox              = k_true
+        commit_work                = k_true
+      tables
+        packing_list               = lt_objpack
+        object_header              = lt_objhead
+        contents_hex               = lt_objhex
+        contents_txt               = lt_objtxt
+        receivers                  = lt_reclist
+      exceptions
+        too_many_receivers         = 1
+        document_not_sent          = 2
+        operation_no_authorization = 4
+        others                     = 99.
+    case sy-subrc.
+      when 0.
+        unassign <fs_reclist>.
+        loop at lt_reclist assigning <fs_reclist>.
+          if <fs_reclist>-retrn_code = 0.
+            write: /7 text-014.
+          else.
+            write text-013.
+          endif.
+        endloop.
+      when 1.
+        write: /7 text-010.
+      when 2.
+        write: /7 text-011.
+      when 4.
+        write: /7 text-012.
+      when others.
+        write: /7 text-013.
+    endcase.
+  endif.
+endform.                    " F_SEND_EMAIL
+*&---------------------------------------------------------------------*
+*&      Form  F_SAVE_FILE
+*&---------------------------------------------------------------------*
+*       Save file
+*----------------------------------------------------------------------*
+form f_save_file .
+  data: lt_xml_down type table of string.
+  free lt_xml_down.
+  append v_xstr_file to lt_xml_down.
+* Save content to file
+  call method cl_gui_frontend_services=>gui_download
+    exporting
+      filename                = v_path
+    changing
+*        data_tab                = lt_xml_down
+      data_tab                = t_output
+    exceptions
+      file_write_error        = 1
+      no_batch                = 2
+      gui_refuse_filetransfer = 3
+      invalid_type            = 4
+      no_authority            = 5
+      unknown_error           = 6
+      header_not_allowed      = 7
+      separator_not_allowed   = 8
+      filesize_not_allowed    = 9
+      header_too_long         = 10
+      dp_error_create         = 11
+      dp_error_send           = 12
+      dp_error_write          = 13
+      unknown_dp_error        = 14
+      access_denied           = 15
+      dp_out_of_memory        = 16
+      disk_full               = 17
+      dp_timeout              = 18
+      file_not_found          = 19
+      dataprovider_exception  = 20
+      control_flush_error     = 21
+      not_supported_by_gui    = 22
+      error_no_gui            = 23
+      others                  = 24.
+  if sy-subrc is not initial.
+    write: /7 text-015.
+  endif.
+endform.                    " F_SAVE_FILE

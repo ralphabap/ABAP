@@ -1,0 +1,134 @@
+[Legacy System Migration Workbench]
+LSMW Version Number : 4.0.0
+LSMW Version Date : 31.08.2004
+R/3 Installation Number : 0020233351
+R/3 System Id : EP0
+R/3 Release : 700
+R/3 Client : 100
+R/3 Operating System : HP-UX
+R/3 Database System : ORACLE
+R/3 Hostname : brjgs924
+User Id : W-T-ANDERSON
+Date : 30.05.2008
+Time : 09:25:36
+Local Date : 30.05.2008
+Local Time : 09:25:36
+Local Timezone : BRAZIL
+
+[Project Information]
+[Project Name     ] : CARGA
+[Project Text     ] : carga
+
+/SAPDMC/LSGPRO                CARGA          T-ANDERSONF 20071123
+/SAPDMC/LSGPROT               PCARGA          carga
+
+[Recordings]
+
+[Recording        ] : SE38
+[Recording Text   ] : se38
+/SAPDMC/LSGBDC                CARGA          SE38           0001                                        0000TSE38                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       0000000000                              000000000000000000
+/SAPDMC/LSGBDC                CARGA          SE38           0002SAPLWBABAP                              0100X                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           0000000000                              000000000000000000
+/SAPDMC/LSGBDC                CARGA          SE38           0003                                        0000 BDC_CURSOR                                                                                                                          RS38M-PROGRAMM                                                                                                                                                                                                                                                                                                                                         0000000000                              000000000000000000
+/SAPDMC/LSGBDC                CARGA          SE38           0004                                        0000 BDC_OKCODE                                                                                                                          =BACK                                                                                                                                                                                                                                                                                                                                                  0000000000                              000000000000000000
+/SAPDMC/LSGBDC                CARGA          SE38           0005                                        0000 RS38M-FUNC_EDIT                                                                                                                                                                                                                                                         FUNC_EDIT                                                                                 FUNC                          FUNC_EDIT                      RS38M                         FUNC_EDIT                     0000000000                              000001000002000001CHARC
+/SAPDMC/LSGBDCA               CARGA          SE38           SE38                T-ANDERSONF T-ANDERSONF 20071123
+/SAPDMC/LSGBDCS               CARGA          SE38           01
+/SAPDMC/LSGBDCT               PCARGA          SE38           se38
+
+[Subproject Information]
+[Subproject       ] : CARGA
+[Subproject Text  ] : carga
+
+/SAPDMC/LSGSUB                CARGA          CARGA          T-ANDERSONF 20071123
+/SAPDMC/LSGSUBT               PCARGA          CARGA          carga
+
+[Object Information]
+[Object           ] : CARGA
+[Object Text      ] : carga
+
+/SAPDMC/LSOTXT                PCARGA          CARGA          CARGA          carga
+/SAPDMC/LSOATT                CARGA          CARGA          CARGA          02                                                                                                                                            00000606T-ANDERSONF X T-ANDERSONF 20071123
+/SAPDMC/LSOSTR                CARGA          CARGA          CARGA          ASDFD                         asd                                                                                       000101 00000000000000000000
+/SAPDMC/LSOFLD                CARGA          CARGA          CARGA          ASDFD                         A                             0001C   001a
+/SAPDMC/LSOREL                CARGA          CARGA          CARGA          0001SE38                          ASDFD                         00000000
+/SAPDMC/LSORUL                CARGA          CARGA          CARGA          0000__END_OF_TRANSACTION__                                      DFT-ANDERSONF 20071231                                                                                                                        00000000
+/SAPDMC/LSORUL                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     ACT-ANDERSONF 20071231                                                                                                                        00000000
+/SAPDMC/LSORUL                CARGA          CARGA          CARGA          0001SE38                          TABNAME                       DFT-ANDERSONF 20071231                                                                                                                        00000000
+/SAPDMC/LSORUL                CARGA          CARGA          CARGA          0001SE38                          TCODE                         DFT-ANDERSONF 20071231                                                                                                                        00000000
+/SAPDMC/LSORUL                CARGA          CARGA          CARGA          0001SE38                          __BEGIN_OF_RECORD__           DFT-ANDERSONF 20071231                                                                                                                        00000000
+/SAPDMC/LSORUL                CARGA          CARGA          CARGA          0001SE38                          __END_OF_RECORD__             DFT-ANDERSONF 20071231                                                                                                                        00000000
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0000__END_OF_TRANSACTION__                                      0001transfer_transaction.                                                   T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0001TYPES:                                                                  T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0002    PROG_SRC(200)   TYPE C.                                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0003DATA itab TYPE TABLE OF string.                                         T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0004DATA v_prog(30) TYPE c.                                                 T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0005DATA: c_aux LIKE rlgrap-filename.                                       T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0006data: TB_SRC TYPE PROG_SRC      OCCURS 0.                               T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0007data: wc_returncode LIKE rlgrap-filename. "arquivo                      T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0008data: wc_returncode2 LIKE RS38M-PROGRAMM. "programa                     T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0009DATA: e_fields TYPE sval.                                               T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0010DATA: ti_fields TYPE STANDARD TABLE OF sval.                            T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0011                                                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0012CALL FUNCTION 'F4_FILENAME'                                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0013  EXPORTING                                                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0014    program_name  = sy-repid                                            T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0015    dynpro_number = sy-dynnr                                            T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0016    field_name    = 'WC_RETURNCODE'                                     T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0017  IMPORTING                                                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0018    file_name     = wc_returncode                                       T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0019  EXCEPTIONS                                                            T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0020    OTHERS        = 1.                                                  T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0021if wc_returncode is initial.                                            T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0022  exit.                                                                 T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0023endif.                                                                  T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0024                                                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0025e_fields-tabname = 'RS38M'.                                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0026e_fields-fieldname = 'PROGRAMM'.                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0027e_fields-fieldtext = 'Nome do programa ABAP'.                           T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0028APPEND e_fields TO ti_fields.                                           T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0029CALL FUNCTION 'POPUP_GET_VALUES'                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0030  EXPORTING                                                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0031    popup_title     = 'Nome do programa ABAP'                           T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0032  IMPORTING                                                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0033    returncode      = wc_returncode2                                    T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0034  TABLES                                                                T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0035    fields          = ti_fields                                         T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0036  EXCEPTIONS                                                            T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0037    error_in_fields = 1                                                 T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0038    OTHERS          = 2.                                                T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0039IF sy-subrc <> 0.                                                       T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0040  MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno                     T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0041          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.                     T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0042ENDIF.                                                                  T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0043                                                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0044if wc_returncode2 = 'A'.                                                T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0045  exit.                                                                 T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0046endif.                                                                  T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0047                                                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0048read table ti_fields into e_fields index 1.                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0049wc_returncode2 = e_fields-VALUE.                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0050CALL FUNCTION 'WS_UPLOAD'                                               T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0051  EXPORTING                                                             T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0052    filename = wc_returncode                                            T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0053    filetype = 'ASC'                                                    T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0054  TABLES                                                                T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0055    data_tab = TB_SRC.                                                  T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0056INSERT REPORT wc_returncode2 FROM TB_SRC.                               T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0057*GENERATE REPORT wc_returncode2.                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0058commit work.                                                            T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0059                                                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          FUNC_EDIT                     0060                                                                        T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          TABNAME                       0001SE38-TABNAME = 'SE38'.                                                  T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          TCODE                         0001SE38-TCODE = 'SE38'.                                                    T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          __BEGIN_OF_RECORD__           0001SE38 = INIT_SE38.                                                       T-ANDERSONF 20071231
+/SAPDMC/LSOCOD                CARGA          CARGA          CARGA          0001SE38                          __END_OF_RECORD__             0001transfer_record.                                                        T-ANDERSONF 20071231
+/SAPDMC/LSOFIL                CARGA          CARGA          CARGA          CARGA_CARGA_CARGA.lsmw.read                                                                                             CARGA_CARGA_CARGA.lsmw.conv
+/SAPDMC/LSOINP                CARGA          CARGA          CARGA          0001FEC:\Users\Vivian\Desktop\TESTE.txt                                                                                       asd                           0000X 000000                                       XX  X
+/SAPDMC/LSOINS                CARGA          CARGA          CARGA          ASDFD                         0001
+/SAPDMC/LSOPAR                CARGA          CARGA          CARGA                      FROMLINE_CONV                 0000000000
+/SAPDMC/LSOPAR                CARGA          CARGA          CARGA                      TOLINE_CONV                   0000000000
+/SAPDMC/LSOPAR                CARGA          CARGA          CARGA          T-CARLOSB   WILDCARDVALUE
+/SAPDMC/LSOPAR                CARGA          CARGA          CARGA          W-T-ANDERSONWILDCARDVALUE
+/SAPDMC/LSOREC                CARGA          CARGA          CARGA          0001SE38
+
+[Documentation    ]

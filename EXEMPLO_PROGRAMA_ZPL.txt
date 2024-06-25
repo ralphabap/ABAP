@@ -1,0 +1,676 @@
+************************************************************************
+*  Report  ZPWMF_008                                                   *
+************************************************************************
+* WEG EQUIPAMENTOS ELÉTRICOS S.A.                                      *
+* Implementador: Procwork Informática Ltda.                            *
+*                                                                      *
+* ID    Request      Data          Nome                                *
+* SO    ED0K911715   29/10/2007    Sandra Oliveira                     *
+*                                                                      *
+* Descrição: Programa para impressão de etiquetas da transação LT31    *
+*----------------------------------------------------------------------*
+* Histórico de alterações do objeto                                    *
+*----------------------------------------------------------------------*
+* ID    Request      Data          Nome                                *
+* GHM   ED0K911715   08/11/2007    Gabriel H. Monteiro                 *
+* Descrição: - modificação na forma de envio nos parâmetros de         *
+*            impressão para etiquetas                                  *
+*                                                                      *
+* ID    Request      Data          Nome                                *
+* SO    ED0K911715   10/11/2007    Ralph Nova                          *
+*                                                                      *
+* Descrição: Arrumando os erros:                                       *
+*            Quantidade de Etiquetas imprimindo errado                 *
+*            Título do relatório saindo no meio da etiqueta            *
+*            Arrumando as opções de spool                              *
+*----------------------------------------------------------------------*
+
+
+************************************************************************
+REPORT  zpwmf_008 NO STANDARD PAGE HEADING.
+************************************************************************
+
+*---------------------------------------------------------------------*
+* Constantes
+CONSTANTS: c_classtp              TYPE klah-klart       VALUE '001',   "ClassType
+*>>>GHM 08/11/2007
+           c_wil3                 TYPE pri_params-pdest VALUE 'WIL3',  "Nome da Impressora
+           c_x                    TYPE c                VALUE 'X',     "Flag com valor X
+*<<<GHM 08/11/2007
+           c_mais                 TYPE c                VALUE '+',     "Mais
+           c_s(1)                 TYPE c                VALUE 'S',     "Sim
+           c_n(1)                 TYPE c                VALUE 'N',     "Não
+           c_0(1)                 TYPE c                VALUE '0',     "Parâmetro de entrada prog. standard
+           c_tela(4)              TYPE c                VALUE 'TELA'.  "Parâmetro de entrada prog. standard
+
+*----------------------------------------------------------------------------------------------------------
+* TIPOS
+*----------------------------------------------------------------------------------------------------------
+TYPES:
+BEGIN OF y_final,
+  vbeln                           TYPE ltap-vbeln,  "Fornecimento
+  matnr                           TYPE ltap-matnr,  "Nº do material
+  tapos                           TYPE ltap-tapos,  "Item de ordem de transporte
+  qtde_final                      TYPE ltap-vsola,  "Soma Qtd.teórica origem em unidade de medida alternativa
+  vsola                           TYPE ltap-vsola,  "Qtd.teórica origem em unidade de medida alternativa
+  lgnum                           TYPE ltap-lgnum,  "Nºdepósito/complexo de depósito
+  tanum                           TYPE ltap-tanum,  "Nº ordem de transporte
+  posnr                           TYPE ltap-posnr,  "Nº item do documento de vendas e distribuição
+  werks                           TYPE ltap-werks,  "Centro
+  vlpla                           TYPE ltap-vlpla,  "Posição no depósito de origem
+  maktx                           TYPE ltap-maktx,  "Item de ordem de transporte
+  kober                           TYPE ltap-kober,  "Área de picking
+  lgort                           TYPE ltap-lgort,  "Depósito
+END OF y_final.
+
+*---------------------------------------------------------------------*
+* Tabelas Internas
+
+DATA: t_forn                      TYPE TABLE OF zstwm_001,  "Ti p/ Fornecimento
+      t_kna1                      TYPE TABLE OF zstwm_002,  "Ti p/ Mestre de clientes
+      t_knmt                      TYPE TABLE OF zstwm_003,  "Ti p/ Tabela de dados info cliente-material
+      t_doc_trans                 TYPE TABLE OF zstwm_004,  "Ti p/ Doc. de Transporte
+      t_itiner                    TYPE TABLE OF zstwm_005,  "Ti p/ itinerário
+      t_lfa1                      TYPE TABLE OF zstwm_006,  "Ti p/ Mestre de fornecedores
+      t_final                     TYPE TABLE OF y_final,    "Tabela de apresentação dos dados processados
+      t_final2                    TYPE TABLE OF y_final,    "Tabela de apresentação dos dados processados
+      t_ltap                      TYPE TABLE OF ltap_vb,    "Ti p/ Estrutura transf.
+      t_class                     TYPE TABLE OF sclass,     "Ti p/ Estr. ref.: dados de classes
+      t_objectdata                TYPE TABLE OF clobjdat,   "Ti p/ Estr. ref.: dados de classificação p/o objeto
+      t_ltak                      TYPE TABLE OF ltak,       "Ti p/ Cabeçalho de ordem de transporte
+      t_aux_lt31                  TYPE TABLE OF ltap_vb.    "Ti p/ Estrutura transf.LTAP + LTAP1
+
+DATA:  params                     TYPE pri_params,   "Objeto utiliza na impressão Zebra
+*>>>GHM 08/11/2007
+       v_ldes5                    TYPE t329a-ldes5,  "Nome da impressora p/etiquetas
+       v_valid                    TYPE c,            "Check de retorno da função 'GET_PRINT_PARAMETERS'
+*<<<GHM 08/11/2007
+       v_imp_cabe                 TYPE c,            "Identifica necessidade de impressão de cabeçalho
+       returncode                 TYPE sy-subrc,     "Returncode aus Druckprogramm
+       us_screen                  TYPE c,            "Parâmetro de entrada programa standard
+* >>> RN 10/11/2007
+       v_spool   TYPE t329f-spool.   "Tipo do Spool
+* <<< RN 10/11/2007
+
+*---------------------------------------------------------------------*
+* Work Areas
+DATA: wa_forn                     TYPE zstwm_001,  "Wa p/ Fornecimento
+      wa_final                    TYPE y_final,    "Wa p/ Dados finais
+      wa_ltap                     TYPE ltap_vb,    "Wa p/ Estrutura transf.
+      wa_objdata                  TYPE clobjdat,   "Wa p/ Dados de classificação p/o objeto
+      wa_doc_trans                TYPE zstwm_004,  "Wa p/ Doc. de Transporte
+      wa_itiner                   TYPE zstwm_005,  "Wa p/ itinerário
+      wa_ltak                     TYPE ltak,       "Wa p/ Cabeçalho de ordem de transporte
+      wa_knmt                     TYPE zstwm_003,  "Wa p/ Tabela de dados info cliente-material
+      wa_lfa1                     TYPE zstwm_006,  "Wa p/ Mestre de fornecedores
+      wa_kna1                     TYPE zstwm_002,  "Wa p/ Mestre de clientes
+      wa_final2                   TYPE y_final.    "Wa p/ Dados finais
+
+*---------------------------------------------------------------------*
+* Inicio da Execução
+
+START-OF-SELECTION.
+* Subrotina Principal
+
+  PERFORM zf_formulario USING returncode
+                              us_screen.
+
+END-OF-SELECTION.
+*&---------------------------------------------------------------------*
+*&      Form  zf_formulario
+*&---------------------------------------------------------------------*
+*   Performe para executar subrotinas do processamento
+*----------------------------------------------------------------------*
+
+*-- Este form não é executado diretamente no programa, é chamado à partir
+*-- do programa standard RSNAST00.
+FORM zf_formulario USING returncode TYPE sy-subrc
+                         us_screen TYPE c.
+
+  returncode = c_0.
+  us_screen = c_tela.
+
+* Limpa os dados antes da execução.
+  PERFORM zf_limpa_dados.
+
+* Importação de Work Areas e tabelas internas da Memória ABAP
+  PERFORM zf_importa_dados.
+
+* Seleciona dados das tabelas transparentes.
+  PERFORM zf_seleciona_dados.
+
+* Impressão das Etiquetas
+  PERFORM zf_imprime_etiquetas.
+
+* Limpa Tabelas e Work Areas depois de utiliza-las
+  PERFORM zf_limpa_dados_final.
+
+ENDFORM.                    " zf_formulario
+*&---------------------------------------------------------------------*
+*&      Form  zf_limpa_dados
+*&---------------------------------------------------------------------*
+*   Limpa tabelas, Work Areas antes de utilizalas.
+*----------------------------------------------------------------------*
+
+FORM zf_limpa_dados .
+
+* Limpa Tabelas Internas
+  CLEAR: t_forn       ,
+         t_kna1       ,
+         t_knmt       ,
+         t_doc_trans  ,
+         t_itiner     ,
+         t_lfa1       ,
+         t_final      ,
+         t_final2     ,
+         t_ltap       ,
+         t_class      ,
+         t_objectdata ,
+         t_ltak       .
+
+* Limpa Work Areas
+  CLEAR: wa_forn     ,
+         wa_final    ,
+         wa_ltap     ,
+         wa_objdata  ,
+         wa_doc_trans,
+         wa_itiner   ,
+         wa_ltak     ,
+         wa_knmt     ,
+         wa_lfa1     ,
+         wa_kna1     .
+
+ENDFORM.                    " zf_limpa_dados
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_importa_dados
+*&---------------------------------------------------------------------*
+*  Importação dos Dados que serão utilizados p/ execução do programa
+*----------------------------------------------------------------------*
+FORM zf_importa_dados .
+
+  CONSTANTS: c_druck(8) TYPE c VALUE 'LVSDRUCK'.
+
+*   Importa dados para utilizar na execução do programa
+  IMPORT
+     mem_ltak TO t_ltak
+     tap      TO t_ltap
+* >>> RN 10/11/2007
+     zspool   TO v_spool
+* <<< RN 10/11/2007
+     FROM MEMORY ID c_druck.
+
+ENDFORM.                    " zf_importa_dados
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_seleciona_dados
+*&---------------------------------------------------------------------*
+*   Seleção dos dados que serão utilizados para impressão
+*----------------------------------------------------------------------*
+FORM zf_seleciona_dados .
+
+* Apenas as remessas da ordem de transporte indicada será impressa.
+
+  t_aux_lt31[] = t_ltap[].
+  DELETE ADJACENT DUPLICATES FROM t_aux_lt31 COMPARING vbeln.
+
+* Seleciona dados de Cabeçalho transporte
+  IF t_aux_lt31[] IS NOT INITIAL.
+    SELECT a~route
+           a~tdlnr
+           b~tknum
+           b~vbeln
+      FROM vttk AS a
+      INNER JOIN
+      vttp AS b ON
+      a~tknum = b~tknum
+      INTO TABLE t_doc_trans
+      FOR ALL ENTRIES IN t_aux_lt31
+      WHERE b~vbeln = t_aux_lt31-vbeln.
+  ENDIF.
+
+* Seleciona dados do cabeçalho e Nº do material
+  IF t_aux_lt31[] IS NOT INITIAL.
+    SELECT  a~vbeln
+            a~vstel
+            a~vkorg
+            a~route
+            a~kunnr
+            a~lgnum
+            b~posnr
+            b~matnr
+            b~werks
+            b~lfimg
+            b~arktx
+* >>> RN 10/11/2007
+            a~anzpk
+* <<< RN 10/11/2007
+      FROM likp AS a
+      INNER JOIN
+      lips AS b ON
+      b~vbeln = a~vbeln
+      INTO TABLE t_forn
+      FOR ALL ENTRIES IN t_aux_lt31
+      WHERE a~vbeln = t_aux_lt31-vbeln.
+  ENDIF.
+
+* Seleciona Mestre de clientes
+  IF t_forn[] IS NOT INITIAL.
+    SELECT kunnr
+           land1
+           name1
+           name2
+           ort01
+           pstlz
+           regio
+           stras
+           adrnr
+           ort02
+      FROM kna1
+      INTO TABLE t_kna1
+      FOR ALL ENTRIES IN t_forn
+      WHERE kunnr = t_forn-kunnr.
+  ENDIF.
+
+* Seleciona de dados info cliente-material
+  IF t_forn[] IS NOT INITIAL.
+    SELECT vkorg kunnr matnr kdmat
+      FROM knmt
+      INTO TABLE t_knmt
+      FOR ALL ENTRIES IN t_forn
+      WHERE vkorg = t_forn-vkorg AND
+            kunnr = t_forn-kunnr AND
+            matnr = t_forn-matnr.
+  ENDIF.
+
+* Seleciona descrição do itinerário de transporte.
+  IF t_doc_trans[] IS NOT INITIAL.
+    SELECT a~route                                     "#EC CI_BUFFJOIN
+           b~bezei
+      FROM tvro AS a
+      INNER JOIN
+      tvrot AS b ON
+      a~route = b~route
+      INTO TABLE t_itiner
+      FOR ALL ENTRIES IN t_doc_trans
+      WHERE a~route = t_doc_trans-route.
+  ENDIF.
+
+* Seleciona a descriçao do agente de frete
+  IF t_doc_trans[] IS NOT INITIAL.
+    SELECT lifnr name1
+      FROM lfa1
+      INTO TABLE t_lfa1
+      FOR ALL ENTRIES IN t_doc_trans
+      WHERE lifnr = t_doc_trans-tdlnr.
+  ENDIF.
+
+* Verifica a quantidade de etiquetas que devem ser impressas
+  PERFORM zf_verifica_qt_etiq.
+
+ENDFORM.                    " zf_seleciona_dados
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_verifica_qt_etiq
+*&---------------------------------------------------------------------*
+*   Subrotina para determinar a quantidade de etiquetas à
+*   serem impressas para cada material.
+*----------------------------------------------------------------------*
+FORM zf_verifica_qt_etiq .
+
+  CONSTANTS: c_atnam(16) TYPE c VALUE 'Z_PP_QTDE_GRADE_'.
+
+  DATA: vl_aux       TYPE ausp-objek,
+        vl_aux2      TYPE ltap-vsola,
+* >>> RN 10/11/2007
+        vl_ausp1     TYPE clobjdat-ausp1,
+* <<< RN 10/11/2007
+        vl_atnam(20) TYPE c.
+
+  LOOP AT t_ltap INTO wa_ltap.
+
+    vl_aux = wa_ltap-matnr.
+
+*-- Função para buscar o divisor referente ao número de etiquetas
+    CALL FUNCTION 'CLAF_CLASSIFICATION_OF_OBJECTS'
+      EXPORTING
+        classtype          = c_classtp
+        object             = vl_aux
+      TABLES
+        t_class            = t_class
+        t_objectdata       = t_objectdata
+      EXCEPTIONS
+        no_classification  = 1
+        no_classtypes      = 2
+        invalid_class_type = 3
+        OTHERS             = 4.
+
+    IF sy-subrc IS NOT INITIAL.
+      vl_ausp1 = 1.
+    ELSE.
+
+      CLEAR vl_aux.
+
+      CONCATENATE c_atnam wa_ltap-werks INTO vl_atnam.
+
+*-- Obs: Não utilizar busca binária.
+      CLEAR wa_objdata.
+      READ TABLE t_objectdata INTO wa_objdata
+        WITH KEY  atnam = vl_atnam.
+
+*-- Se encontrar o registro na tabela de retorno da função que busca a quantidade/
+*-- valor para divisão da quantidade de material por etiqueta, realiza a divisão
+      IF sy-subrc IS INITIAL.
+
+        MOVE wa_objdata-ausp1 TO vl_ausp1.
+        IF vl_ausp1 <> 0.
+          vl_aux2  = wa_ltap-vsola / vl_ausp1.
+        ELSEIF vl_ausp1 = 0 OR vl_ausp1 = space.
+          vl_aux2  = wa_ltap-vsola.
+        ENDIF.
+*-- Senão, o valor de quantidade de etiquetas para impressão é o valor da quantidade
+*-- de etiquetas
+      ELSE.
+        vl_aux2  = wa_ltap-vsola.
+      ENDIF.
+
+    ENDIF.
+
+*-- Função para arredondar a quantidade de etiquetas.
+    CALL FUNCTION 'ROUND'
+      EXPORTING
+        input  = vl_aux2
+        sign   = c_mais
+      IMPORTING
+        output = vl_aux2.
+
+    MOVE: wa_ltap-vbeln   TO wa_final-vbeln,
+          wa_ltap-matnr   TO wa_final-matnr,
+          wa_ltap-tapos   TO wa_final-tapos,
+          vl_aux2         TO wa_final-qtde_final.
+
+    APPEND wa_final TO t_final.
+
+    CLEAR: wa_final,
+           vl_aux2,
+           vl_ausp1.
+
+  ENDLOOP.
+
+*-- Rotina para preencher tabela final2 referente ao
+*-- número de etiquetas que deverá ser impressa
+  LOOP AT t_final INTO wa_final.
+*-- Para este caso é necessário utilizar laço de repetição dentro de outro
+*-- laço de repetição, pois é necessário encontrar a quantidade de etiquetas que
+*-- deve ser impressa.
+    DO wa_final-qtde_final TIMES.
+      APPEND wa_final TO t_final2.
+    ENDDO.
+    CLEAR wa_final.
+  ENDLOOP.
+
+ENDFORM.                    " zf_verifica_qt_etiq
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_imprime_etiquetas
+*&---------------------------------------------------------------------*
+*    Subrotina para impressão das etiquetas.
+*----------------------------------------------------------------------*
+FORM zf_imprime_etiquetas .
+
+* >>> RN 10/11/2007
+  DATA: vl_tdimmed TYPE t329p-tdimmed. "Flag se é para imprimir a etiqueta imediatamente
+* <<< RN 10/11/2007
+
+  SORT t_doc_trans.
+  SORT t_itiner.
+  SORT t_forn.
+  SORT t_ltak.
+  SORT t_knmt.
+  SORT t_lfa1.
+  SORT t_kna1.
+
+  v_imp_cabe = c_n.
+
+*-- Para cada etiqueta que deve ser impressa.
+  LOOP AT t_final2 INTO wa_final2.
+
+* >>> RN 10/11/2007
+    CLEAR wa_doc_trans.
+* <<< RN 10/11/2007
+*-- Selecionar o agente de frete
+    READ TABLE t_doc_trans INTO wa_doc_trans
+      WITH KEY vbeln = wa_final2-vbeln
+      BINARY SEARCH.
+
+    IF sy-subrc IS INITIAL.
+
+* >>> RN 10/11/2007
+      CLEAR wa_lfa1.
+* <<< RN 10/11/2007
+*-- Selecionar a descrição do agente de frete
+      READ TABLE t_lfa1 INTO wa_lfa1
+       WITH KEY lifnr = wa_doc_trans-tdlnr
+       BINARY SEARCH.
+
+* >>> RN 10/11/2007
+      CLEAR wa_itiner.
+* <<< RN 10/11/2007
+*-- Selecionar a descrição do itinerário de transporte
+      READ TABLE t_itiner INTO wa_itiner
+      WITH KEY route = wa_doc_trans-route
+      BINARY SEARCH.
+
+    ENDIF.
+
+* >>> RN 10/11/2007
+    CLEAR wa_forn.
+* <<< RN 10/11/2007
+*-- Selecionar o local de expedição, recebedor da mercadoria
+    READ TABLE t_forn INTO wa_forn
+     WITH KEY vbeln = wa_final2-vbeln
+     BINARY SEARCH.
+
+    IF sy-subrc IS INITIAL.
+
+* >>> RN 10/11/2007
+      CLEAR wa_kna1.
+* <<< RN 10/11/2007
+*-- Selecionar as informações do cliente: nome, endereço
+      READ TABLE t_kna1 INTO wa_kna1
+        WITH KEY kunnr = wa_forn-kunnr
+        BINARY SEARCH.
+
+    ENDIF.
+
+* >>> RN 10/11/2007
+    CLEAR wa_ltak.
+* <<< RN 10/11/2007
+*-- Selecionar o número da ordem de transporte
+    READ TABLE t_ltak INDEX 1 INTO wa_ltak.
+
+* >>> RN 10/11/2007
+    CLEAR wa_ltap.
+* <<< RN 10/11/2007
+*-- Selecionar a área de picking
+    READ TABLE t_ltap INDEX 1 INTO wa_ltap.
+
+* >>> RN 10/11/2007
+    CLEAR wa_knmt.
+* <<< RN 10/11/2007
+*-- Selecionar a descrição do material no cliente
+    READ TABLE t_knmt INTO wa_knmt
+     WITH KEY
+             vkorg = wa_forn-vkorg
+             kunnr = wa_forn-kunnr
+             matnr = wa_final2-matnr
+             BINARY SEARCH.
+
+    IF v_imp_cabe = c_n.
+
+* >>> RN 10/11/2007
+      CLEAR v_ldes5.
+* <<< RN 10/11/2007
+*>>>GHM 08/11/2007
+      SELECT SINGLE ldes5
+        FROM t329a
+        INTO v_ldes5
+        WHERE lgnum = wa_ltak-lgnum
+          AND ldest = c_wil3.
+
+* >>> RN 10/11/2007
+
+* Se o parâmetro de tela está preenchido então considerar este parâmetro na impressão
+      IF v_spool IS INITIAL.
+
+* Seleciona o tipo do spool
+        CLEAR v_spool.
+        SELECT SINGLE spool
+          FROM t329f
+          INTO v_spool
+          WHERE lgnum = wa_ltak-lgnum
+            AND drukz = wa_ltak-drukz.
+
+      ENDIF.
+
+* Seleciona se é para imprimir a etiqueta imediatamente ou não
+      CLEAR vl_tdimmed.
+      SELECT  SINGLE tdimmed
+        FROM t329p
+        INTO vl_tdimmed
+        WHERE lgnum = wa_ltak-lgnum
+          AND spool = v_spool.
+* <<< RN 10/11/2007
+
+* Preenche parâmetros de impressão
+      CALL FUNCTION 'GET_PRINT_PARAMETERS'
+        EXPORTING
+          destination    = v_ldes5
+* >>> RN 10/11/2007
+          immediately    = vl_tdimmed
+* <<< RN 10/11/2007
+          new_list_id    = c_x
+          no_dialog      = c_x
+        IMPORTING
+          out_parameters = params
+          valid          = v_valid.
+
+      IF NOT v_valid IS INITIAL.
+        NEW-PAGE PRINT ON PARAMETERS params NO DIALOG.
+      ENDIF.
+*<<<GHM 08/11/2007
+
+      WRITE:
+      '^XA',
+      '^MMT',
+      '^PR4,4',
+      '^PQ1,0,1,Y',
+      '^LL1280',
+      '^LH0,0',
+      '^FO141,66^GB0,1175,1^FS',
+      '^FO190,67^GB0,1172,2^FS',
+      '^FO235,66^GB0,1175,3^FS',
+      '^FO282,65^GB0,1175,1^FS',
+      '^FO25,59^GB360,1187,8^FS',
+      '^FO141,414^GB237,0,2^FS',
+      '^FO328,66^GB0,1175,3^FS',
+      '^FT340,77^A0R,39,38^FH\^FDAgente de Frete^FS',
+* >>> RN 10/11/2007
+      '^FT340,422^A0R,39,38^FH\^FD ', wa_lfa1-name1 ,' ^FS',
+* <<< RN 10/11/2007
+      '^FT291,77^A0R,39,38^FH\^FDItiner\A0rio Transporte^FS',
+* >>> RN 10/11/2007
+      '^FT291,421^A0R,39,38^FH\^FD ', wa_itiner-bezei , ' ^FS',
+* <<< RN 10/11/2007
+      '^FT246,77^A0R,39,38^FH\^FDLocal Expedi\87\C6o^FS',
+      '^FT246,421^A0R,39,38^FH\^FD ', wa_forn-vstel ,' ^FS',
+      '^FT201,77^A0R,39,38^FH\^FD\B5rea de Picking^FS',
+      '^FT200,420^A0R,39,38^FH\^FD ', wa_ltap-kober ,' ^FS',
+      '^FT151,76^A0R,39,38^FH\^FDN\A3mero Transporte^FS',
+      '^FT150,420^A0R,39,38^FH\^FD ', wa_doc_trans-tknum ,' ^FS',
+      '^FT100,75^A0R,39,38^FH\^FDInformacaoAdicional^FS',
+      '^BY4,3,62^FT75,504^BCR,,Y,N^FD>; ', wa_ltak-tanum ,' ^FS',
+      '^XZ'.
+
+      v_imp_cabe = c_s.
+
+    ENDIF.
+
+    WRITE:
+    '^XA',
+    '^MMT',
+    '^PR4,4',
+    '^PQ1,0,1,Y',
+    '^LL1280',
+    '^LH0,0',
+    '^FO170,72^GB48,337,48^FS',
+    '^FO338,72^GB48,109,48^FS',
+    '^FO80,74^GB0,1158,3^FS',
+    '^FO123,68^GB0,1158,2^FS',
+    '^FO172,69^GB0,1161,3^FS',
+    '^FO218,70^GB0,1158,2^FS',
+    '^FO261,69^GB0,1159,2^FS',
+    '^FO298,68^GB0,1160,2^FS',
+    '^FO25,62^GB362,1174,8^FS',
+    '^FO33,373^GB48,0,3^FS',
+    '^FO220,694^GB41,0,3^FS',
+    '^FO79,218^GB46,0,3^FS',
+    '^FO126,393^GB46,0,2^FS',
+    '^FO80,703^GB44,0,3^FS',
+    '^FO217,406^GB46,0,3^FS',
+    '^FO80,840^GB43,0,3^FS',
+    '^FO262,858^GB36,0,3^FS',
+    '^FO263,981^GB78,0,3^FS',
+    '^FO262,181^GB125,0,2^FS',
+    '^FO337,68^GB0,1159,5^FS',
+    '^FO124,73^GB48,320,48^FS',
+    '^FT347,72^A0R,39,38^FR^FH\^FDCliente^FS',
+    '^FT347,185^A0R,39,38^FH\^FD ', wa_kna1-name1 ,' ^FS',
+    '^FT303,74^A0R,39,38^FH\^FDRua^FS',
+    '^FT304,187^A0R,39,38^FH\^FD ', wa_kna1-stras ,' ^FS',
+    '^FT267,73^A0R,39,38^FH\^FDBairro^FS',
+    '^FT266,186^A0R,39,38^FH\^FD ', wa_kna1-ort02 ,' ^FS',
+    '^FT267,869^A0R,39,38^FH\^FDRegi\C6o^FS',
+    '^FT267,986^A0R,39,38^FH\^FD ', wa_kna1-regio ,' ^FS',
+    '^FT226,73^A0R,39,38^FH\^FDC\A2digo postal/Cidade^FS',
+    '^FT226,410^A0R,39,38^FH\^FD ', wa_kna1-pstlz ,' ^FS',
+    '^FT228,703^A0R,39,38^FH\^FD ', wa_kna1-ort01 ,' ^FS',
+    '^FT179,72^A0R,39,38^FR^FH\^FDAgente de Frete^FS',
+    '^FT179,412^A0R,39,38^FH\^FD ', wa_lfa1-name1 ,' ^FS',
+    '^FT133,73^A0R,39,38^FR^FH\^FDItiner\A0rio Transporte^FS',
+    '^FT134,400^A0R,39,38^FH\^FD ' , wa_itiner-bezei , ' ^FS',
+    '^FT88,74^A0R,39,38^FH\^FDRemessa^FS',
+    '^FT88,223^A0R,39,38^FH\^FD ', wa_final2-vbeln ,' ^FS',
+    '^FT89,709^A0R,39,38^FH\^FDMaterial^FS',
+    '^FT89,845^A0R,39,38^FH\^FD ', wa_final2-matnr ,' ^FS',
+    '^FT44,72^A0R,39,38^FH\^FDMaterial no Cliente^FS',
+    '^FT44,379^A0R,39,38^FH\^FD ', wa_knmt-kdmat ,' ^FS',
+    '^XZ'.
+
+  ENDLOOP.
+
+  NEW-PAGE PRINT OFF.
+
+ENDFORM.                    " zf_imprime_etiquetas
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_limpa_dados_final
+*&---------------------------------------------------------------------*
+*      Subrotina para limpar os dados da memória
+*----------------------------------------------------------------------*
+FORM zf_limpa_dados_final.
+
+  FREE: t_forn       ,
+        t_kna1       ,
+        t_knmt       ,
+        t_doc_trans  ,
+        t_itiner     ,
+        t_lfa1       ,
+        t_final      ,
+        t_final2     ,
+        t_ltap       ,
+        t_class      ,
+        t_objectdata ,
+        t_ltak       .
+
+ENDFORM.                    " zf_limpa_dados_final

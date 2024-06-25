@@ -1,0 +1,255 @@
+
+   types:
+
+     begin of ty_match,
+       lifnr      type lfa1-lifnr,   "Nº conta do fornecedor
+       name1      type lfa1-name1,   "Nome do fornecedor
+       stcd1      type lfa1-stcd1,   "CNPJ/CPF
+     end of ty_match.
+
+* Preenchimento de Matchcode Dinâmico
+       begin of ty_selecao,
+         value(80) type c,
+       end of ty_selecao,
+
+   data: tl_campos     type table of help_value       ,
+         tl_tela       type table of dynpread         ,
+         tl_valores    type table of help_vtab        ,
+         tl_selecao    type table of ty_selecao       ,
+         tl_match      type table of ty_match,
+         tl_match_ret  type standard table of ddshretval,
+         tl_dynp       type standard table of dynpread.
+
+   data:  sl_match_ret  type ddshretval,
+          sl_match      type ty_match,
+          sl_dynp       type dynpread,
+          sl_campos     type help_value,
+          sl_valores    type help_vtab,
+          sl_selecao    type ty_selecao,
+          sl_tela       type dynpread.
+
+   data:   vl_lifnr      type lfa1-lifnr,
+           vl_stcd1_forn type lfa1-stcd1.
+
+   free: tl_campos,
+         tl_tela,
+         tl_valores,
+         tl_selecao,
+         tl_match,
+         tl_match_ret,
+         tl_dynp,
+         t_where.
+
+   clear: sl_match_ret,
+          sl_match,
+          sl_dynp,
+          sl_campos,
+          sl_valores,
+          sl_selecao,
+          sl_tela,
+          s_where,
+          vl_lifnr,
+          vl_stcd1_forn.
+
+   move 'S_HEADER_NF-LIFNR' to sl_dynp-fieldname.
+   append sl_dynp to tl_dynp.
+
+   move 'S_HEADER_NF-STCD1_FORN' to sl_dynp-fieldname.
+   append sl_dynp to tl_dynp.
+
+* Le o fornecedor digitados na tela
+   call function 'DYNP_VALUES_READ'
+        exporting
+             dyname               = sy-cprog
+             dynumb               = sy-dynnr
+        tables
+             dynpfields           = tl_dynp
+        exceptions
+             invalid_abapworkarea = 1
+             invalid_dynprofield  = 2
+             invalid_dynproname   = 3
+             invalid_dynpronummer = 4
+             invalid_request      = 5
+             no_fielddescription  = 6
+             invalid_parameter    = 7
+             undefind_error       = 8
+             double_conversion    = 9
+             stepl_not_found      = 10
+             others               = 11.
+
+   check   sy-subrc  is initial
+   and not tl_dynp[] is initial.
+
+   clear sl_dynp.
+   read table tl_dynp into sl_dynp
+     with key fieldname = 'S_HEADER_NF-LIFNR'.
+
+   move sl_dynp-fieldvalue to vl_lifnr .
+
+   clear sl_dynp.
+   read table tl_dynp into sl_dynp
+     with key fieldname = 'S_HEADER_NF-STCD1_FORN'.
+
+   move sl_dynp-fieldvalue to vl_stcd1_forn.
+
+* Buscar os dados do fornecedor
+   if not vl_lifnr      is initial
+   or not vl_stcd1_forn is initial.
+
+     if not vl_lifnr is initial.
+
+       concatenate 'lifnr EQ ' ''vl_lifnr''  into s_where
+         separated by space.
+       append s_where to t_where.
+
+     endif.
+
+     if not vl_stcd1_forn is initial.
+
+       if not s_where is initial.
+
+         move ' AND ' to s_where.
+
+       endif.
+
+       concatenate s_where 'stcd1 EQ ' ''vl_stcd1_forn'' into s_where
+         separated by space.
+       append s_where to t_where.
+
+     endif.
+
+     select lifnr name1 stcd1
+       from lfa1
+       into table tl_match
+       where (t_where).
+
+     if not sy-subrc is initial.
+
+       select kunnr name1 stcd1
+         from kna1
+         into table tl_match
+         where (t_where).
+
+     endif.
+
+   else.
+
+     select lifnr name1 stcd1
+       from lfa1
+         up to 2000 rows
+       into table tl_match.
+
+     if not sy-subrc is initial.
+
+       select kunnr name1 stcd1
+         from kna1
+           up to 2000 rows
+         into table tl_match.
+
+     endif.
+
+   endif.
+
+   if not sy-subrc is initial.
+
+     message s208(00) with 'Fornecedor inválido'.
+
+   endif.
+
+* Campos da exibição
+   move: 'LFA1'  to sl_campos-tabname,
+         'LIFNR' to sl_campos-fieldname,
+         c_true  to sl_campos-selectflag.
+   append sl_campos to tl_campos.
+
+   move: 'LFA1'  to sl_campos-tabname,
+         'NAME1' to sl_campos-fieldname,
+         c_true  to sl_campos-selectflag.
+   append sl_campos to tl_campos.
+
+   move: 'LFA1'  to sl_campos-tabname,
+         'STCD1' to sl_campos-fieldname,
+         c_true  to sl_campos-selectflag.
+   append sl_campos to tl_campos.
+
+* Valores a serem exibidos
+   loop at tl_match into sl_match.
+
+     move sl_match-lifnr to sl_selecao-value.
+     append sl_selecao to tl_selecao.
+
+     move sl_match-name1 to sl_selecao-value.
+     append sl_selecao to tl_selecao.
+
+     move sl_match-stcd1 to sl_selecao-value.
+     append sl_selecao to tl_selecao.
+
+   endloop.
+
+   call function 'HELP_VALUES_GET_WITH_TABLE_EXT'
+        tables
+             fields                    = tl_campos
+             select_values             = tl_valores
+             valuetab                  = tl_selecao
+        exceptions
+             field_not_in_ddic         = 1
+             more_then_one_selectfield = 2
+             no_selectfield            = 3
+             others                    = 4.
+
+   check sy-subrc is initial.
+
+* Campo e respectivo valor a ser atualizado na tela
+   clear sl_valores .
+   read table tl_valores into sl_valores with key fieldname = 'LIFNR'.
+   if sy-subrc is initial.
+     sl_tela-fieldname  = 'S_HEADER_NF-LIFNR'.
+     sl_tela-fieldvalue = sl_valores-value.
+     append sl_tela to tl_tela.
+   endif.
+
+   clear sl_valores .
+   read table tl_valores into sl_valores with key fieldname = 'NAME1'.
+   if sy-subrc is initial.
+     sl_tela-fieldname  = 'S_HEADER_NF-NAME1'.
+     sl_tela-fieldvalue = sl_valores-value.
+     append sl_tela to tl_tela.
+   endif.
+
+   clear sl_valores .
+   read table tl_valores into sl_valores with key fieldname = 'STCD1'.
+   if sy-subrc is initial.
+     sl_tela-fieldname  = 'S_HEADER_NF-STCD1_FORN'.
+     sl_tela-fieldvalue = sl_valores-value.
+     append sl_tela to tl_tela.
+   endif.
+
+* Atualizando tela
+   call function 'DYNP_VALUES_UPDATE'
+        exporting
+             dyname               = sy-cprog
+             dynumb               = sy-dynnr
+        tables
+             dynpfields           = tl_tela
+        exceptions
+             invalid_abapworkarea = 1
+             invalid_dynprofield  = 2
+             invalid_dynproname   = 3
+             invalid_dynpronummer = 4
+             invalid_request      = 5
+             no_fielddescription  = 6
+             undefind_error       = 7
+             others               = 8.
+
+
+   clear: sl_match_ret,
+          sl_dynp,
+          vl_lifnr.
+
+   free:  tl_match,
+          tl_match_ret,
+          tl_dynp,
+          tl_tela,
+          tl_campos,
+          tl_valores,
+          tl_selecao.

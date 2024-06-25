@@ -1,0 +1,16 @@
+* Pegar último dia do mês
+  CLEAR ln_ult_mes.
+  CALL FUNCTION 'LAST_DAY_OF_MONTHS'
+    EXPORTING
+      day_in            = <fs_vend>-bldat
+    IMPORTING
+      last_day_of_month = ln_ult_mes
+    EXCEPTIONS
+      day_in_no_date    = 1
+      OTHERS            = 2.
+
+  IF sy-subrc <> 0.
+
+    CLEAR ln_ult_mes.
+
+  ENDIF.

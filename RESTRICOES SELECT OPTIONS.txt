@@ -1,0 +1,61 @@
+FUNCTION Z_RESTRICT_SEL_OPT.
+*"----------------------------------------------------------------------
+*"*"Interface local:
+*"  TABLES
+*"      S_NAME1 STRUCTURE  LINE
+*"----------------------------------------------------------------------
+
+clear wa_opt_list_tab.
+  wa_opt_list_tab-name = c_op_main.
+  wa_opt_list_tab-options-eq = c_x.
+  append wa_opt_list_tab to wa_restriction-opt_list_tab.
+
+  loop at s_name1 into v_sname.
+    perform f_hide_options using v_sname.
+  endloop.
+
+  call function 'SELECT_OPTIONS_RESTRICT'
+    exporting
+      restriction            = wa_restriction
+    exceptions
+      too_late               = 1
+      repeated               = 2
+      selopt_without_options = 3
+      selopt_without_signs   = 4
+      invalid_sign           = 5
+      empty_option_list      = 6
+      invalid_kind           = 7
+      repeated_kind_a        = 8
+      others                 = 9.
+
+  if sy-subrc ne 0.
+    message i001(aq_ad_hoc).
+  endif.
+
+ENDFUNCTION.
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_DESAB_INTERVALS
+*&---------------------------------------------------------------------*
+*       Desabilita seleção de multipla na tela
+*----------------------------------------------------------------------*
+FORM zf_desab_intervals.
+
+  DATA: t_sel TYPE TABLE OF line.
+
+  REFRESH: t_sel.
+  APPEND 'S_AUFNR' TO t_sel.
+
+  IF NOT t_sel IS INITIAL.
+    CALL FUNCTION 'Z_RESTRICT_SEL_OPT'
+      TABLES
+        s_name1 = t_sel.
+  ENDIF.
+
+ENDFORM.                    " ZF_DESAB_INTERVALS
+
+
+INITIALIZATION.
+  PERFORM zf_desab_intervals.

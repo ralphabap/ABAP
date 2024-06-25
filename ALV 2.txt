@@ -1,0 +1,708 @@
+*---------------------------------------------------------------------
+*WEG EQUIPAMENTOS ELÉTRICOS S.A.
+*Implementador: Procwork Informática Ltda.
+*
+*ID    Request      Data          Nome
+*EMF   ED0K938778   08/08/2008    Eduardo Magueta Forgacs
+*
+*Descrição:  - Transação:
+*            - Geração automática de ordens de produção no refeitório
+*---------------------------------------------------------------------
+*Histórico de Alterações do Objeto
+*---------------------------------------------------------------------
+*ID    Request      Data          Nome
+*
+*---------------------------------------------------------------------
+REPORT  zpppr_047.
+
+INCLUDE ole2incl.
+
+*----------------------------------------------------------------------
+* Tabelas Standards
+*----------------------------------------------------------------------
+
+*----------------------------------------------------------------------
+* Constantes
+*----------------------------------------------------------------------
+CONSTANTS: c_mesagem(1)   TYPE c           VALUE 'E',      " Tipo de Mensagem Erro
+           c_sign(1)      TYPE c           VALUE 'I',      " Sign do range
+           c_option(2)    TYPE c           VALUE 'BT',     " Option do range
+           c_low(1)       TYPE c           VALUE '1',      " Low do range
+           c_high_rows(4) TYPE c           VALUE '2000',   " Quantidade de linhas
+           c_high_cols(3) TYPE c           VALUE '100',    " Quantidade de colunas
+           c_autho        TYPE ust12-objct VALUE 'ZCENTRO'," Objeto de Autorização
+           c_werks(5)     TYPE c           VALUE 'WERKS',  " Objeto de Autorização
+           c_actvt(5)     TYPE c           VALUE 'ACTVT',  " Objeto de Autorização
+           c_mensagem(1)  TYPE c           VALUE 'E',      " Tipo de mensagem
+           c_asterisco(1) TYPE c           VALUE '*',      " Parâmetro asterisco
+           c_matnr(5)     TYPE c           VALUE 'MATNR'.  " Nº do material
+
+*----------------------------------------------------------------------
+* Types
+*----------------------------------------------------------------------
+TYPE-POOLS: kcde,    " Transmissão de dados de EC-EIS
+            slis.    " Globale Typen für generische Listbausteine
+
+TYPES: y_kcde_sender TYPE kcde_sender_struc,   " Tipo com todos campos da estrutura kcde_sender_struc
+
+* Utilizada na tabela t_data
+       BEGIN OF y_data,
+         data(10)   TYPE c,                    " Texto para armazenar data
+       END OF y_data,
+
+* Utilizada na tabela t_itab
+       BEGIN OF y_itab,
+         valor(51) TYPE c,                     " Texto
+       END OF y_itab,
+
+* Cabeçalho
+       BEGIN OF y_cabec,
+         cabec(30) TYPE c,
+       END OF y_cabec,
+
+*       BEGIN OF y_valor,
+*         valor TYPE p DECIMALS 3,
+*       END OF y_valor,
+*          ty_valor TYPE STANDARD TABLE OF y_valor.
+
+       BEGIN OF y_valor,
+         valor(5) TYPE n,
+       END OF y_valor,
+          ty_valor TYPE STANDARD TABLE OF y_valor,
+
+* Tabela de saída
+       BEGIN OF y_saida,
+         werks       TYPE marc-werks,              " Centro
+         matnr       TYPE marc-matnr,              " Nº do material
+         maktx       TYPE makt-maktx,              " Descrição do material
+         turno       TYPE c,                       " Turno
+         message(40) TYPE c,                       " Mensagem
+       END OF y_saida,
+
+       BEGIN OF y_table,
+         werks       TYPE marc-werks,              " Centro
+         matnr       TYPE marc-matnr,              " Nº do material
+         turno(3)    TYPE c,                       " Turno
+         coment(40)  TYPE c,                       " Comentário da ordem
+         data(10)    TYPE c,                       " Data de programação
+         valor(5)    TYPE n,
+         message(40) TYPE c,
+       END OF y_table.
+
+*----------------------------------------------------------------------
+* Tabelas internas
+*----------------------------------------------------------------------
+DATA:  BEGIN OF t_dados OCCURS 0,
+         werks       TYPE marc-werks,              " Centro
+         matnr       TYPE marc-matnr,              " Nº do material
+         turno(3)    TYPE c,                       " Turno
+         coment(40)  TYPE c,                       " Comentário da ordem
+         valores     TYPE ty_valor,
+         message(40) TYPE c,
+       END OF t_dados.
+
+DATA: t_arquivo         TYPE filetable,                        " Table Holding Selected Files
+      t_impor_excel     TYPE TABLE OF y_kcde_sender,           " Importação do excel
+      t_autho           TYPE TABLE OF ust12,                   " Tabela de Objeto de Autorização
+      t_data            TYPE TABLE OF y_data,                  " Guarda datas do excel
+      t_table           TYPE TABLE OF y_table,
+      t_saida           TYPE TABLE OF y_saida,                 " Tabela de saída
+      t_tabela          TYPE REF TO data,                      "
+      t_alvdata         TYPE REF TO data,
+      t_itab            TYPE TABLE OF y_itab,                  " Guarda dados do excel
+      t_excel           LIKE STANDARD TABLE OF alsmex_tabline WITH HEADER LINE,
+      t_cabec           TYPE TABLE OF y_cabec WITH HEADER LINE,
+      t_cabec_aux       TYPE TABLE OF y_cabec,
+      t_fieldcat        TYPE TABLE OF slis_fieldcat_alv.       " Tabela para fieldcat
+
+
+*----------------------------------------------------------------------
+* Work areas
+*----------------------------------------------------------------------
+DATA: wa_arquivo  LIKE LINE OF t_arquivo,  " Linha do parâmetro file_open_dialog
+      wa_itab     TYPE y_itab,             " Work area para t_itab
+      wa_dados    LIKE t_dados,            " Work area para t_grupo
+      wa_data     TYPE y_data,             " Work area para t_data
+      wa_fieldcat TYPE lvc_t_fcat,         " Work Area para t_fieldcat
+      wa_cabec    TYPE y_cabec,            "
+      wa_cabec_aux    TYPE y_cabec,            "
+      wa_saida    TYPE y_saida,            "
+      wa_table    TYPE y_table,
+      wa_valor    TYPE y_valor.            " Quantidades
+
+*-----------------------------------------------------------------------
+* FIELD SYMBOLS
+*-----------------------------------------------------------------------
+FIELD-SYMBOLS: <fs_data>     TYPE STANDARD TABLE,
+               <ws_data>     TYPE STANDARD TABLE,
+               <t_campo>     TYPE ANY,
+               <wa_data>     TYPE ANY,
+               <fs_campo>    TYPE ANY.
+
+*----------------------------------------------------------------------
+* Variaveis
+*----------------------------------------------------------------------
+DATA: v_text             TYPE string,           " Titulo da pasta
+      v_extensao         TYPE string,           " Extensão do Arquivo
+      v_diretorio        TYPE string,           " Nome do Diretório
+      v_rc               TYPE i,
+      v_excel            TYPE ole2_object,      " Funções excel
+      v_sheet            TYPE ole2_object,      " Funções excel
+      v_workbook         TYPE ole2_object,      " Funções excel
+      v_cell1            TYPE ole2_object,       " Funções excel
+      v_cell2            TYPE ole2_object,       " Funções excel
+      v_range            TYPE ole2_object,       " Range
+      v_rows             TYPE RANGE OF sy-index, " Range para Linhas
+      v_cols             TYPE RANGE OF sy-index, " Range para colunas
+      v_rows_l           LIKE LINE OF v_rows,    " Range para Linhas
+      v_cols_l           LIKE LINE OF v_cols,    " Range para colunas
+      v_data             TYPE RANGE OF sydatum,  " Range para data
+      v_data_l           LIKE LINE OF v_data.    " Range para data
+
+*&---------------------------------------------------------------------
+*&  Tela de Seleção
+*&---------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+
+SELECTION-SCREEN: BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(59) text-002 FOR FIELD p_local.
+PARAMETERS p_local(128) TYPE c OBLIGATORY.                 " Local do Arquivo
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN: BEGIN OF LINE.
+SELECTION-SCREEN COMMENT 1(59) text-003 FOR FIELD p_nome.
+PARAMETERS p_nome(40)  TYPE c OBLIGATORY.                  " Planilha
+SELECTION-SCREEN END OF LINE.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+*&---------------------------------------------------------------------
+*&  Abre o local onde esta o arquivo excel
+*&---------------------------------------------------------------------
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_local.
+  PERFORM zf_open_file_dialog.
+
+*&---------------------------------------------------------------------
+*&  Processamento
+*&---------------------------------------------------------------------
+START-OF-SELECTION.
+
+* Criar Instância Excel
+  PERFORM zf_criar_excel.
+* Abrir o Arquivo Excel
+  PERFORM zf_abrir_arquivo USING p_local.
+* Abir  pasta Excel
+  PERFORM zf_abrir_pasta USING p_nome.
+* Lê  conteúdo da pasta excel
+  PERFORM zf_ler_conteudo_pasta.
+* Fecha excel
+  PERFORM zf_sair_excel.
+* Carrega na t. interna os dados importados do excel
+  PERFORM zf_carrega_dados.
+* Trata os dados importados do excel
+  PERFORM zf_trata_dados.
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_open_file_dialog
+*&---------------------------------------------------------------------*
+*       Abre a janela para o usuário escolher o arquivo de entrada
+*----------------------------------------------------------------------*
+FORM zf_open_file_dialog .
+
+  v_text      = text-004.
+  v_extensao  = text-005.
+  v_diretorio = text-006.
+
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+    EXPORTING
+      window_title      = v_text
+      default_extension = v_extensao
+      initial_directory = v_diretorio
+    CHANGING
+      file_table        = t_arquivo
+      rc                = v_rc.
+
+* Se não ocorreram erros
+  IF v_rc NE -1.
+
+*   Lê a primeira linha do arquivo de entrada
+    READ TABLE t_arquivo INTO wa_arquivo INDEX 1.
+
+*   Se o usuário informou um arquivo
+    IF sy-subrc EQ 0.
+
+*     Define o arquivo de entrada
+      p_local = wa_arquivo-filename.
+
+    ENDIF.
+
+  ENDIF.
+
+  IF t_arquivo IS INITIAL.
+    MESSAGE s208(00) WITH text-007.
+    EXIT.
+  ENDIF.
+
+ENDFORM.                    " zf_open_file_dialog
+
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_criar_excel
+*&---------------------------------------------------------------------*
+*       Criar Instância Excel
+*----------------------------------------------------------------------*
+
+FORM zf_criar_excel .
+
+* Cria o Objeto Excel
+  CREATE OBJECT v_excel 'EXCEL.APPLICATION'.
+
+* Se ocorreu erro ao criar o arquivo então
+  IF sy-subrc IS NOT INITIAL.
+
+*   Exibi Mensagem: Erro na gravação de Arquivo
+    MESSAGE s000(zlpp01) DISPLAY LIKE c_mesagem WITH text-006.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+* Propriedade para exibir avisos desativada
+*  SET PROPERTY OF EXCEL 'DisplayAlerts' = 0.
+
+* Chama o metódo
+  CALL METHOD OF v_excel 'WORKBOOKS' = v_workbook .
+
+* Propriedade executar visivél ou invisível
+  SET PROPERTY OF v_excel 'VISIBLE' = 0.
+
+ENDFORM.                    " zf_criar_excel
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_abrir_arquivo
+*&---------------------------------------------------------------------*
+*       Abrir o arquivo do excel
+*----------------------------------------------------------------------*
+*      -->P_LOCAL  Local do arquivo
+*----------------------------------------------------------------------*
+FORM zf_abrir_arquivo  USING    p_local TYPE any.
+
+* Abre o arquivo Excel
+  CALL METHOD OF v_workbook 'Open' EXPORTING #1 = p_local.
+
+* Se não encontrou o arquivo então
+  IF sy-subrc IS NOT INITIAL.
+
+* Exibi Mensagem: Arquivo não encontrado
+    MESSAGE s000(zlpp01) DISPLAY LIKE c_mesagem WITH text-010.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+ENDFORM.                    " zf_abrir_arquivo
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_abrir_pasta
+*&---------------------------------------------------------------------*
+*       Abre a pasta do excel
+*----------------------------------------------------------------------*
+*      -->P_NOME  Nome da pasta do excel
+*----------------------------------------------------------------------*
+FORM zf_abrir_pasta  USING    p_nome TYPE any.
+
+* Declaração de Variáveis Locais
+  DATA: vl_planilha(51)     TYPE c,      " Nome da planilha
+        vl_planilha_aux(51) TYPE c.      " Nome da planilha auxiliar
+
+*-----------------------------------------------------------------------
+
+  " Monta a pasta de leitura
+  CONCATENATE '#' p_nome INTO vl_planilha.
+
+  " Enquanto a pasta montada for diferente da inforamda continue
+  WHILE vl_planilha <> p_nome.
+
+    IF vl_planilha_aux EQ vl_planilha.
+
+      MESSAGE s000(zlpp01) DISPLAY LIKE c_mesagem WITH text-008.
+      LEAVE LIST-PROCESSING.
+    ENDIF.
+
+    vl_planilha_aux = vl_planilha.
+
+*   Chama a Instância da Pasta
+    CALL METHOD OF v_excel 'Worksheets' = v_sheet EXPORTING #1 = sy-index.
+
+*   Instância a Pasta desejada
+    GET PROPERTY OF v_sheet text-009 = vl_planilha.
+
+    TRANSLATE vl_planilha TO UPPER CASE.
+
+  ENDWHILE.
+
+* Ativa Marca a pasta desejada para leitura
+  CALL METHOD OF v_sheet 'Activate'.
+
+
+ENDFORM.                    " zf_abrir_pasta
+
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_ler_conteudo_pasta
+*&---------------------------------------------------------------------*
+*       Lê o conteúdo da pasta
+*----------------------------------------------------------------------*
+FORM zf_ler_conteudo_pasta .
+
+* Monta dados default no range
+  v_rows_l-sign   = c_sign.
+  v_rows_l-option = c_option.
+  v_rows_l-low    = c_low.
+  v_rows_l-high   = c_high_rows.
+
+  v_cols_l-sign   = c_sign.
+  v_cols_l-option = c_option.
+  v_cols_l-low    = c_low.
+  v_cols_l-high   = c_high_cols.
+
+  CALL METHOD OF v_sheet 'Cells' = v_cell1
+    EXPORTING #1 = v_rows_l-low #2 = v_cols_l-low.
+
+  CALL METHOD OF v_sheet 'Cells' = v_cell2
+    EXPORTING #1 = v_rows_l-high #2 = v_cols_l-high.
+
+  CALL METHOD OF v_sheet 'RANGE' = v_range
+    EXPORTING #1 = v_cell1 #2 = v_cell2.
+
+* Seleciona as Linhas da Tabela
+  CALL METHOD OF v_range 'SELECT'.
+
+* Copia as Linhas
+  CALL METHOD OF v_range 'COPY'.
+
+* Libera
+  CALL FUNCTION 'CONTROL_FLUSH'
+    EXCEPTIONS
+      OTHERS = 3.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+         WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  CLEAR t_excel.
+  REFRESH t_excel.
+
+* Importa os dados da planinha para a tabela interna
+  CALL FUNCTION 'ALSM_EXCEL_TO_INTERNAL_TABLE'
+    EXPORTING
+      filename                = p_local
+      i_begin_col             = '1'
+      i_begin_row             = '1'
+      i_end_col               = '256'
+      i_end_row               = '65000'
+    TABLES
+      intern                  = t_excel
+    EXCEPTIONS
+      inconsistent_parameters = 1
+      upload_ole              = 2
+      OTHERS                  = 3.
+
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+         WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+
+ENDFORM.                    " zf_ler_conteudo_pasta
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_sair_excel
+*&---------------------------------------------------------------------*
+*       Sair do excel, tirar da memoria
+*----------------------------------------------------------------------*
+FORM zf_sair_excel .
+
+* Não exibir mensagens
+  SET PROPERTY OF v_excel 'DisplayAlerts' = 0.
+
+* Fechar o Arquivo
+  CALL METHOD OF v_workbook 'Close'.
+
+* Fechar o Programa Excel
+  CALL METHOD OF v_excel 'Quit'.
+
+* Libera os Objetos da Memória
+  FREE OBJECT v_excel.
+
+
+ENDFORM.                    " zf_sair_excel
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_carrega_dados
+*&---------------------------------------------------------------------*
+*       Carrega os dados importados do excel para tabela interna
+*----------------------------------------------------------------------*
+FORM zf_carrega_dados .
+
+*   Monta tabela t_grupo com os dados do excel
+  LOOP AT t_excel.
+
+    IF t_excel-row = 1.
+      CLEAR t_cabec.
+      t_cabec-cabec = t_excel-value.
+      APPEND t_cabec.
+    ELSE.
+      IF t_excel-col = 1.
+        t_dados-werks = t_excel-value.
+      ELSEIF t_excel-col = 2.
+        t_dados-matnr = t_excel-value.
+      ELSEIF t_excel-col = 3.
+        t_dados-turno = t_excel-value.
+      ELSEIF t_excel-col = 4.
+        t_dados-coment = t_excel-value.
+      ELSE.
+        CLEAR wa_valor.
+        wa_valor-valor = t_excel-value.
+        APPEND wa_valor TO t_dados-valores.
+      ENDIF.
+
+    ENDIF.
+
+    AT END OF row.
+      IF t_excel-row <> 1.
+        APPEND t_dados.
+        CLEAR t_dados.
+      ENDIF.
+    ENDAT.
+
+  ENDLOOP.
+
+*  Se a tabela de exportação estiver vazia, sai do programa
+  IF t_dados[] IS INITIAL.
+
+    MESSAGE s000(zlpp01) DISPLAY LIKE c_mensagem WITH text-011.
+    LEAVE LIST-PROCESSING.
+
+  ENDIF.
+
+ENDFORM.                    " zf_carrega_dados
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_trata_dados
+*&---------------------------------------------------------------------*
+*       Trata os dados para salvar na tabela ZTBPP_005
+*----------------------------------------------------------------------*
+FORM zf_trata_dados .
+
+DATA:  vl_tabix  TYPE sy-tabix.
+
+  LOOP AT t_cabec INTO wa_cabec.
+
+    IF sy-tabix > '4'.
+
+      wa_cabec_aux = wa_cabec.
+      APPEND wa_cabec_aux TO t_cabec_aux.
+
+    ENDIF.
+
+  ENDLOOP.
+
+  LOOP AT t_dados INTO wa_dados.
+
+    CLEAR vl_tabix.
+    LOOP AT wa_dados-valores INTO wa_valor.
+
+      vl_tabix = vl_tabix + 1.
+      CLEAR wa_cabec_aux.
+      READ TABLE t_cabec_aux INTO wa_cabec_aux INDEX vl_tabix.
+
+      wa_table-werks  = wa_dados-werks.
+      wa_table-matnr  = wa_dados-matnr.
+      wa_table-turno  = wa_dados-turno.
+      wa_table-coment = wa_dados-coment.
+      wa_table-data   = wa_cabec_aux.
+      wa_table-valor  = wa_valor-valor.
+      APPEND wa_table TO t_table.
+
+    ENDLOOP.
+
+  ENDLOOP.
+
+
+
+
+
+  LOOP AT t_dados INTO wa_dados.
+
+* Valida Autorizações do Usuario quanto ao centro que ele tem acesso
+    AUTHORITY-CHECK OBJECT c_autho FOR USER sy-uname
+      ID c_werks FIELD wa_dados-werks.
+
+*  Caso não tenha autorização
+    IF sy-subrc IS NOT INITIAL.
+
+      PERFORM zf_cria_tab .
+
+    ELSE.
+
+    ENDIF.
+
+  ENDLOOP.
+
+ENDFORM.                    " zf_trata_dados
+
+*&---------------------------------------------------------------------*
+*&      Form  CRIA_TAB
+*&---------------------------------------------------------------------*
+*       Cria tabela Dinâmica
+*----------------------------------------------------------------------*
+FORM zf_cria_tab.
+
+  DATA: tl_fieldcat       TYPE lvc_t_fcat,
+        wa_tlfieldcat     LIKE LINE OF tl_fieldcat,
+        vl_tabix          TYPE sy-tabix,
+        vl_index          TYPE i,
+        vl_data(8)        TYPE n.
+
+
+* Monta tabela interna pra criar a tabela dinâmica
+  CLEAR wa_tlfieldcat.
+  wa_tlfieldcat-fieldname     = 'WERKS'.
+  wa_tlfieldcat-col_pos       = 1.
+  wa_tlfieldcat-ref_field     = 'WERKS'.
+  wa_tlfieldcat-ref_table     = 'MARC'.
+  APPEND wa_tlfieldcat TO tl_fieldcat.
+
+  CLEAR wa_tlfieldcat.
+  wa_tlfieldcat-fieldname     = 'MATNR'.
+  wa_tlfieldcat-col_pos       = 2.
+  wa_tlfieldcat-ref_field     = 'MATNR'.
+  wa_tlfieldcat-ref_table     = 'MARC'.
+  APPEND wa_tlfieldcat TO tl_fieldcat.
+
+  CLEAR wa_tlfieldcat.
+  wa_tlfieldcat-fieldname     = 'TURNO'.
+  wa_tlfieldcat-col_pos       = 3.
+  wa_tlfieldcat-ref_field     = 'CD_PLANEJADOR'.
+  wa_tlfieldcat-ref_table     = 'ZTBPP_012'.
+  APPEND wa_tlfieldcat TO tl_fieldcat.
+
+  CLEAR wa_tlfieldcat.
+  wa_tlfieldcat-fieldname     = 'COMENT'.
+  wa_tlfieldcat-col_pos       = 4.
+  wa_tlfieldcat-ref_field     = 'DS_GRUPO'.
+  wa_tlfieldcat-ref_table     = 'ZTBPP_012'.
+  APPEND wa_tlfieldcat TO tl_fieldcat.
+
+  vl_tabix = '5'.
+  CLEAR wa_cabec.
+  LOOP AT t_cabec INTO wa_cabec FROM vl_tabix.
+
+    CONCATENATE wa_cabec-cabec(2) wa_cabec-cabec+3(2) wa_cabec-cabec+6(4) INTO vl_data.
+
+    CLEAR wa_tlfieldcat.
+    wa_tlfieldcat-fieldname     = vl_data.
+    wa_tlfieldcat-col_pos       = sy-tabix + 4.
+    wa_tlfieldcat-ref_field     = 'DATUM'.
+    wa_tlfieldcat-ref_table     = 'SYST'.
+    APPEND wa_tlfieldcat TO tl_fieldcat.
+
+    CLEAR wa_valor.
+
+    vl_tabix = vl_tabix + 1.
+
+  ENDLOOP.
+
+  CLEAR wa_tlfieldcat.
+  wa_tlfieldcat-fieldname     = 'MESSAGE'.
+  wa_tlfieldcat-col_pos       = vl_tabix + sy-tabix.
+  wa_tlfieldcat-ref_field     = 'DS_GRUPO'.
+  wa_tlfieldcat-ref_table     = 'ZTBPP_012'.
+  APPEND wa_tlfieldcat TO tl_fieldcat.
+
+
+* Cria a tabela dinâmica
+  CALL METHOD cl_alv_table_create=>create_dynamic_table
+    EXPORTING
+      it_fieldcatalog = tl_fieldcat
+    IMPORTING
+      ep_table        = t_tabela.
+
+  ASSIGN t_tabela->* TO <fs_data>.
+  IF sy-subrc NE 0.
+    EXIT.
+  ENDIF.
+
+* Cria linhas com a mesma estrutura da tabela dinâmica
+  CREATE DATA t_alvdata LIKE LINE OF <fs_data>.
+
+  ASSIGN t_alvdata->* TO <wa_data>.
+  IF sy-subrc NE 0.
+    EXIT.
+  ENDIF.
+
+  CLEAR: vl_index,
+         vl_tabix.
+
+
+  vl_index = vl_index + 1.
+  ASSIGN COMPONENT vl_index OF STRUCTURE <wa_data> TO <fs_campo>.
+  IF sy-subrc NE 0.
+    EXIT.
+  ENDIF.
+  <fs_campo> = wa_dados-werks.
+
+  vl_index = vl_index + 1.
+  ASSIGN COMPONENT vl_index OF STRUCTURE <wa_data> TO <fs_campo>.
+  IF sy-subrc NE 0.
+    EXIT.
+  ENDIF.
+  <fs_campo> = wa_dados-matnr.
+
+  vl_index = vl_index + 1.
+  ASSIGN COMPONENT vl_index OF STRUCTURE <wa_data> TO <fs_campo>.
+  IF sy-subrc NE 0.
+    EXIT.
+  ENDIF.
+  <fs_campo> = wa_dados-turno.
+
+  vl_index = vl_index + 1.
+  ASSIGN COMPONENT vl_index OF STRUCTURE <wa_data> TO <fs_campo>.
+  IF sy-subrc NE 0.
+    EXIT.
+  ENDIF.
+  <fs_campo> = wa_dados-coment.
+
+  vl_tabix = '5'.
+
+  LOOP AT wa_dados-valores INTO wa_valor.
+
+    vl_index = vl_index + 1.
+    ASSIGN COMPONENT vl_index OF STRUCTURE <wa_data> TO <fs_campo>.
+    <fs_campo> = wa_valor-valor.
+
+    vl_tabix = vl_tabix + 1.
+
+  ENDLOOP.
+
+  vl_index = vl_index + 1.
+  ASSIGN COMPONENT vl_index OF STRUCTURE <wa_data> TO <fs_campo>.
+  IF sy-subrc NE 0.
+    EXIT.
+  ENDIF.
+  <fs_campo> = 'Sem permissão de acesso no centro'.
+
+  APPEND <wa_data> TO <fs_data>.
+
+* Preenche tabela de saída
+  CLEAR vl_index.
+  vl_index = vl_index + 1.
+  ASSIGN COMPONENT vl_index OF STRUCTURE <wa_data> TO <fs_campo>.
+  IF sy-subrc NE 0.
+    EXIT.
+  ENDIF.
+  wa_saida-werks = <fs_campo>.
+
+
+ENDFORM.                  " zf_cria_tab

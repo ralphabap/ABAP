@@ -1,0 +1,26 @@
+Badi para criar Aba nova na screen-exit VA01, VA02 e etc...
+
+
+BADI_SLS_HEAD_SCR_CUS
+
+
+Método Exemplo:
+
+
+
+  METHOD if_ex_sls_head_scr_cus~activate_tab_page.
+
+    IF sy-uname = 'ABAP01'.
+
+      DATA: ls_head   LIKE LINE OF ct_cus_head_tab.
+
+      BREAK-POINT.
+
+      ls_head-head_caption  = 'Teste'.
+      ls_head-head_program  = 'SAPLZ_RSD_004'.
+      ls_head-head_dynpro   = '9000'.
+      APPEND ls_head to ct_cus_head_tab.
+
+    ENDIF.
+
+  ENDMETHOD.

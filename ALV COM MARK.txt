@@ -1,0 +1,923 @@
+***********************************************************************
+*                    Baixa de Contas - Concessionárias
+***********************************************************************
+* Autor:     Ralph Nova
+* Data:      19/04/2011
+* Módulo:    FI
+* Programa:  ZFI_BAIXA_CONCESSIONARIAS
+* Transação:
+* Objetivo:  Programa para baixa de contas débito automático
+*            - Concessionárias
+***********************************************************************
+*                            Modificações
+***********************************************************************
+*   Autor   |    Data    |   Request  |           Descrição
+***********************************************************************
+* Ralph Nova| 19/04/2011 |DEVK907519  |  Desenvolvimento Inicial
+***********************************************************************
+REPORT zfi_baixa_concessionarias MESSAGE-ID zfi
+                                 NO STANDARD PAGE HEADING .
+
+***********************************************************************
+* Tabelas Transparentes
+***********************************************************************
+TABLES: bsik.
+
+***********************************************************************
+* Tipos ALV
+***********************************************************************
+TYPE-POOLS: slis.
+
+***********************************************************************
+* Tipos
+***********************************************************************
+TYPES: BEGIN OF ty_rel,
+         mark       TYPE c,
+         bukrs      TYPE bsik-bukrs,
+         belnr      TYPE bsik-belnr,
+         gjahr      TYPE bsik-gjahr,
+         lifnr      TYPE bsik-lifnr,
+         pswsl      TYPE bsik-pswsl,
+         dmbtr      TYPE bsik-dmbtr,
+         sgtxt      TYPE bsik-sgtxt,
+         hkont      TYPE bsik-hkont,
+         zfbdt      TYPE bsik-zfbdt,
+         zlspr      TYPE bsik-zlspr,
+         hbkid      TYPE bsik-hbkid,
+         gsber      TYPE bsik-gsber,
+         bldat      TYPE sy-datum,
+         budat      TYPE sy-datum,
+         zuonr      TYPE bsik-zuonr,
+         hkont_div  TYPE zfi_bco_divisao-hkont,
+         wrbtr      TYPE bsik-wrbtr,
+         buzei      TYPE bsik-buzei,
+       END OF ty_rel,
+
+       BEGIN OF ty_log,
+         bukrs      TYPE bsik-bukrs,
+         belnr      TYPE bsik-belnr,
+         augbl      TYPE bsik-augbl,
+         trans(04)  TYPE c,
+         tipo       TYPE c,
+         msg        TYPE sy-lisel,
+       END OF ty_log.
+
+***********************************************************************
+* Tabelas Internas
+***********************************************************************
+DATA: t_bsik         TYPE TABLE OF bsik            WITH HEADER LINE,
+      t_rel          TYPE TABLE OF ty_rel          WITH HEADER LINE,
+      t_fieldcat     TYPE slis_t_fieldcat_alv,
+      t_bdcdata      TYPE TABLE OF bdcdata         WITH HEADER LINE,
+      t_messtab      TYPE TABLE OF bdcmsgcoll      WITH HEADER LINE,
+      t_log          TYPE TABLE OF ty_log          WITH HEADER LINE,
+      t_bco_divisao  TYPE TABLE OF zfi_bco_divisao WITH HEADER LINE.
+
+***********************************************************************
+* Estruturas
+***********************************************************************
+DATA: wa_fieldcat   TYPE LINE OF slis_t_fieldcat_alv,
+      wa_layout     TYPE slis_layout_alv,
+      wa_options    TYPE ctu_params.
+
+***********************************************************************
+* Classes
+***********************************************************************
+* Classe que Recupera valor digitado
+DATA: cl_grid     TYPE REF TO cl_gui_alv_grid.
+
+***********************************************************************
+* Variáveis
+***********************************************************************
+DATA: v_bldat_tela    TYPE sy-datum,
+      v_budat_tela    TYPE sy-datum,
+      v_erro_bloq     TYPE c.
+
+***********************************************************************
+* Tela de Seleção
+***********************************************************************
+SELECTION-SCREEN BEGIN OF BLOCK a WITH FRAME TITLE text-001.
+
+SELECT-OPTIONS: so_lifnr FOR bsik-lifnr,
+                so_belnr FOR bsik-belnr,
+                so_bukrs FOR bsik-bukrs OBLIGATORY,
+                so_zlspr FOR bsik-zlspr OBLIGATORY DEFAULT 'Q',
+                so_zfbdt FOR bsik-zfbdt OBLIGATORY.
+
+PARAMETERS:     p_show  TYPE c AS CHECKBOX.
+
+SELECTION-SCREEN END OF BLOCK a.
+
+***********************************************************************
+* Start of Selection
+***********************************************************************
+START-OF-SELECTION.
+
+* Seleção dos Dados
+  PERFORM selecao_dados.
+
+* Se algum registro foi encontrado
+  IF NOT t_bsik[] IS INITIAL.
+
+* Monta tabela interna de exibição do relatório
+    PERFORM monta_tab_exibicao.
+
+* Monta a tabela do fieldcat
+    PERFORM monta_fieldcat.
+
+* Exibe relatório ALV
+    PERFORM exibe_relatorio.
+
+  ENDIF.
+
+END-OF-SELECTION.
+
+* Somente mostrar o LOG se o usuário clicou em BAIXAR
+  IF sy-ucomm = 'BAIXAR'.
+
+    PERFORM exibir_log.
+
+  ENDIF.
+
+*&---------------------------------------------------------------------
+*&      Form  selecao_dados
+*&---------------------------------------------------------------------
+*       Faz a seleção dos dados
+*----------------------------------------------------------------------
+FORM selecao_dados.
+
+  DATA: tl_bsik_fae    TYPE TABLE OF bsik,
+        vl_ano_ant(04) TYPE c.
+
+  CLEAR vl_ano_ant.
+  vl_ano_ant = so_zfbdt-low(04) - 1.
+
+* Seleção dos documentos de FI da tabela BSIK de acordo com a
+* tela de seleção
+  REFRESH t_bsik.
+  SELECT *
+    FROM bsik
+    INTO TABLE t_bsik
+    WHERE bukrs IN so_bukrs
+      AND belnr IN so_belnr
+      AND gjahr IN (so_zfbdt-low(04), vl_ano_ant)
+      AND lifnr IN so_lifnr
+      AND zfbdt IN so_zfbdt
+      AND zlspr IN so_zlspr
+      AND augbl = space.
+
+  IF NOT sy-subrc IS INITIAL.
+
+* Nenhum registro encontrado para esta seleção.
+    MESSAGE i000 WITH text-002.
+
+  ELSE.
+
+    REFRESH tl_bsik_fae[].
+    tl_bsik_fae[] = t_bsik[].
+    SORT tl_bsik_fae BY bukrs gsber hbkid.
+    DELETE ADJACENT DUPLICATES FROM tl_bsik_fae
+      COMPARING bukrs gsber hbkid.
+
+    IF NOT tl_bsik_fae[] IS INITIAL.
+
+* Seleciona Conta
+      SELECT *
+        FROM zfi_bco_divisao
+        INTO TABLE t_bco_divisao
+        FOR ALL ENTRIES IN tl_bsik_fae
+        WHERE bukrs = tl_bsik_fae-bukrs
+          AND gsber = tl_bsik_fae-gsber
+          AND hbkid = tl_bsik_fae-hbkid.
+
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " selecao_dados
+
+*&---------------------------------------------------------------------
+*&      Form  monta_tab_exibicao
+*&---------------------------------------------------------------------
+*       Monta tabela interna de exibição do relatório
+*----------------------------------------------------------------------
+FORM monta_tab_exibicao.
+
+  SORT t_bco_divisao BY bukrs gsber hbkid.
+
+  REFRESH t_rel[].
+
+* Preenche a tabela t_rel
+  LOOP AT t_bsik.
+
+    CLEAR t_rel.
+    t_rel-bukrs = t_bsik-bukrs.
+    t_rel-belnr = t_bsik-belnr.
+    t_rel-gjahr = t_bsik-gjahr.
+    t_rel-lifnr = t_bsik-lifnr.
+    t_rel-pswsl = t_bsik-pswsl.
+    t_rel-dmbtr = t_bsik-dmbtr.
+    t_rel-sgtxt = t_bsik-sgtxt.
+    t_rel-hkont = t_bsik-hkont.
+    t_rel-zfbdt = t_bsik-zfbdt.
+    t_rel-zlspr = t_bsik-zlspr.
+    t_rel-hbkid = t_bsik-hbkid.
+    t_rel-gsber = t_bsik-gsber.
+    t_rel-zuonr = t_bsik-zuonr.
+    t_rel-wrbtr = t_bsik-wrbtr.
+    t_rel-buzei = t_bsik-buzei.
+
+* Conta
+    CLEAR t_bco_divisao.
+    READ TABLE t_bco_divisao WITH KEY bukrs = t_bsik-bukrs
+                                      gsber = t_bsik-gsber
+                                      hbkid = t_bsik-hbkid
+                                      BINARY SEARCH.
+    IF sy-subrc IS INITIAL.
+
+      t_rel-hkont_div = t_bco_divisao-hkont.
+
+    ENDIF.
+
+    APPEND t_rel.
+
+  ENDLOOP.
+
+ENDFORM.                    " monta_tab_exibicao
+
+*&---------------------------------------------------------------------
+*&      Form  monta_fieldcat
+*&---------------------------------------------------------------------
+*       Monta fieldcat para o ALV
+*----------------------------------------------------------------------
+FORM monta_fieldcat.
+
+* Layout
+  wa_layout-colwidth_optimize = 'X'.
+  wa_layout-zebra             = 'X'.
+  wa_layout-box_fieldname     = 'MARK'.
+
+* Fieldcat
+  PERFORM alimenta_fieldcat USING:
+    'BUKRS' 'T_REL' text-003 'C' '4'  '',
+    'BELNR' 'T_REL' text-004 'C' '10' '',
+    'GJAHR' 'T_REL' text-005 'C' '4'  '',
+    'LIFNR' 'T_REL' text-006 'C' '10' '',
+    'PSWSL' 'T_REL' text-007 'C' '5'  '',
+    'DMBTR' 'T_REL' text-008 'P' '15' '',
+    'SGTXT' 'T_REL' text-009 'C' '50' '',
+    'HKONT' 'T_REL' text-010 'C' '10' '',
+    'ZFBDT' 'T_REL' text-011 'D' '10' '',
+    'ZLSPR' 'T_REL' text-012 'C' '1'  '',
+    'HBKID' 'T_REL' text-013 'C' '5'  '',
+    'GSBER' 'T_REL' text-014 'C' '4'  '',
+    'BLDAT' 'T_REL' text-017 'D' '10' 'X',
+    'BUDAT' 'T_REL' text-018 'D' '10' 'X'.
+
+ENDFORM.                    " monta_fieldcat
+
+*&---------------------------------------------------------------------
+*&      Form  alimenta_fieldcat
+*&---------------------------------------------------------------------
+*       Alimenta fieldcat
+*----------------------------------------------------------------------
+*      -->P_fieldname
+*      -->P_tabname
+*      -->P_text
+*      -->P_inttype
+*      -->P_outputlen
+*      -->P_edit
+*----------------------------------------------------------------------
+FORM alimenta_fieldcat USING p_fieldname  TYPE any
+                             p_tabname    TYPE any
+                             p_text       TYPE any
+                             p_inttype    TYPE any
+                             p_outputlen  TYPE any
+                             p_edit       TYPE any.
+
+  CLEAR wa_fieldcat.
+  wa_fieldcat-fieldname     = p_fieldname.
+  wa_fieldcat-tabname       = p_tabname.
+  wa_fieldcat-reptext_ddic  = p_text.
+  wa_fieldcat-inttype       = p_inttype.
+  wa_fieldcat-outputlen     = p_outputlen.
+  wa_fieldcat-edit          = p_edit.
+  APPEND wa_fieldcat TO t_fieldcat.
+
+ENDFORM.                    " alimenta_fieldcat
+
+*&---------------------------------------------------------------------
+*&      Form  exibe_relatorio
+*&---------------------------------------------------------------------
+*       Exibe relatório ALV
+*----------------------------------------------------------------------
+FORM exibe_relatorio.
+
+  DATA: vl_repid TYPE sy-repid.
+
+  MOVE: sy-repid TO vl_repid.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = vl_repid
+      i_callback_pf_status_set = 'ZF_SET_PF_STATUS'
+      i_callback_user_command  = 'ZF_USER_COMMAND'
+      is_layout                = wa_layout
+*        it_events                = gw_events
+      it_fieldcat              = t_fieldcat
+*        it_sort                  = gw_sort
+*        is_variant               = gs_variant
+    TABLES
+      t_outtab                 = t_rel
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+ENDFORM.                    " exibe_relatorio
+
+*&---------------------------------------------------------------------
+*&      Form  zf_set_pf_status
+*&---------------------------------------------------------------------
+*       Menu ALV
+*----------------------------------------------------------------------
+FORM zf_set_pf_status                                       "#EC CALLED
+                USING rt_extab TYPE slis_t_extab.           "#EC NEEDED
+
+  SET PF-STATUS 'ZSTANDARD_FULLSCREEN'.
+
+ENDFORM.                    "zf_set_pf_status
+
+*&---------------------------------------------------------------------
+*&      zf_user_command
+*&---------------------------------------------------------------------
+*       Click dos botões
+*----------------------------------------------------------------------
+FORM zf_user_command USING ucomm    LIKE sy-ucomm           "#EC CALLED
+                           selfield TYPE slis_selfield.     "#EC NEEDED
+
+  DATA: vl_erro  TYPE c.
+
+  CLEAR vl_erro.
+
+* Verifica se o usuário clicou no botão Baixar Títulos
+  CASE ucomm.
+
+    WHEN 'BAIXAR'.
+
+      selfield-refresh = 'X'.
+
+* Chama função para recuperar classe com o grid
+      CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+           IMPORTING
+                e_grid = cl_grid.
+
+* Classe para recuperar o valor digitado.
+      CALL METHOD cl_grid->check_changed_data.
+
+* Verifica se o usuário selecionou algum título
+      READ TABLE t_rel WITH KEY mark = 'X'.
+      IF NOT sy-subrc IS INITIAL.
+
+* Mensagem: Nenhum título selecionado. Favor selecionar um título
+* pelo menos.
+        MESSAGE i000 WITH text-015 text-016.
+        vl_erro = 'X'.
+
+      ENDIF.
+
+* Verifica se os campos datas foram preenchidos
+      LOOP AT t_rel WHERE mark = 'X'.
+
+        IF t_rel-bldat IS INITIAL OR
+           t_rel-budat IS INITIAL.
+
+* Mensagem: Preencher os campos Data Documento e Data Lançamento,
+* dos registros selecionados
+          MESSAGE i000 WITH text-019 text-020.
+          vl_erro = 'X'.
+          EXIT.
+
+        ENDIF.
+
+      ENDLOOP.
+
+* Se não ocorreu nenhum erro nas validações então executar os batch inp
+      IF vl_erro IS INITIAL.
+
+        LOOP AT t_rel WHERE mark = 'X'.
+
+* Processamento para retirar o bloqueio do pagamento FB02
+          PERFORM retira_bloq_pagto.
+
+* Se não ocorreu erros no desbloqueio
+          IF v_erro_bloq IS INITIAL.
+
+* Faz a baixa do pagamento, transação F-53
+            PERFORM baixa_pagto.
+
+          ENDIF.
+
+        ENDLOOP.
+
+        LEAVE TO LIST-PROCESSING.
+        SET SCREEN 0.
+
+      ENDIF.
+
+    WHEN 'DATAS'.
+
+      selfield-refresh = 'X'.
+
+* Chama função para recuperar classe com o grid
+      CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+           IMPORTING
+                e_grid = cl_grid.
+
+* Classe para recuperar o valor digitado.
+      CALL METHOD cl_grid->check_changed_data.
+
+* Verifica se o usuário selecionou algum título
+      READ TABLE t_rel WITH KEY mark = 'X'.
+      IF NOT sy-subrc IS INITIAL.
+
+* Mensagem de erro
+        MESSAGE i000 WITH text-015 text-016.
+        vl_erro = 'X'.
+
+      ENDIF.
+
+      IF vl_erro IS INITIAL.
+
+        CALL SCREEN '1001' STARTING AT 10 5.
+
+      ENDIF.
+
+  ENDCASE.
+
+ENDFORM.                    "zf_user_command
+
+*&---------------------------------------------------------------------
+*&      Module  USER_COMMAND_1001  INPUT
+*&---------------------------------------------------------------------
+*       Controla o click dos botões
+*----------------------------------------------------------------------
+MODULE user_command_1001 INPUT.
+
+  DATA: vl_erro    TYPE c.
+
+  CLEAR vl_erro.
+
+  CASE sy-ucomm.
+
+    WHEN 'BTN_OK'.
+
+      IF v_bldat_tela IS INITIAL OR
+         v_budat_tela IS INITIAL.
+
+* Mensagem: Preencher os campos Data Documento e Data Lançamento
+        MESSAGE i000 WITH text-021 text-022.
+        vl_erro = 'X'.
+
+      ENDIF.
+
+      IF vl_erro IS INITIAL.
+
+        LOOP AT t_rel WHERE mark = 'X'.
+
+          IF t_rel-bldat IS INITIAL.
+
+            t_rel-bldat = v_bldat_tela.
+
+          ENDIF.
+
+          IF t_rel-budat IS INITIAL.
+
+            t_rel-budat = v_budat_tela.
+
+          ENDIF.
+
+          MODIFY t_rel.
+
+        ENDLOOP.
+
+        CLEAR: v_bldat_tela, v_budat_tela.
+
+        SET SCREEN '0'.
+        LEAVE SCREEN.
+
+      ENDIF.
+
+    WHEN 'BTN_CAN'.
+
+      CLEAR: v_bldat_tela, v_budat_tela.
+
+      SET SCREEN '0'.
+      LEAVE SCREEN.
+
+  ENDCASE.
+
+ENDMODULE.                 " USER_COMMAND_1001  INPUT
+*&---------------------------------------------------------------------
+*&      Module  STATUS_1001  OUTPUT
+*&---------------------------------------------------------------------
+*       Status
+*----------------------------------------------------------------------
+MODULE status_1001 OUTPUT.
+
+  SET PF-STATUS 'ZSTATUS_VAZIO'.
+*  SET TITLEBAR 'xxx'.
+
+ENDMODULE.                 " STATUS_1001  OUTPUT
+
+*&---------------------------------------------------------------------
+*&      Form  retira_bloq_pagto
+*&---------------------------------------------------------------------
+*       Retira o bloquei do pagamento
+*----------------------------------------------------------------------
+FORM retira_bloq_pagto.
+
+  DATA: vl_msg          TYPE sy-lisel,
+        vl_nrmessage(3) TYPE n,         " Numero da Mensagem
+        vl_message1     LIKE sy-msgv1,  " Parametro da mensagem 1
+        vl_message2     LIKE sy-msgv2,  " Parametro da mensagem 2
+        vl_message3     LIKE sy-msgv3,  " Parametro da mensagem 3
+        vl_message4     LIKE sy-msgv4,  " Parametro da mensagem 4
+        vl_cursor(15)   TYPE c.
+
+  REFRESH t_bdcdata[].
+
+  CLEAR v_erro_bloq.
+
+* Campos auxiliares
+  CLEAR vl_cursor.
+  CONCATENATE 'RF05L-ANZDT('
+              t_rel-buzei+1(02)
+              ')'
+         INTO vl_cursor.
+
+* Opções para o SHDB
+  CLEAR wa_options.
+  IF p_show IS INITIAL.
+
+    wa_options-dismode = 'E'.
+
+  ELSE.
+
+    wa_options-dismode = 'A'.
+
+  ENDIF.
+
+  wa_options-updmode = 'S'.
+
+* Monta SHDB para transação FB02
+  PERFORM monta_shdb USING:
+    'X'       'SAPMF05L'       '0100',
+    ' '       'BDC_OKCODE'     '/00',
+    ' '       'RF05L-BELNR'    t_rel-belnr,
+    ' '       'RF05L-BUKRS'    t_rel-bukrs,
+    ' '       'RF05L-GJAHR'    t_rel-gjahr,
+
+    'X'       'SAPMF05L'       '0700',
+    ' '       'BDC_OKCODE'     '=PK',
+    ' '       'BDC_CURSOR'     vl_cursor,
+
+    'X'       'SAPMF05L'       '0302',
+    ' '       'BDC_OKCODE'     '/00',
+    ' '       'BSEG-ZLSPR'     ' ',
+
+    'X'       'SAPMF05L'       '0302',
+    ' '       'BDC_OKCODE'     '=AE'.
+
+* Chama transação FB02
+  REFRESH t_messtab[].
+  CALL TRANSACTION 'FB02'
+    USING t_bdcdata
+    OPTIONS FROM wa_options
+    MESSAGES INTO t_messtab.
+
+* Apaga mensagens repetidas
+  DELETE ADJACENT DUPLICATES FROM t_messtab.
+
+* Verifica se fez o desbloqueio corretamente
+  CLEAR t_messtab.
+  READ TABLE t_messtab WITH KEY msgtyp = 'S'
+                                msgid  = 'F5'
+                                msgnr  = '300'.
+  IF NOT sy-subrc IS INITIAL.
+
+    v_erro_bloq = 'X'.
+
+  ENDIF.
+
+* Preenche o log
+  CLEAR t_log.
+  t_log-bukrs = t_rel-bukrs.
+  t_log-belnr = t_rel-belnr.
+  t_log-augbl = 'N/A'.
+  t_log-trans = 'FB02'.
+
+  LOOP AT t_messtab.
+
+
+    CLEAR: vl_nrmessage,
+           vl_message1,
+           vl_message2,
+           vl_message3,
+           vl_message4.
+
+    vl_nrmessage = t_messtab-msgnr.
+    vl_message1  = t_messtab-msgv1.
+    vl_message2  = t_messtab-msgv2.
+    vl_message3  = t_messtab-msgv3.
+    vl_message4  = t_messtab-msgv4.
+
+* Monta mensagem
+    CLEAR vl_msg.
+    CALL FUNCTION 'RPY_MESSAGE_COMPOSE'
+      EXPORTING
+        message_id              = t_messtab-msgid
+        message_number          = vl_nrmessage
+        message_var1            = vl_message1
+        message_var2            = vl_message2
+        message_var3            = vl_message3
+        message_var4            = vl_message4
+     IMPORTING
+       message_text            = vl_msg
+*       TABLES
+*         LONGTEXT                =
+     EXCEPTIONS
+       message_not_found       = 1
+       OTHERS                  = 2.
+
+    IF sy-subrc IS INITIAL.
+
+      t_log-tipo = t_messtab-msgtyp.
+      t_log-msg  = vl_msg.
+
+    ENDIF.
+
+    APPEND t_log.
+
+  ENDLOOP.
+
+ENDFORM.                    " retira_bloq_pagto
+
+*----------------------------------------------------------------------
+*      Form  monta_shdb
+*----------------------------------------------------------------------
+*       Monta SHDB
+*----------------------------------------------------------------------
+*       --> P_INICIO - Indica se o mapeamento È referente a tela
+*       --> P_NOME   - Nome do mapeamento (tela, campo, sy-ucomm...)
+*       --> P_VALOR  - Valor do mapeamento de tela (campo ou sy-ucomm)
+*----------------------------------------------------------------------
+FORM monta_shdb  USING  value(p_inicio)                     "#EC *
+                        value(p_nome)                       "#EC *
+                        value(p_valor).                     "#EC *
+
+  CLEAR  t_bdcdata.
+
+  IF p_inicio = 'X'.
+
+    MOVE: p_nome   TO t_bdcdata-program,
+          p_valor  TO t_bdcdata-dynpro,
+          p_inicio TO t_bdcdata-dynbegin.
+
+  ELSE.
+
+    MOVE: p_nome   TO t_bdcdata-fnam,
+          p_valor  TO t_bdcdata-fval.
+
+  ENDIF.
+
+  APPEND t_bdcdata.
+
+ENDFORM.                    " zf_monta_shdb
+
+*&---------------------------------------------------------------------
+*&      Form  baixa_pagto
+*&---------------------------------------------------------------------
+*       Baixa do pagamento F-53
+*----------------------------------------------------------------------
+FORM baixa_pagto.
+
+  DATA: vl_msg          TYPE sy-lisel,
+        vl_nrmessage(3) TYPE n,         " Numero da Mensagem
+        vl_message1     LIKE sy-msgv1,  " Parametro da mensagem 1
+        vl_message2     LIKE sy-msgv2,  " Parametro da mensagem 2
+        vl_message3     LIKE sy-msgv3,  " Parametro da mensagem 3
+        vl_message4     LIKE sy-msgv4,  " Parametro da mensagem 4
+        vl_bldat(10)    TYPE c,
+        vl_budat(10)    TYPE c,
+        vl_wrbtr(15)    TYPE c.
+
+  REFRESH t_bdcdata[].
+
+* Prepara campos para batch
+  CLEAR vl_bldat.
+  CONCATENATE t_rel-bldat+6(02)
+              t_rel-bldat+4(02)
+              t_rel-bldat(04)
+         INTO vl_bldat.
+
+  CLEAR vl_budat.
+  CONCATENATE t_rel-budat+6(02)
+              t_rel-budat+4(02)
+              t_rel-budat(04)
+         INTO vl_budat.
+  CLEAR vl_wrbtr.
+  WRITE t_rel-wrbtr TO vl_wrbtr.
+
+* Opções para o SHDB
+  CLEAR wa_options.
+  IF p_show IS INITIAL.
+
+    wa_options-dismode = 'E'.
+
+  ELSE.
+
+    wa_options-dismode = 'A'.
+
+  ENDIF.
+
+  wa_options-updmode = 'S'.
+
+* Monta SHDB para transação F-53
+  PERFORM monta_shdb USING:
+    'X'       'SAPMF05A'          '0103',
+    ' '       'BDC_OKCODE'        '/00',
+    ' '       'BKPF-BLDAT'        vl_bldat,
+    ' '       'BKPF-BLART'        'KZ',
+    ' '       'BKPF-BUDAT'        vl_budat,
+    ' '       'BKPF-WAERS'        t_rel-pswsl,
+    ' '       'BKPF-XBLNR'        t_rel-zuonr,
+    ' '       'BKPF-BKTXT'        t_rel-zuonr,
+    ' '       'RF05A-KONTO'       t_rel-hkont_div,
+    ' '       'BSEG-GSBER'        t_rel-gsber,
+    ' '       'BSEG-WRBTR'        vl_wrbtr,
+    ' '       'BSEG-VALUT'        vl_bldat,
+    ' '       'RF05A-AGKON'       t_rel-lifnr,
+    ' '       'RF05A-AGKOA'       'K',
+    ' '       'RF05A-XNOPS'       'X',
+    ' '       'RF05A-XPOS1(01)'   'X',
+    ' '       'RF05A-XPOS1(04)'   'X',
+
+    'X'       'SAPMF05A'          '0731',
+    ' '       'BDC_OKCODE'        '=PA',
+    ' '       'BDC_CURSOR'        'RF05A-SEL01(01)',
+    ' '       'RF05A-SEL01(01)'   t_rel-belnr,
+
+    'X'       'SAPDF05X'          '3100',
+    ' '       'BDC_OKCODE'        '=BU',
+    ' '       'RF05A-ABPOS'       '1'.
+
+* Chama transação F-53
+  REFRESH t_messtab[].
+  CALL TRANSACTION 'F-53'
+    USING t_bdcdata
+    OPTIONS FROM wa_options
+    MESSAGES INTO t_messtab.
+
+* Apaga mensagens repetidas
+  DELETE ADJACENT DUPLICATES FROM t_messtab.
+
+* Preenche o log
+  CLEAR t_log.
+  t_log-bukrs = t_rel-bukrs.
+  t_log-belnr = t_rel-belnr.
+  t_log-trans = 'F-53'.
+
+* Recupera dcumento criado
+  CLEAR t_messtab.
+  READ TABLE t_messtab WITH KEY msgtyp = 'S'
+                                msgid = 'F5'
+                                msgnr = '312'.
+  IF sy-subrc IS INITIAL.
+
+    t_log-augbl = t_messtab-msgv1.
+
+  ENDIF.
+
+  LOOP AT t_messtab.
+
+
+    CLEAR: vl_nrmessage,
+           vl_message1,
+           vl_message2,
+           vl_message3,
+           vl_message4.
+
+    vl_nrmessage = t_messtab-msgnr.
+    vl_message1  = t_messtab-msgv1.
+    vl_message2  = t_messtab-msgv2.
+    vl_message3  = t_messtab-msgv3.
+    vl_message4  = t_messtab-msgv4.
+
+* Monta mensagem
+    CLEAR vl_msg.
+    CALL FUNCTION 'RPY_MESSAGE_COMPOSE'
+      EXPORTING
+        message_id              = t_messtab-msgid
+        message_number          = vl_nrmessage
+        message_var1            = vl_message1
+        message_var2            = vl_message2
+        message_var3            = vl_message3
+        message_var4            = vl_message4
+     IMPORTING
+       message_text            = vl_msg
+*       TABLES
+*         LONGTEXT                =
+     EXCEPTIONS
+       message_not_found       = 1
+       OTHERS                  = 2.
+
+    IF sy-subrc IS INITIAL.
+
+      t_log-tipo = t_messtab-msgtyp.
+      t_log-msg  = vl_msg.
+
+    ENDIF.
+
+    APPEND t_log.
+
+  ENDLOOP.
+
+ENDFORM.                    " baixa_pagto
+
+*&---------------------------------------------------------------------
+*&      Form  exibir_log
+*&---------------------------------------------------------------------
+*       Exibir log de processamento
+*----------------------------------------------------------------------
+FORM exibir_log.
+
+  DATA: vl_cor    TYPE c.
+
+  FORMAT COLOR COL_HEADING ON.
+
+  WRITE: sy-uline(170).
+
+  WRITE: /     '|',
+           04  'LOG',
+           170 '|'.
+
+  WRITE: sy-uline(170).
+
+  WRITE: /     '|',
+           04  'Empresa',
+           13  '|',
+           16  'Documento',
+           30  '|',
+           33  'Doc. Compensação',
+           53  '|',
+           56  'Transação',
+           69  '|',
+           72  'Tipo',
+           78  '|',
+           81  'Mensagem',
+           170 '|'.
+
+  WRITE: sy-uline(170).
+
+  FORMAT COLOR COL_HEADING OFF.
+
+  FORMAT COLOR COL_NORMAL ON.
+
+  LOOP AT t_log.
+
+    IF vl_cor IS INITIAL.
+
+      FORMAT INTENSIFIED ON.
+      vl_cor = 'X'.
+
+    ELSE.
+
+      FORMAT INTENSIFIED OFF.
+      CLEAR vl_cor.
+
+    ENDIF.
+
+    WRITE: /     '|',
+             04  t_log-bukrs,
+             13  '|',
+             16  t_log-belnr,
+             30  '|',
+             33  t_log-augbl,
+             53  '|',
+             56  t_log-trans,
+             69  '|',
+             72  t_log-tipo,
+             78  '|',
+             81  t_log-msg,
+             170 '|'.
+
+    WRITE: sy-uline(170).
+
+  ENDLOOP.
+
+ENDFORM.                    " exibir_log

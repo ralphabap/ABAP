@@ -1,0 +1,1197 @@
+*----------------------------------------------------------------------*
+* Projeto......: RODOBENS    - RSC  - Rodobens Serviços Compartilhados *
+*----------------------------------------------------------------------*
+* Autor........: Ralph Nova                                            *
+* Data.........: 09.05.2012                                            *
+* Versão.......: 1.0                                                   *
+* Função.......: Caixa - Retorno de Cheques Custódia                   *
+* Funcional....: Rubens Machado                                        *
+*----------------------------------------------------------------------*
+*                  Descrição das alterações                            *
+*----------------------------------------------------------------------*
+* Vers |  Data      | Descrição                              | Autor   *
+*----------------------------------------------------------------------*
+* 1.0  | 09.05.2012 | Desenvolvimento Inicial                |         *
+*----------------------------------------------------------------------*
+REPORT  zrscfic033_cx_ret_cheq_cust MESSAGE-ID zfi01.
+
+*----------------------------------------------------------------------*
+* Definição de type-pools ---------------------------------------------*
+*----------------------------------------------------------------------*
+TYPE-POOLS: slis,  kcde.
+
+*----------------------------------------------------------------------*
+* Definição dos tipos -------------------------------------------------*
+*----------------------------------------------------------------------*
+TYPES: BEGIN OF y_arquivos,
+         name      TYPE epsfilnam,
+         linha(01) TYPE c,
+       END OF y_arquivos.
+
+TYPES: BEGIN OF y_arq,
+         linha1(03)   TYPE c,
+         branco(01)   TYPE c,
+         banco(03)    TYPE c,
+         branco2(01)  TYPE c,
+         agencia(04)  TYPE c,
+         branco3(1)   TYPE c,
+         c2(01)       TYPE c,
+         branco4(1)   TYPE c,
+         ccorren(12)  TYPE c,
+         branco5(1)   TYPE c,
+         c1(01)       TYPE c,
+         branco6(1)   TYPE c,
+         docto(6)     TYPE c,
+         branco7(1)   TYPE c,
+         c3(01)       TYPE c,
+         branco8(1)   TYPE c,
+         uf(2)        TYPE c,
+         branco9(1)   TYPE c,
+         valor(12)    TYPE c,
+         branco10(1)  TYPE c,
+         b_rem(3)     TYPE c,
+         branco11(1)  TYPE c,
+         ag_dep(4)    TYPE c,
+         branco12(1)  TYPE c,
+         cont_dep(12) TYPE c,
+         branco13(1)  TYPE c,
+         dt_mov(10)   TYPE c,
+         branco14(1)  TYPE c,
+         lote(7)      TYPE c,
+         branco15(1)  TYPE c,
+         bordero(5)   TYPE c,
+         branco16(1)  TYPE c,
+         cpf(11)      TYPE c,
+         branco17(1)  TYPE c,
+         fil_cnpj(4)  TYPE c,
+         branco18(1)  TYPE c,
+         exclus(30)   TYPE c,
+         branco19(1)  TYPE c,
+         seque(10)    TYPE c,
+       END OF y_arq.
+
+TYPES: BEGIN OF y_arq1,
+         string(1024)  TYPE c,
+       END OF y_arq1.
+
+* Local de negócios
+TYPES: BEGIN OF y_bbranch,
+         bukrs  TYPE bukrs,        " Empresa
+         branch TYPE j_1bbranc_,   " Local de negócios
+       END OF y_bbranch.
+
+* Contas nos bancos da empresa
+TYPES: BEGIN OF y_t012k,
+         bukrs TYPE bukrs,    " Empresa
+         hbkid TYPE hbkid,    " Chave breve de um banco da empresa
+         hktid TYPE hktid,    " Chave breve das coordenadas de uma conta
+         hkont TYPE hkont,    " Conta do Razão da contabilidade geral
+       END OF y_t012k.
+
+* Bancos da empresa
+TYPES: BEGIN OF y_t012,
+         bukrs TYPE bukrs,          " Empresa
+         hbkid TYPE hbkid,
+         bupla TYPE bupla_t012,     " Local de negócios
+         bankl TYPE bankk,
+       END OF y_t012.
+
+TYPES: BEGIN OF y_ztbfi027,
+         sigla    TYPE zdefi013,     " Sigla
+         itemtext TYPE poswgrbez,    " Denominação
+         hkont    TYPE hkont,        " Conta do Razão
+       END OF y_ztbfi027.
+*Dados de cabeçalho.
+TYPES: BEGIN OF y_cabec,
+         agencia(4) TYPE c,
+         conta(5)   TYPE c,
+         empresa(4) TYPE c,
+         data(10)   TYPE c,
+         valor(12)  TYPE c,
+       END OF y_cabec.
+* Arquivos
+TYPES: BEGIN OF y_directory,
+         localfile TYPE localfile,
+       END OF y_directory.
+
+*----------------------------------------------------------------------*
+* Definição das tabelas internas --------------------------------------*
+*----------------------------------------------------------------------*
+DATA: t_dirlist      TYPE TABLE OF epsfili,         " Retorno da função
+      t_directory    TYPE kcde_directory,
+      t_arquivos     TYPE TABLE OF y_arquivos,      " Arquivos do diretório
+      t_arq_cabec    TYPE TABLE OF y_arq1,          " Arquivo
+      t_arq_bkp      TYPE TABLE OF y_arq1,          " Arquivo de BKP
+      t_arq_itens    TYPE TABLE OF y_arq,           " Arquivo
+      t_bbranch      TYPE TABLE OF y_bbranch,       " Local de Negócios
+      t_t012k        TYPE TABLE OF y_t012k,         " Contas banco empresa
+      t_t012         TYPE TABLE OF y_t012,          " Bancos da empresa
+      t_ztbfi016     TYPE TABLE OF ztbfi016,
+      t_accountgl    TYPE TABLE OF bapiacgl08,      " Tabela BAPI
+      t_currency     TYPE TABLE OF bapiaccr08,      " Tabela BAPI
+      t_return       TYPE TABLE OF bapiret2,        " Retorno da BAPI
+      t_extension1   TYPE TABLE OF bapiextc,
+      t_ztbfi027     TYPE TABLE OF y_ztbfi027,
+      t_log          TYPE TABLE OF ztbfi029,        " Log
+      t_fieldcat     TYPE slis_t_fieldcat_alv,      " Campos ALV
+      t_fieldcat_log TYPE slis_t_fieldcat_alv.      " Campos ALV
+
+*----------------------------------------------------------------------*
+* Definição das work areas --------------------------------------------*
+*----------------------------------------------------------------------*
+DATA: w_dirlist    TYPE epsfili,              " Retorno da função
+      w_arquivos   TYPE y_arquivos,           " Arquivos do diretório
+      w_arq1       TYPE y_arq1,               " Arquivo
+      w_arq        TYPE y_arq,                "
+      w_t012k      TYPE y_t012k,              " Contas banco empresa
+      w_t012       TYPE y_t012,               " Bancos da empresa
+      w_header     TYPE bapiache08,           " Cabeçalho da BAPI
+      w_objkey     TYPE bapiache02-obj_key,   "
+      w_extens     TYPE bapiextc,             "
+      w_accountgl  TYPE bapiacgl08,           " Tabela BAPI
+      w_currency   TYPE bapiaccr08,           " Tabela BAPI
+      w_return     TYPE bapiret2,             " Retorno da BAPI
+      w_log        TYPE ztbfi029,             " Log
+      w_ztbfi016   TYPE ztbfi016,                           " ztbfi016
+      w_ztbfi027   TYPE y_ztbfi027,                         " ZTBFI027
+      w_cabec      TYPE y_cabec,              " Cabeçalho
+      w_fieldcat   TYPE slis_fieldcat_alv,    " Campos ALV
+      w_layout     TYPE slis_layout_alv.      " Layout ALV
+
+*----------------------------------------------------------------------*
+* Definição das variáveis ---------------------------------------------*
+*----------------------------------------------------------------------*
+DATA: v_arq        TYPE string,      "Nome do arquivo para função de upload
+      v_tabix      TYPE sytabix,
+      v_cont(03)   TYPE c,
+      v_path       TYPE localfile,
+      v_okcode     TYPE sy-ucomm,
+      v_datum      TYPE datum,
+      v_texto(100) TYPE c.
+
+*----------------------------------------------------------------------*
+* Parâmetros de Seleção -----------------------------------------------*
+*----------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-p01.
+PARAMETERS: p_diret TYPE epsdirnam MODIF ID dir.
+SELECTION-SCREEN END OF BLOCK b1.
+
+*----------------------------------------------------------------------*
+* Initialization ------------------------------------------------------*
+*----------------------------------------------------------------------*
+INITIALIZATION.
+* Seleciona o diretório
+  SELECT SINGLE ptharq
+    INTO p_diret
+      FROM ztbmm001
+        WHERE intid EQ text-004. "CAIXA CONTABIL CUSTODIA
+  IF sy-subrc IS NOT INITIAL.
+    CLEAR p_diret.
+  ENDIF.
+
+*----------------------------------------------------------------------*
+* At selection-screen -------------------------------------------------*
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN OUTPUT.
+* Desabilita o campo diretório
+  LOOP AT SCREEN.
+    IF screen-group1 EQ 'DIR'.
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+*----------------------------------------------------------------------*
+* Lógica Principal ----------------------------------------------------*
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+
+* Busca todos os arquivos da pasta
+  PERFORM zf_busca_arquivos.
+
+  IF sy-batch IS INITIAL.
+
+*     Imprime a lista com os arquivos.
+    PERFORM zf_imprime.
+
+  ELSE.
+
+    LOOP AT t_arquivos INTO w_arquivos.
+
+*Processa arquivos em Background.
+      PERFORM zf_executa_arquivo.
+
+*Move arquivos diretório de Backup em BackGround.
+      PERFORM zf_movebkp_background.
+
+*Elimina arquivo da pasta original
+      PERFORM zf_elimina_background.
+
+    ENDLOOP.
+
+*Grava dados na tabela ZTBFI028
+    PERFORM zf_gravaz.
+
+*Imprime a lista dos log
+    PERFORM zf_imprime_log.
+
+  ENDIF.
+
+END-OF-SELECTION.
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_BUSCA_ARQUIVOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_busca_arquivos .
+
+  IF sy-batch IS INITIAL.
+
+    v_path = p_diret.
+
+    CALL FUNCTION 'KCD_FRONT_END_DIRECTORY_READ'
+      EXPORTING
+        i_path              = v_path
+      TABLES
+        e_directory         = t_directory
+      EXCEPTIONS
+        download            = 1
+        upload              = 2
+        execute             = 3
+        directory_not_exist = 4
+        directory           = 5
+        OTHERS              = 6.
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE s006(zfi01) WITH text-e01.
+      LEAVE LIST-PROCESSING.
+    ENDIF.
+*     Move o nome dos arquivos para a estrutura do ALV
+    LOOP AT t_directory INTO v_path.
+      w_arquivos-name = v_path.
+      APPEND w_arquivos TO t_arquivos.
+    ENDLOOP.
+    REFRESH t_directory.
+
+  ELSE.
+
+    CALL FUNCTION 'EPS_GET_DIRECTORY_LISTING'
+      EXPORTING
+        dir_name               = p_diret
+      TABLES
+        dir_list               = t_dirlist
+      EXCEPTIONS
+        invalid_eps_subdir     = 1
+        sapgparam_failed       = 2
+        build_directory_failed = 3
+        no_authorization       = 4
+        read_directory_failed  = 5
+        too_many_read_errors   = 6
+        empty_directory_list   = 7
+        OTHERS                 = 8.
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE s006(zfi01) WITH text-e01.
+      LEAVE LIST-PROCESSING.
+    ENDIF.
+*     Move o nome dos arquivos para a estrutura do ALV
+    LOOP AT t_dirlist INTO w_dirlist.
+      w_arquivos-name = w_dirlist-name.
+      APPEND w_arquivos TO t_arquivos.
+    ENDLOOP.
+    REFRESH t_dirlist.
+  ENDIF.
+
+ENDFORM.                    " ZF_BUSCA_ARQUIVOS
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_IMPRIME
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_imprime .
+
+* Prepara os dados para o ALV
+  PERFORM zf_prepara_alv.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-cprog
+      i_callback_user_command  = 'ZF_USER_COMMAND'
+      i_callback_pf_status_set = 'ZF_STATUS'
+      is_layout                = w_layout
+      it_fieldcat              = t_fieldcat
+    TABLES
+      t_outtab                 = t_arquivos
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+
+  IF sy-subrc IS NOT INITIAL.
+    MESSAGE s006(zfi01) WITH text-e03.    " Erro ao exibir relatório
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+
+ENDFORM.                    " ZF_IMPRIME
+
+*&---------------------------------------------------------------------*
+*&      Form  PREPARA-ALV
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_prepara_alv .
+
+* Fieldcat
+  PERFORM zf_carrega_fieldcat USING :
+      'X'    'T_ARQUIVOS'    'EPSFILI'   'NAME' ' '.
+* Layout
+  w_layout-zebra = 'X'.
+  w_layout-colwidth_optimize = 'X'.
+  w_layout-box_fieldname     = 'LINHA'.
+  w_layout-box_tabname       = 'T_ARQUIVOS'.
+
+ENDFORM.                    " prepara-alv
+
+*&---------------------------------------------------------------------*
+*&      Form  CARREGA_FIELDCAT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_carrega_fieldcat USING p_chave  TYPE any
+                               p_tabela TYPE any
+                               p_reftab TYPE any
+                               p_campo  TYPE any
+                               p_texto  TYPE any.
+
+  w_fieldcat-key         = p_chave.
+  w_fieldcat-tabname     = p_tabela.
+  w_fieldcat-ref_tabname = p_reftab.
+  w_fieldcat-fieldname   = p_campo.
+  w_fieldcat-seltext_m   = p_texto.
+
+  IF p_tabela EQ 'T_ARQUIVOS'.
+    APPEND w_fieldcat TO t_fieldcat.
+  ELSE.
+    APPEND w_fieldcat TO t_fieldcat_log.
+  ENDIF.
+  CLEAR w_fieldcat.
+
+ENDFORM.                    " CARREGA_FIELDCAT
+
+*-----------------------------------------------------------------------
+*       Form zf_user_command
+*-----------------------------------------------------------------------
+FORM zf_user_command USING ucomm    TYPE sy-ucomm
+                           selfield TYPE slis_selfield.
+  CASE ucomm.
+    WHEN 'BLOCO'.
+      CLEAR v_cont.
+*      Verifica quantas linhas foram marcadas
+      LOOP AT t_arquivos TRANSPORTING NO FIELDS WHERE linha EQ 'X'.
+        ADD 1 TO v_cont.
+      ENDLOOP.
+      IF v_cont NE 2.
+        MESSAGE s006(zfi01) WITH text-e02.
+      ELSE.
+        LOOP AT t_arquivos INTO w_arquivos.
+          v_tabix = sy-tabix.
+*        Se é a segunda linha marcada encontrada, sai do loop
+          IF w_arquivos-linha EQ 'X' AND
+             v_cont EQ 'X'.
+            EXIT.
+          ENDIF.
+*        Se já tiver encontrado a primeira linha marcada, marca a linha
+          IF v_cont EQ 'X'.
+            MOVE 'X' TO w_arquivos-linha.
+            MODIFY t_arquivos FROM w_arquivos INDEX v_tabix.
+          ENDIF.
+          IF w_arquivos-linha EQ 'X'.
+            v_cont = 'X'.
+          ENDIF.
+        ENDLOOP.
+*          Atualiza o ALV de acordo com a tabela interna
+        selfield-refresh = 'X'.
+      ENDIF.
+    WHEN 'EXECUTAR'.
+* Executa a BAPI pra cada arquivo selecionado
+      LOOP AT t_arquivos INTO w_arquivos WHERE linha EQ 'X'.
+        PERFORM zf_executa_arquivo.
+        PERFORM zf_copiaarq_frontend.
+      ENDLOOP.
+*Grava dados na tabela ZTBFI029
+      PERFORM zf_gravaz.
+* Imprime o log
+      PERFORM zf_imprime_log.
+      REFRESH t_log.
+*          Atualiza o ALV de acordo com a tabela interna
+      DELETE t_arquivos WHERE linha EQ 'X'.
+      selfield-refresh = 'X'.
+  ENDCASE.
+
+ENDFORM.                    "zf_user_command
+
+*----------------------------------------------------------------------
+*       Form zf_status
+*----------------------------------------------------------------------
+*       Status com botão de log (Item a mais na barra ALV)
+*----------------------------------------------------------------------
+FORM zf_status USING rt_extab TYPE slis_t_extab.
+
+  SET PF-STATUS 'ZSTATUS' EXCLUDING rt_extab.
+  SET TITLEBAR 'ZSTATUS'.
+
+ENDFORM.                    "zf_status
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_EXECUTA_ARQUIVO
+*&---------------------------------------------------------------------*
+* Abre arquivo e preenche BAPI para execução
+*----------------------------------------------------------------------*
+FORM zf_executa_arquivo .
+
+  DATA: l_mensagem   TYPE bapi_msg.
+  DATA: l_number(12) TYPE n.
+  DATA: l_dt_comp      TYPE sy-datum,
+        l_dt_texto(10) TYPE c.
+
+  REFRESH: t_arq_cabec, t_arq_itens.
+
+* Concatena o caminho e o nome
+*obs: No final do diretório de conter barra ex. "c:\"
+  CONCATENATE p_diret w_arquivos-name INTO v_arq.
+  IF sy-batch IS INITIAL.
+
+*Dados para o cabeçalho - Copia dados para os itens.
+    PERFORM zf_gui_upload TABLES t_arq_cabec
+                                 t_arq_bkp
+                          USING v_arq.
+*Dados para os itens.
+    IF t_arq_itens IS NOT INITIAL.
+*      Elimina os 9 primeiros registro do arquivo.- Referentes ao cabeçalho.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+    ENDIF.
+
+  ELSE.
+
+*Dados para o cabeçalho.
+    PERFORM zf_open_dataset TABLES t_arq_cabec
+                                   t_arq_bkp
+                            USING v_arq.
+*Dados para os itens.
+    IF t_arq_itens IS NOT INITIAL.
+*      Elimina os 9 primeiros registro do arquivo.- Referentes ao cabeçalho.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+      DELETE t_arq_itens INDEX 1.
+    ENDIF.
+  ENDIF.
+
+*Busca informações referentes a posição do arquivo.
+  IF t_arq_itens IS NOT INITIAL.
+** Local de negócios
+    SELECT bukrs branch
+      INTO TABLE t_bbranch
+        FROM j_1bbranch
+         FOR ALL ENTRIES IN t_arq_itens
+          WHERE branch EQ t_arq_itens-exclus(4).
+    IF sy-subrc IS INITIAL.
+      SORT t_bbranch BY branch.
+    ENDIF.
+* Bancos da empresa
+    SELECT bukrs hbkid bupla bankl
+      INTO TABLE t_t012
+        FROM t012
+          WHERE bukrs EQ w_cabec-empresa.
+    IF sy-subrc IS INITIAL.
+      SORT t_t012 BY bukrs hbkid.
+    ENDIF.
+** Contas nos bancos da empresa
+    SELECT bukrs hbkid hktid hkont
+      INTO TABLE t_t012k
+        FROM t012k
+          WHERE hbkid EQ w_cabec-conta.
+    IF sy-subrc IS INITIAL.
+      SORT t_t012k BY hbkid.
+    ELSE.
+      READ TABLE t_t012 INTO w_t012 WITH KEY bukrs = w_cabec-empresa
+                                             hbkid = w_cabec-conta
+                                             BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        MOVE    w_t012-bankl(3)   TO w_log-banco.
+      ENDIF.
+      MOVE: w_arquivos-name  TO w_log-zfile,
+            'E'              TO w_log-type,
+            text-t11         TO w_log-mensagem,
+            sy-uname         TO w_log-usuario,
+            sy-datum         TO w_log-dtdoc,
+            sy-uzeit         TO w_log-hora,
+            w_cabec-empresa  TO w_log-bukrs,
+            w_arq-exclus(4)  TO w_log-bupla,
+            '2'              TO w_log-status.
+      CONCATENATE w_cabec-data+6(4)
+                  w_cabec-data+3(2)
+                  w_cabec-data(2) INTO w_log-dtlanc.
+      FREE t_arq_itens.
+      TRANSLATE w_arq-valor USING '. '.
+      CONDENSE  w_arq-valor NO-GAPS.
+      MOVE: w_arq-valor    TO l_number.
+      MOVE l_number        TO  w_log-valor.
+      APPEND w_log TO t_log.
+      CLEAR w_log.
+    ENDIF.
+* Contabilização Folha
+    SELECT sigla itemtext hkont
+      INTO TABLE t_ztbfi027
+        FROM ztbfi027
+          WHERE sigla EQ text-t09.
+    IF sy-subrc IS INITIAL.
+      SORT t_ztbfi027 BY sigla.
+    ENDIF.
+
+* Contabilização Folha
+    SELECT *
+      INTO TABLE t_ztbfi016
+        FROM ztbfi016
+          WHERE bukrs EQ w_cabec-empresa.
+    IF sy-subrc IS INITIAL.
+      SORT t_ztbfi016 BY bukrs.
+    ENDIF.
+  ENDIF.
+
+*Faz validação do arquivo.
+  DATA l_erro TYPE c.
+  CLEAR l_erro.
+  LOOP AT t_arq_itens INTO w_arq.
+
+    READ TABLE t_bbranch TRANSPORTING NO FIELDS
+                         WITH KEY branch = w_arq-exclus(4) BINARY SEARCH.
+    IF sy-subrc IS NOT INITIAL.
+      READ TABLE t_t012 INTO w_t012 WITH KEY bukrs = w_cabec-empresa
+                                             hbkid = w_cabec-conta
+                                             BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        MOVE  w_t012-bankl(3) TO w_log-banco.
+      ELSE.
+        MOVE: w_arquivos-name TO w_log-zfile,
+              'E'             TO w_log-type,
+              text-t11        TO w_log-mensagem,
+              sy-uname        TO w_log-usuario,
+              sy-datum        TO w_log-dtdoc,
+              sy-uzeit        TO w_log-hora,
+              w_cabec-empresa TO w_log-bukrs,
+              w_cabec-conta   TO w_log-id,
+              w_arq-exclus(4) TO w_log-bupla,
+              '2'             TO w_log-status.
+
+        CONCATENATE w_cabec-data+6(4)
+                    w_cabec-data+3(2)
+                    w_cabec-data(2) INTO w_log-dtlanc.
+
+        TRANSLATE w_arq-valor USING '. '.
+        CONDENSE  w_arq-valor NO-GAPS.
+        MOVE: w_arq-valor    TO l_number.
+        MOVE l_number        TO  w_log-valor.
+        APPEND w_log         TO t_log.
+        CLEAR w_log.
+        l_erro = 'X'.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+  IF l_erro EQ 'X'.
+    REFRESH t_arq_itens.
+  ENDIF.
+
+**Faz lançamentos dos arquivos.
+  CLEAR: v_tabix, v_datum, v_texto.
+  LOOP AT t_arq_itens INTO w_arq.
+    ADD 1 TO v_tabix.
+    IF w_header IS INITIAL.
+**Dados de cabeçalho
+      MOVE: 'BKPFF'           TO w_header-obj_type,
+            '$'               TO w_header-obj_key,
+            sy-uname          TO w_header-username,
+            text-001          TO w_header-header_txt,
+            text-010          TO w_header-ref_doc_no,
+            w_cabec-empresa   TO w_header-comp_code,
+            sy-datum          TO w_header-doc_date,
+            w_cabec-data+6(4) TO w_header-fisc_year,
+            w_cabec-data+3(2) TO w_header-fis_period,
+            'SA'              TO w_header-doc_type.
+      CONCATENATE sy-sysid 'CLNT' sy-mandt INTO w_header-obj_sys.
+*Rotina para verificar se o dia é útil.
+      DO.
+        IF v_datum IS INITIAL.
+          CONCATENATE w_cabec-data+6(4)
+                      w_cabec-data+3(2)
+                      w_cabec-data(2) INTO v_datum.
+
+          l_dt_comp = v_datum.
+        ELSE.
+          v_datum = v_datum + 1.
+        ENDIF.
+        CALL FUNCTION 'DATE_CHECK_WORKINGDAY'
+          EXPORTING
+            date                       = v_datum
+            factory_calendar_id        = 'CT'
+            message_type               = 'I'
+          EXCEPTIONS
+            date_after_range           = 1
+            date_before_range          = 2
+            date_invalid               = 3
+            date_no_workingday         = 4
+            factory_calendar_not_found = 5
+            message_type_invalid       = 6
+            OTHERS                     = 7.
+        IF sy-subrc IS INITIAL.
+          IF v_datum NE l_dt_comp.  "Verifica se as data estão diferente.
+            WRITE l_dt_comp TO l_dt_texto.
+            CONCATENATE text-t60 l_dt_texto INTO v_texto SEPARATED BY space.
+            IF sy-batch IS INITIAL.
+              CALL SCREEN '9000' STARTING AT 25 4.
+              IF v_okcode = 'OK'.
+                MOVE v_datum TO w_header-pstng_date.
+                EXIT.
+              ENDIF.
+            ENDIF.
+          ELSE.
+            MOVE v_datum TO w_header-pstng_date.
+            EXIT.
+          ENDIF.
+        ELSE.
+          IF sy-subrc = 4.
+            CONTINUE.
+          ELSE.
+            MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                    WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+            EXIT.
+          ENDIF.
+        ENDIF.
+      ENDDO.
+    ENDIF.
+*Dados dos itens.
+    TRANSLATE w_arq-valor USING '. , '.
+    CONDENSE w_arq-valor NO-GAPS.
+*Busca descrição do texto.
+    READ TABLE t_ztbfi027 INTO w_ztbfi027
+           WITH KEY sigla = text-t09 BINARY SEARCH.
+    IF sy-subrc IS NOT INITIAL.
+      CLEAR w_ztbfi027.
+    ELSE.
+      MOVE: w_ztbfi027-hkont    TO w_accountgl-gl_account.
+      CONCATENATE w_ztbfi027-itemtext w_arq-docto
+            INTO w_accountgl-item_text SEPARATED BY space.
+    ENDIF.
+*Move valores para tabela de contabilidade.
+    MOVE: v_tabix             TO w_accountgl-itemno_acc,
+          'SA'                TO w_accountgl-doc_type,
+          w_arq-docto         TO w_accountgl-alloc_nmbr.
+
+    IF w_cabec-empresa(1) EQ 'I'.
+*Rotina para empresas RNI
+      READ TABLE t_t012 INTO w_t012 WITH KEY bukrs = w_cabec-empresa
+                                             hbkid = w_cabec-conta
+                                             BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        MOVE: w_t012-bupla        TO w_accountgl-bus_area.
+      ENDIF.
+    ELSE.
+      READ TABLE t_ztbfi016 INTO w_ztbfi016
+                            WITH KEY bukrs = w_cabec-empresa
+                            BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        IF w_ztbfi016-bupla IS NOT INITIAL.
+          MOVE: w_ztbfi016-bupla     TO w_accountgl-bus_area.
+        ELSE.
+          MOVE: w_ztbfi016-bukrs     TO w_accountgl-bus_area.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+    APPEND w_accountgl TO t_accountgl.
+    CLEAR w_accountgl-alloc_nmbr.
+**Dados de Valores.
+    MOVE: v_tabix TO w_currency-itemno_acc,
+          'BRL'   TO w_currency-currency.
+    MOVE w_arq-valor TO l_number.
+    w_currency-amt_doccur = l_number / 100.
+    MULTIPLY w_currency-amt_doccur BY -1.
+    APPEND w_currency TO t_currency.
+  ENDLOOP.
+
+**********************////**********************
+*Adiciona os valores Totais.
+  ADD 1 TO v_tabix.
+  MOVE: v_tabix   TO w_accountgl-itemno_acc,
+         'SA'     TO w_accountgl-doc_type.
+  READ TABLE t_t012k INTO w_t012k WITH KEY hbkid = w_cabec-conta
+                                           BINARY SEARCH.
+  IF sy-subrc IS INITIAL.
+    MOVE: w_t012k-hkont  TO w_accountgl-gl_account.
+*Mudar valor da conta.
+    IF w_accountgl-gl_account+5(1) EQ '2'.
+      w_accountgl-gl_account+5(1) = '3'.
+    ENDIF.
+  ENDIF.
+  MOVE text-t08 TO w_accountgl-item_text.
+  APPEND w_accountgl TO t_accountgl.
+*Move valor total
+  TRANSLATE w_cabec-valor USING '. , '.
+  CONDENSE w_cabec-valor NO-GAPS.
+  MOVE w_cabec-valor TO l_number.
+  MULTIPLY l_number BY 1.
+  MOVE: v_tabix TO w_currency-itemno_acc,
+        'BRL'   TO w_currency-currency.
+  w_currency-amt_doccur = l_number / 100.
+  APPEND w_currency TO t_currency.
+**********************////**********************
+  IF w_header    IS NOT INITIAL AND
+     t_accountgl IS NOT INITIAL AND
+     t_currency  IS NOT INITIAL.
+
+*Move Cod.Transação para T_EXTENSION1, Para gravar na BKPF-TCODE
+    CLEAR w_extens.
+    w_extens = sy-tcode.
+    APPEND w_extens TO t_extension1.
+
+**Chama BAPI - Standard para os lançamentos.
+    CALL FUNCTION 'BAPI_ACC_GL_POSTING_POST'
+      EXPORTING
+        documentheader = w_header
+      IMPORTING
+        obj_key        = w_objkey
+      TABLES
+        accountgl      = t_accountgl
+        currencyamount = t_currency
+        return         = t_return
+        extension1     = t_extension1.
+
+**Elimina mensagens duplicadas.
+    SORT t_return BY type id field.
+    DELETE ADJACENT DUPLICATES FROM t_return COMPARING type id number.
+    IF w_objkey NE '$'.
+**Documento gerado.
+      CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
+*
+      LOOP AT t_return INTO w_return.
+        CONCATENATE l_mensagem w_return-message '/' INTO l_mensagem.
+      ENDLOOP.
+      MOVE: w_arquivos-name       TO w_log-zfile,
+            w_return-type         TO w_log-type,
+            l_mensagem            TO w_log-mensagem,
+            sy-uname              TO w_log-usuario,
+            sy-datum              TO w_log-dtdoc,
+            sy-uzeit              TO w_log-hora,
+            w_objkey(10)          TO w_log-belnr,
+            w_objkey+10(4)        TO w_log-bukrs,
+            w_accountgl-bus_area  TO w_log-bupla,
+            w_currency-amt_doccur TO w_log-valor,
+              '1'                 TO w_log-status,
+            w_cabec-conta         TO w_log-id,
+            w_header-pstng_date   TO w_log-dtlanc.
+
+      READ TABLE t_t012 INTO w_t012 WITH KEY bukrs = w_cabec-empresa
+                                             hbkid = w_cabec-conta
+                                             BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        MOVE    w_t012-bankl(3)   TO w_log-banco.
+      ENDIF.
+      APPEND w_log TO t_log.
+      CLEAR w_log.
+    ELSE.
+**BAPI com mensagens de erro.
+      LOOP AT t_return INTO w_return.
+        CONCATENATE l_mensagem w_return-message '/' INTO l_mensagem.
+      ENDLOOP.
+      MOVE: w_arquivos-name       TO w_log-zfile,
+            w_return-type         TO w_log-type,
+            l_mensagem            TO w_log-mensagem,
+            '2'                   TO w_log-status,
+            w_cabec-empresa       TO w_log-bukrs,
+            w_cabec-conta         TO w_log-id,
+            w_accountgl-bus_area  TO w_log-bupla,
+            sy-uname              TO w_log-usuario,
+            w_currency-amt_doccur TO w_log-valor,
+            sy-datum              TO w_log-dtdoc,
+            sy-uzeit              TO w_log-hora,
+            w_header-pstng_date   TO w_log-dtlanc.
+
+      READ TABLE t_t012 INTO w_t012 WITH KEY bukrs = w_cabec-empresa
+                                             hbkid = w_cabec-conta
+                                             BINARY SEARCH.
+      IF sy-subrc IS INITIAL.
+        MOVE    w_t012-bankl(3)   TO w_log-banco.
+      ENDIF.
+      APPEND w_log TO t_log.
+      CLEAR w_log.
+    ENDIF.
+*Limpa variáveis utilizadas.
+    REFRESH: t_return,
+             t_accountgl,
+             t_currency,
+             t_extension1.
+    CLEAR: w_header, w_objkey, l_mensagem, v_tabix, w_cabec.
+  ENDIF.
+  REFRESH: t_arq_itens, t_ztbfi016, t_ztbfi027, t_t012k, t_t012, t_bbranch.
+
+ENDFORM.                    " ZF_EXECUTA_ARQUIVO
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_IMPRIME_LOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_imprime_log .
+
+  REFRESH t_fieldcat_log.
+* Prepara os dados para o ALV
+  PERFORM zf_prepara_log.
+
+  IF sy-batch IS INITIAL.
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program = sy-cprog
+        is_layout          = w_layout
+        it_fieldcat        = t_fieldcat_log
+      TABLES
+        t_outtab           = t_log
+      EXCEPTIONS
+        program_error      = 1
+        OTHERS             = 2.
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE s001(zps01) WITH text-e02.    " Erro ao exibir relatório
+      LEAVE TO CURRENT TRANSACTION.
+    ENDIF.
+  ELSE.
+    CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+      EXPORTING
+        i_callback_program = sy-cprog
+        is_layout          = w_layout
+        it_fieldcat        = t_fieldcat_log
+      TABLES
+        t_outtab           = t_log
+      EXCEPTIONS
+        program_error      = 1
+        OTHERS             = 2.
+    IF sy-subrc IS NOT INITIAL.
+      MESSAGE s001(zps01) WITH text-e02.    " Erro ao exibir relatório
+      LEAVE TO CURRENT TRANSACTION.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " ZF_IMPRIME_LOG
+
+*&---------------------------------------------------------------------*
+*&      Form  PREPARA-LOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_prepara_log.
+
+* Fieldcat
+  PERFORM zf_carrega_fieldcat USING :
+      'X'    'T_LOG'    ' '        'BUKRS'    text-tt7,
+      'X'    'T_LOG'    ' '        'BUPLA'    text-tt1,
+      'X'    'T_LOG'    ' '        'ID'       text-tt2,
+      'X'    'T_LOG'    'EPSFILI'  'ZFILE'    text-tt3,
+      ' '    'T_LOG'    ' '        'BELNR'    text-tt6,
+      ' '    'T_LOG'    ' '        'TYPE'     text-tt4,
+      ' '    'T_LOG'    ' '        'MENSAGEM' text-tt5.
+* Layout
+  CLEAR w_layout.
+  w_layout-zebra             = 'X'.
+  w_layout-colwidth_optimize = 'X'.
+
+ENDFORM.                    " prepara-log
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_GRAVAZ
+*&---------------------------------------------------------------------*
+*       Tabela LOG - Contabilização da Custódia
+*----------------------------------------------------------------------*
+FORM zf_gravaz .
+
+  LOOP AT t_log INTO w_log.
+    MODIFY  ztbfi029 FROM w_log.
+    IF sy-subrc IS INITIAL.
+      COMMIT WORK.
+    ENDIF.
+  ENDLOOP.
+
+ENDFORM.                    " ZF_GRAVAZ
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_MOVEBKP_BACKGROUND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_movebkp_background .
+
+  DATA: l_path    TYPE string,
+        l_message TYPE string.
+
+*Concatena com diretorio de processados.
+  CONCATENATE p_diret  text-t50 '\' w_arquivos-name INTO l_path.
+*Transfere conteudo do arquivo para o diretório de COMPENSADOS.
+  OPEN DATASET l_path IN TEXT MODE FOR OUTPUT MESSAGE l_message ENCODING DEFAULT .
+
+  IF sy-subrc IS INITIAL.
+    LOOP AT t_arq_cabec INTO w_arq.
+      TRANSFER w_arq TO l_path.
+    ENDLOOP.
+    CLOSE DATASET l_path.
+  ELSE.
+    MESSAGE w058 WITH l_message.
+  ENDIF.
+
+ENDFORM.                    " ZF_MOVEBKP_BACKGROUND
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_ELIMINA_BACKUGOUND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_elimina_background .
+
+  DATA: l_message TYPE string,
+        l_path    TYPE string.
+
+  CONCATENATE p_diret  text-t50 '\' w_arquivos-name INTO l_path.
+
+  OPEN DATASET l_path FOR INPUT MESSAGE l_message IN TEXT MODE ENCODING NON-UNICODE.
+  IF sy-subrc IS NOT INITIAL.
+    MESSAGE s057 WITH l_message.    " Erro ao abrir arquivo
+  ELSE.
+    CLOSE DATASET l_path.
+*Elimina arquivo do diretório.
+    DELETE DATASET l_path.
+  ENDIF.
+
+ENDFORM.                    " ZF_ELIMINA_BACKUGOUND
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_COPIAARQ_FRONTEND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_copiaarq_frontend .
+
+  DATA: l_copy_source TYPE string,
+        l_copy_destin TYPE string.
+  CONCATENATE p_diret  w_arquivos-name INTO l_copy_source.
+  CONCATENATE p_diret text-t50 '\' w_arquivos-name INTO l_copy_destin.
+  CALL METHOD cl_gui_frontend_services=>file_copy
+    EXPORTING
+      SOURCE             = l_copy_source
+      DESTINATION        = l_copy_destin
+      overwrite          = space
+    EXCEPTIONS
+      cntl_error         = 1
+      error_no_gui       = 2
+      wrong_parameter    = 3
+      disk_full          = 4
+      access_denied      = 5
+      file_not_found     = 6
+      destination_exists = 7
+      unknown_error      = 8
+      path_not_found     = 9
+      disk_write_protect = 10
+      drive_not_ready    = 11
+      OTHERS             = 12.
+
+
+  IF sy-subrc IS INITIAL.
+*Elimina arquivo no determinado diretório
+    DATA: ret_var  TYPE i.
+    CALL METHOD cl_gui_frontend_services=>file_delete
+      EXPORTING
+        filename             = l_copy_source
+      CHANGING
+        rc                   = ret_var
+      EXCEPTIONS
+        file_delete_failed   = 1
+        cntl_error           = 2
+        error_no_gui         = 3
+        file_not_found       = 4
+        access_denied        = 5
+        unknown_error        = 6
+        not_supported_by_gui = 7
+        wrong_parameter      = 8
+        OTHERS               = 9.
+
+    IF sy-subrc IS NOT INITIAL.
+      CONCATENATE w_log-mensagem text-t01 INTO w_log-mensagem.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " ZF_COPIAARQ_FRONTEND
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_GUI_UPLOAD
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_gui_upload  TABLES   it_arq     STRUCTURE w_arq1
+                             it_arq_bkp STRUCTURE w_arq1
+                    USING    p_arq TYPE any.
+
+  CLEAR w_cabec.
+
+  CALL FUNCTION 'GUI_UPLOAD'
+    EXPORTING
+      filename                = p_arq
+      filetype                = 'ASC'
+    TABLES
+      data_tab                = it_arq
+    EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      OTHERS                  = 17.
+  IF sy-subrc IS NOT INITIAL.
+*Se não conseguir ler o arquivo, registra no log
+    MESSAGE w006(zfi01) WITH text-002.
+    EXIT.
+  ELSE.
+
+*Cópia arquivo para Backup.
+    it_arq_bkp[] = it_arq[].
+*Copia dados para tabela interna dos itens.
+    t_arq_itens[] = it_arq[].
+*Elimina a dois primeiras linhas do arquivo de cabeçalho
+    DELETE it_arq INDEX 1.
+    DELETE it_arq INDEX 1.
+
+    READ TABLE it_arq INTO w_arq1 INDEX 1.
+    IF sy-subrc IS INITIAL.
+      w_cabec-agencia = w_arq1-string+8(4).
+    ENDIF.
+
+    READ TABLE it_arq INTO w_arq1 INDEX 2.
+    IF sy-subrc IS INITIAL.
+      w_cabec-conta = w_arq1-string+6(5).
+    ENDIF.
+
+    READ TABLE it_arq INTO w_arq1 INDEX 3.
+    IF sy-subrc IS INITIAL.
+      w_cabec-empresa = w_arq1-string+8(4).
+    ENDIF.
+
+    READ TABLE it_arq INTO w_arq1 INDEX 4.
+    IF sy-subrc IS INITIAL.
+      w_cabec-data = w_arq1-string+5(10).
+    ENDIF.
+
+    READ TABLE it_arq INTO w_arq1 INDEX 5.
+    IF sy-subrc IS INITIAL.
+      w_cabec-valor = w_arq1-string+14(12).
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    " ZF_GUI_UPLOAD
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_OPEN_DATASET
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_open_dataset  TABLES   it_arq     STRUCTURE w_arq1
+                               it_arq_bkp STRUCTURE w_arq1
+                    USING    p_arq TYPE any.
+
+
+  OPEN DATASET p_arq FOR INPUT IN TEXT MODE ENCODING DEFAULT.
+  IF sy-subrc IS NOT INITIAL.
+    MESSAGE w006(zfi01) WITH text-002.
+    EXIT.
+  ENDIF.
+  DO.
+    READ DATASET p_arq INTO w_arq1.
+    IF sy-subrc IS NOT INITIAL.
+      EXIT.
+    ENDIF.
+    APPEND w_arq1 TO it_arq.
+  ENDDO.
+  CLOSE DATASET p_arq.
+
+*Cópia arquivo para Backup.
+  it_arq_bkp[] = it_arq[].
+*Cópia dados para tabela internas dos itens.
+  t_arq_itens[] = it_arq[].
+*Elimina a dois primeiras linhas do arquivo de cabeçalho
+  DELETE it_arq INDEX 1.
+  DELETE it_arq INDEX 1.
+
+  READ TABLE it_arq INTO w_arq1 INDEX 1.
+  IF sy-subrc IS INITIAL.
+    w_cabec-agencia = w_arq1-string+8(4).
+  ENDIF.
+
+  READ TABLE it_arq INTO w_arq1 INDEX 2.
+  IF sy-subrc IS INITIAL.
+    w_cabec-conta = w_arq1-string+6(5).
+  ENDIF.
+
+  READ TABLE it_arq INTO w_arq1 INDEX 3.
+  IF sy-subrc IS INITIAL.
+    w_cabec-empresa = w_arq1-string+8(4).
+  ENDIF.
+
+  READ TABLE it_arq INTO w_arq1 INDEX 4.
+  IF sy-subrc IS INITIAL.
+    w_cabec-data = w_arq1-string+5(10).
+  ENDIF.
+
+  READ TABLE it_arq INTO w_arq1 INDEX 5.
+  IF sy-subrc IS INITIAL.
+    w_cabec-valor = w_arq1-string+14(12).
+  ENDIF.
+
+ENDFORM.                    " ZF_OPEN_DATASET
+
+*&---------------------------------------------------------------------*
+*&      Module  ZF_STATUS_9000  OUTPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf_status_9000 OUTPUT.
+  SET PF-STATUS 'ZF_9000'.
+  SET TITLEBAR 'ZF_9000'.
+ENDMODULE.                 " ZF_STATUS_9000  OUTPUT
+
+*&---------------------------------------------------------------------*
+*&      Module  ZF_USER_COMMAND_9000  INPUT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+MODULE zf_user_command_9000 INPUT.
+
+  IF v_okcode EQ 'OK' OR
+     v_okcode EQ 'EXIT'.
+    LEAVE TO SCREEN '0'.
+  ENDIF.
+
+ENDMODULE.                 " ZF_USER_COMMAND_9000  INPUT

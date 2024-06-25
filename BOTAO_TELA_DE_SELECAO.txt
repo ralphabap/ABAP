@@ -1,0 +1,1338 @@
+                                                                     
+                                                                     
+                                                                     
+                                             
+REPORT zrfiar33 NO STANDARD PAGE HEADING LINE-COUNT 65 MESSAGE-ID zvdo.
+
+* POOLS ---------------------------------------------------------------*
+TYPE-POOLS slis.
+
+DATA: BEGIN OF fieldcat OCCURS 1.
+INCLUDE TYPE slis_fieldcat_main.
+INCLUDE TYPE slis_fieldcat_alv_spec.
+DATA: END OF fieldcat.
+
+DATA: gt_print        TYPE slis_print_alv,
+      layout          TYPE slis_layout_alv,
+      events          TYPE slis_t_event          WITH HEADER LINE,
+      variante        LIKE disvariant,
+      def_variante    LIKE disvariant,
+      variant_exit(1) TYPE c,
+      repid           LIKE sy-repid,
+      sort            TYPE STANDARD TABLE OF slis_sortinfo_alv
+                                    WITH HEADER LINE.
+
+* Ranges --------------------------------------------------------------*
+RANGES:
+  r_cancel FOR j_1bnfdoc-cancel,            "Estornado
+  r_regio  FOR kna1-regio,                  "Estado
+  r_ort01  FOR kna1-ort01.                  "Cidade
+
+* Tabelas -------------------------------------------------------------*
+TABLES: j_1bnfdoc,                          "Cabeçalho da nota fiscal
+        j_1bnflin,                          "Partidas individuais NF
+        j_1bnfstx.                          "Nota fiscal: imposto item
+
+* Estruturas ----------------------------------------------------------*
+* Nota Fiscal
+DATA: BEGIN OF t_j1doc OCCURS 0,
+       docnum  LIKE  j_1bnfdoc-docnum,      "Nº Documento
+       nfnum   LIKE  j_1bnfdoc-nfnum,       "Nº nota fiscal
+       bukrs   LIKE  j_1bnfdoc-bukrs,       "Empresa
+       branch  LIKE  j_1bnfdoc-branch,      "Filial
+       series  LIKE  j_1bnfdoc-series,      "Série
+       pstdat  LIKE  j_1bnfdoc-pstdat,      "Data de Lançamento
+       parid   LIKE  j_1bnfdoc-parid,       "Identificação do parceiro
+       partyp  LIKE  j_1bnfdoc-partyp,      "Tipo parceiro nota fiscal
+* 12/01/11 - Início: Aj.layout para NFe (9 dígitos) -------------------*
+       nfe     LIKE  j_1bnfdoc-nfe,         "Nota fiscal eletrônica
+* 12/01/11 - F i m : Aj.layout para NFe (9 dígitos) -------------------*
+       nfenum  LIKE  j_1bnfdoc-nfenum,      "Nº da NF-e de nove posições
+      END OF t_j1doc.
+
+* Nota Fiscal Itens
+DATA: BEGIN OF t_j1lin OCCURS 0,
+       docnum  LIKE  j_1bnflin-docnum,      "Nº Documento
+       itmnum  LIKE  j_1bnflin-itmnum,      "Nº item do documento
+       cfop    LIKE  j_1bnflin-cfop,        "Código CFOP e extensão
+       netwr   LIKE  j_1bnflin-netwr,       "Montante líquido
+       netdis  LIKE  j_1bnflin-netdis,      "Montante desconto
+      END OF t_j1lin.
+
+* Nota Fiscal Imposto
+DATA: BEGIN OF t_j1stx OCCURS 0,
+       docnum  LIKE  j_1bnfstx-docnum,      "Nº Documento
+       itmnum  LIKE  j_1bnfstx-itmnum,      "Nº item do documento
+       taxtyp  LIKE  j_1bnfstx-taxtyp,      "Tipo de imposto
+       base    LIKE  j_1bnfstx-base,        "Montante base
+       taxval  LIKE  j_1bnfstx-taxval,      "Montante do imposto
+       excbas  LIKE  j_1bnfstx-excbas,      "Parcela excluída montante
+       othbas  LIKE  j_1bnfstx-othbas,      "Outro montante base
+      END OF t_j1stx.
+
+* Clientes
+DATA: BEGIN OF t_kna1 OCCURS 0,
+       kunnr   LIKE  kna1-kunnr,            "Nº cliente
+       stcd1   LIKE  kna1-stcd1,            "C.N.P.J.
+       regio   LIKE  kna1-regio,            "País
+       counc   LIKE  kna1-counc,            "Código de distrito
+       ort01   LIKE  kna1-ort01,            "Cidade
+      END OF t_kna1.
+
+* Fornecedores
+DATA: BEGIN OF t_lfa1 OCCURS 0,
+       lifnr   LIKE  lfa1-lifnr,            "Nº Fornecedor
+       stcd1   LIKE  lfa1-stcd1,            "C.N.P.J.
+       regio   LIKE  lfa1-regio,            "País
+       ort01   LIKE  lfa1-ort01,            "Cidade
+      END OF t_lfa1.
+
+* Tabela de Saída
+DATA: BEGIN OF t_saida OCCURS 0,
+* 12/01/11 - Início: Aj.layout para NFe (9 dígitos) -------------------*
+*      nfnum   LIKE  j_1bnfdoc-nfnum,       "Nº nota fiscal
+       nfnum   LIKE  j_1bnfdoc-nfenum,      "Nº nota fiscal
+* 12/01/11 - F i m : Aj.layout para NFe (9 dígitos) -------------------*
+       itmnum  LIKE  j_1bnflin-itmnum,      "Nº item do documento
+       bukrs   LIKE  j_1bnfdoc-bukrs,       "Empresa
+       branch  LIKE  j_1bnfdoc-branch,      "Filial
+       series  LIKE  j_1bnfdoc-series,      "Série
+       cfop    LIKE  j_1bnflin-cfop,        "Código CFOP e extensão
+       netwr   LIKE  j_1bnflin-netwr,       "Montante líquido
+       base    LIKE  j_1bnfstx-base,        "Montante base
+       valicms LIKE  j_1bnfstx-taxval,      "Montante imposto (ICMS)
+       valiczf LIKE  j_1bnfstx-taxval,      "Montante imposto (ICMS-ZF)
+       valipi  LIKE  j_1bnfstx-taxval,      "Montante imposto (IPI)
+       excicms LIKE  j_1bnfstx-excbas,      "Parcela excluída ICMS
+       excipi  LIKE  j_1bnfstx-excbas,      "Parcela excluída IPI
+       othicms LIKE  j_1bnfstx-othbas,      "Outro montante base ICMS
+       othipi  LIKE  j_1bnfstx-othbas,      "Outro montante base IPI
+       pstdat  LIKE  j_1bnfdoc-pstdat,      "Data de Lançamento
+       parid   LIKE  j_1bnfdoc-parid,       "Identificação do parceiro
+       stcd1   LIKE  kna1-stcd1,            "CNPJ cliente
+       stcd2   LIKE  lfa1-stcd1,            "CNPJ Fornecedor
+       ort01   LIKE  kna1-ort01,            "Cidade
+       regio   LIKE  kna1-regio,            "País
+       netdis  LIKE  j_1bnflin-netdis,      "Montante desconto
+       docnum  LIKE  j_1bnfdoc-docnum,      "Nº documento
+       nftot   LIKE  j_1binlin-nftot,       "Valor Contábil
+      END OF t_saida.
+
+* Parâmetros/Seleções -------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-sel.
+  PARAMETERS:
+    p_bukrs  LIKE j_1bnfdoc-bukrs  OBLIGATORY,   "Empresa
+    p_branch LIKE j_1bnfdoc-branch OBLIGATORY.   "Filial
+
+  SELECT-OPTIONS:
+    s_cfop   FOR  j_1bnflin-cfop   OBLIGATORY,   "CFOP
+    s_pstdat FOR  j_1bnfdoc-pstdat OBLIGATORY.   "Data de lançamento
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-reg.
+  SELECTION-SCREEN: SKIP 2,
+                    PUSHBUTTON 10(24) text-est USER-COMMAND estado,
+                    PUSHBUTTON 45(24) text-cid USER-COMMAND cidade.
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK parametros WITH FRAME TITLE text-par.
+  SELECT-OPTIONS:
+    s_nftype FOR j_1bnfdoc-nftype,               "Ctg.de nota fiscal
+    s_partyp FOR j_1bnfdoc-partyp DEFAULT 'C'.   "Tipo de parceiro NF
+  SELECTION-SCREEN SKIP 1.
+
+  SELECT-OPTIONS:
+    s_tpicms FOR j_1bnfstx-taxtyp,               "Tp.imp.: ICMS
+    s_tpiczf FOR j_1bnfstx-taxtyp,               "Tp.imp.: ICMS Z.Franca
+    s_tpipi  FOR j_1bnfstx-taxtyp.               "Tp.imp.: IPI
+  SELECTION-SCREEN SKIP.
+
+  PARAMETERS:
+    p_nfall   RADIOBUTTON GROUP nf,             "Todas NF
+    p_nfcan   RADIOBUTTON GROUP nf,             "Todas NF canceladas
+    p_naocan  RADIOBUTTON GROUP nf DEFAULT 'X'. "Todas NF exceto canc.
+  SELECTION-SCREEN SKIP.
+
+  PARAMETERS:
+    p_var   LIKE disvariant-variant.             "Variante documentos
+SELECTION-SCREEN END OF BLOCK parametros.
+
+* Condições de seleção ------------------------------------------------*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_var.
+  PERFORM ler_variante
+          CHANGING p_var.
+
+AT SELECTION-SCREEN.
+  PERFORM checagem_tela.
+
+* INITIALIZATION ------------------------------------------------------*
+INITIALIZATION.
+  PERFORM inicializacao.
+
+* START-OF-SELECTION --------------------------------------------------*
+START-OF-SELECTION.
+  PERFORM selecionar_nf.
+  PERFORM selecionar_dados.
+  PERFORM tratar_dados.
+
+* END-OF-SELECTION ----------------------------------------------------*
+END-OF-SELECTION.
+  PERFORM montar_campos.
+  PERFORM montar_relatorio.
+
+*&---------------------------------------------------------------------*
+*&      Form  LER_VARIANTE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_VAR  text
+*----------------------------------------------------------------------*
+FORM ler_variante CHANGING p_var TYPE any.
+  MOVE sy-repid TO variante-report.
+
+  CALL FUNCTION 'REUSE_ALV_VARIANT_F4'
+       EXPORTING
+            is_variant          = variante
+            i_save              = 'A'
+*           it_default_fieldcat =
+       IMPORTING
+            e_exit              = variant_exit
+            es_variant          = def_variante
+       EXCEPTIONS
+            not_found = 2.
+
+  IF sy-subrc = 2.
+    MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+      WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.
+    IF variant_exit = space.
+      p_var = def_variante-variant.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " LER_VARIANTE
+
+*&---------------------------------------------------------------------*
+*&      Form  CHECAGEM_TELA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM checagem_tela.
+  CASE sy-ucomm.
+    WHEN 'ESTADO'.                        "Estados
+      CALL TRANSACTION 'ZFI_0157'.        "Estados para Zona Franca
+
+    WHEN 'CIDADE'.                        "Cidades
+      CALL TRANSACTION 'ZFI_0158'.        "Cidades para Zona Franca
+  ENDCASE.
+ENDFORM.                    " CHECAGEM_TELA
+
+*&---------------------------------------------------------------------*
+*&      Form  INICIALIZACAO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM inicializacao.
+* Tipo de nota fiscal *
+  REFRESH s_nftype.
+
+  CLEAR s_nftype.
+  MOVE: 'I'   TO s_nftype-sign,
+        'EQ'  TO s_nftype-option,
+        'N1'  TO s_nftype-low.
+  APPEND s_nftype.
+
+  CLEAR s_nftype.
+  MOVE: 'I'   TO s_nftype-sign,
+        'EQ'  TO s_nftype-option,
+        'Z3'  TO s_nftype-low.
+  APPEND s_nftype.
+
+* Tipo de imposto: ICMS *
+  REFRESH s_tpicms.
+
+  CLEAR s_tpicms.
+  MOVE: 'I'    TO s_tpicms-sign,
+        'EQ'   TO s_tpicms-option,
+        'ICM1' TO s_tpicms-low.
+  APPEND s_tpicms.
+
+  CLEAR s_tpicms.
+  MOVE: 'I'    TO s_tpicms-sign,
+        'EQ'   TO s_tpicms-option,
+        'ICM2' TO s_tpicms-low.
+  APPEND s_tpicms.
+
+  CLEAR s_tpicms.
+  MOVE: 'I'    TO s_tpicms-sign,
+        'EQ'   TO s_tpicms-option,
+        'ICM3' TO s_tpicms-low.
+  APPEND s_tpicms.
+
+* Tipo de imposto: ICMS - Zona Franca *
+  REFRESH s_tpiczf.
+
+  CLEAR s_tpiczf.
+  MOVE: 'I'    TO s_tpiczf-sign,
+        'EQ'   TO s_tpiczf-option,
+        'ICZF' TO s_tpiczf-low.
+  APPEND s_tpiczf.
+
+* Tipo de imposto: IPI *
+  REFRESH s_tpipi.
+
+  CLEAR s_tpipi.
+  MOVE: 'I'    TO s_tpipi-sign,
+        'EQ'   TO s_tpipi-option,
+        'IPI1' TO s_tpipi-low.
+  APPEND s_tpipi.
+
+  CLEAR s_tpipi.
+  MOVE: 'I'    TO s_tpipi-sign,
+        'EQ'   TO s_tpipi-option,
+        'IPI2' TO s_tpipi-low.
+  APPEND s_tpipi.
+
+  CLEAR s_tpipi.
+  MOVE: 'I'    TO s_tpipi-sign,
+        'EQ'   TO s_tpipi-option,
+        'IPI3' TO s_tpipi-low.
+  APPEND s_tpipi.
+ENDFORM.                    " INICIALIZACAO
+
+*&---------------------------------------------------------------------*
+*&      Form  SELECIONAR_NF
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM selecionar_nf.
+  REFRESH r_cancel.
+
+  IF p_nfcan = 'X'.                    "Todas NF canceladas
+    CLEAR r_cancel.                    "Estornado
+    MOVE: 'I'  TO r_cancel-sign,
+          'EQ' TO r_cancel-option,
+          'X'  TO r_cancel-low.
+    APPEND r_cancel.
+
+  ELSEIF p_naocan = 'X'.               "Todas NF exceto canc.
+    CLEAR r_cancel.                    "Estornado
+    MOVE: 'I'  TO r_cancel-sign,
+          'NE' TO r_cancel-option,
+          'X'  TO r_cancel-low.
+    APPEND r_cancel.
+  ENDIF.
+ENDFORM.                    " SELECIONAR_NF
+
+*&---------------------------------------------------------------------*
+*&      Form  SELECIONAR_DADOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM selecionar_dados.
+  CALL FUNCTION 'SAPGUI_PROGRESS_INDICATOR'
+    EXPORTING
+      text   = text-p01
+    EXCEPTIONS
+      OTHERS = 1.
+  IF sy-subrc <> 0.
+    MESSAGE e000
+      WITH 'Erro na call "SAPGUI_PROGRESS_INDICATOR" !!!'(020)
+           'Código do erro:'(001) sy-subrc.
+  ENDIF.
+
+* Ler tabelas *
+  PERFORM montar_regiao_fiscal.
+  PERFORM ler_cabecalho_nota_fiscal.
+  PERFORM ler_item_nota_fiscal.
+  PERFORM ler_imposto_nota_fiscal.
+  PERFORM ler_parceiros.
+ENDFORM.                               " SELECIONAR_DADOS
+
+*&---------------------------------------------------------------------*
+*&      Form  MONTAR_REGIAO_FISCAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM montar_regiao_fiscal.
+  DATA: vl_regio TYPE regio,                "Estado
+        vl_ort01 TYPE ort01_gp.             "Cidade
+
+  REFRESH: r_regio, r_ort01.
+
+* Estado *
+  SELECT regio                              "Estado
+         INTO  vl_regio                     "Estado
+         FROM  zsv_fi_0035                  "Estados para Zona Franca
+         WHERE imprimir = 'X'.              "Impressão relatório ativa
+    CLEAR r_regio.
+    MOVE: 'I'      TO r_regio-sign,
+          'EQ'     TO r_regio-option,
+          vl_regio TO r_regio-low.
+    APPEND r_regio.
+  ENDSELECT.
+
+* Cidade *
+  SELECT ort01                              "Cidade
+         INTO  vl_ort01                     "Cidade
+         FROM  zsv_fi_0036                  "Cidades para Zona Franca
+         WHERE imprimir = 'X'.              "Impressão relatório ativa
+    CLEAR r_ort01.
+    MOVE: 'I'      TO r_ort01-sign,
+          'EQ'     TO r_ort01-option,
+          vl_ort01 TO r_ort01-low.
+    APPEND r_ort01.
+  ENDSELECT.
+ENDFORM.                    " MONTAR_REGIAO_FISCAL
+
+* 12/01/11 - Início: Aj.layout para NFe (9 dígitos) -------------------*
+*&---------------------------------------------------------------------*
+*&      Form  LER_CABECALHO_NOTA_FISCAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+*FORM ler_cabecalho_nota_fiscal.
+*  DATA: vl_tabix LIKE sy-tabix.             "Ponteiro p/ tabela interna
+*
+*  SELECT docnum nfnum bukrs branch series pstdat parid partyp nfenum
+*         INTO  TABLE t_j1doc
+*         FROM  j_1bnfdoc                    "Cabeçalho da nota fiscal
+*         WHERE nftype IN s_nftype AND       "Ctg.de nota fiscal
+*               partyp IN s_partyp AND       "Tipo parceiro nota fiscal
+*               bukrs   = p_bukrs  AND       "Empresa
+*               branch  = p_branch AND       "Filial
+*               pstdat IN s_pstdat AND       "Data de lançamento
+*               cancel IN r_cancel.          "Estornado
+*  IF sy-subrc <> 0.                         "Return code
+*    MESSAGE i016(rp) WITH text-e01.         "Nenhum Registro Selecionado
+*    STOP.
+*  ENDIF.
+*
+*  LOOP AT t_j1doc.
+*    MOVE sy-tabix TO vl_tabix.              "Ponteiro p/ tabela interna
+*
+*    PERFORM ajustar_campo_nfnum_devido_nfe
+*            USING    t_j1doc-nfnum t_j1doc-nfenum
+*            CHANGING t_j1doc-nfnum.
+*
+*    MODIFY t_j1doc INDEX vl_tabix.
+*  ENDLOOP.
+*ENDFORM.                    " LER_CABECALHO_NOTA_FISCAL
+
+*&---------------------------------------------------------------------*
+*&      Form  LER_CABECALHO_NOTA_FISCAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM ler_cabecalho_nota_fiscal.
+  SELECT docnum nfnum bukrs branch series pstdat parid partyp nfe nfenum
+         INTO  TABLE t_j1doc
+         FROM  j_1bnfdoc                    "Cabeçalho da nota fiscal
+         WHERE nftype IN s_nftype AND       "Ctg.de nota fiscal
+               partyp IN s_partyp AND       "Tipo parceiro nota fiscal
+               bukrs   = p_bukrs  AND       "Empresa
+               branch  = p_branch AND       "Filial
+               pstdat IN s_pstdat AND       "Data de lançamento
+               cancel IN r_cancel.          "Estornado
+  IF sy-subrc <> 0.                         "Return code
+    MESSAGE i016(rp) WITH text-e01.         "Nenhum Registro Selecionado
+    STOP.
+  ENDIF.
+ENDFORM.                    " LER_CABECALHO_NOTA_FISCAL
+* 12/01/11 - F i m : Aj.layout para NFe (9 dígitos) -------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  LER_ITEM_NOTA_FISCAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM ler_item_nota_fiscal.
+  DATA: vl_tabix LIKE sy-tabix,             "Ponteiro p/ tabela interna
+        vl_cfop  LIKE j_1bnflin-cfop.       "CFOP
+
+  SELECT docnum itmnum cfop netwr netdis
+         INTO  TABLE t_j1lin                "Nota Fiscal Itens
+         FROM  j_1bnflin                    "Partidas individuais da NF
+         FOR   ALL ENTRIES IN t_j1doc       "Nota Fiscal
+         WHERE docnum = t_j1doc-docnum.     "Nº documento
+  IF sy-subrc <> 0.                         "Return code
+    MESSAGE i016(rp) WITH text-e01.         "Nenhum Registro Selecionado
+    STOP.
+  ENDIF.
+
+  IF NOT s_cfop[] IS INITIAL.               "CFOP
+    LOOP AT t_j1lin.                        "Nota Fiscal Itens
+      MOVE sy-tabix TO vl_tabix.            "Ponteiro p/ tabela interna
+
+      WRITE t_j1lin-cfop TO vl_cfop.        "CFOP
+      TRANSLATE vl_cfop USING '/ '.         "CFOP: Removendo '/'
+      CONDENSE  vl_cfop NO-GAPS.            "CFOP
+
+      IF NOT vl_cfop IN s_cfop.             "CFOP não selecionado
+        DELETE t_j1lin INDEX vl_tabix.      "Eliminar registro
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+ENDFORM.                    " LER_ITEM_NOTA_FISCAL
+
+*&---------------------------------------------------------------------*
+*&      Form  LER_IMPOSTO_NOTA_FISCAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM ler_imposto_nota_fiscal.
+  RANGES: rl_taxtyp FOR j_1bnfstx-taxtyp.             "Tipo de imposto
+
+  REFRESH rl_taxtyp.
+  INSERT LINES OF: s_tpicms INTO rl_taxtyp INDEX 1,   "Tp.imp.: ICMS
+                   s_tpiczf INTO rl_taxtyp INDEX 1,   "Tp.imp.: ICMS ZF
+                   s_tpipi  INTO rl_taxtyp INDEX 1.   "Tp.imp.: IPI
+
+  SELECT docnum itmnum taxtyp base taxval excbas othbas
+         INTO  TABLE t_j1stx                "Nota Fiscal Imposto
+         FROM  j_1bnfstx                    "Nota fiscal: imposto item
+         FOR   ALL ENTRIES IN t_j1lin       "Nota Fiscal Itens
+         WHERE docnum  = t_j1lin-docnum AND "Nº documento
+               itmnum  = t_j1lin-itmnum AND "Nº item do documento
+               taxtyp IN rl_taxtyp.         "Tipo de imposto
+  IF sy-subrc <> 0.                         "Return code
+    MESSAGE i016(rp) WITH text-e01.         "Nenhum Registro Selecionado
+    STOP.
+  ENDIF.
+ENDFORM.                    " LER_IMPOSTO_NOTA_FISCAL
+
+*&---------------------------------------------------------------------*
+*&      Form  LER_PARCEIROS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM ler_parceiros.
+  SELECT kunnr stcd1 regio counc ort01
+         INTO  TABLE t_kna1                 "Clientes
+         FROM  kna1                         "Mestre de clientes
+         FOR   ALL ENTRIES IN t_j1doc       "Nota Fiscal
+         WHERE kunnr  = t_j1doc-parid AND   "Nº cliente
+               regio IN r_regio       AND   "País
+               ort01 IN r_ort01.            "Cidade
+* 12/01/11 - Início: Aj.layout para NFe (9 dígitos) -------------------*
+   IF sy-subrc = 0.                         "Return code
+     SORT t_kna1 BY kunnr.
+   ENDIF.
+* 12/01/11 - F i m : Aj.layout para NFe (9 dígitos) -------------------*
+
+  SELECT lifnr stcd1 regio ort01
+         INTO  TABLE t_lfa1                 "Fornecedores
+         FROM  lfa1                         "Mestre de fornecedores
+         FOR   ALL ENTRIES IN t_j1doc       "Nota Fiscal
+         WHERE lifnr  = t_j1doc-parid AND   "Nº fornecedor
+               regio IN r_regio       AND   "País
+               ort01 IN r_ort01.            "Cidade
+* 12/01/11 - Início: Aj.layout para NFe (9 dígitos) -------------------*
+  IF sy-subrc = 0.                          "Return code
+    SORT t_lfa1 BY lifnr.
+  ENDIF.
+* 12/01/11 - F i m : Aj.layout para NFe (9 dígitos) -------------------*
+ENDFORM.                    " LER_PARCEIROS
+
+*&---------------------------------------------------------------------*
+*&      Form  TRATAR_DADOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM tratar_dados.
+  DATA: vl_base    LIKE j_1bnfstx-base,     "Montante básico
+        vl_valicms LIKE j_1bnfstx-taxval,   "Montante imposto (ICMS)
+        vl_valiczf LIKE j_1bnfstx-taxval,   "Montante imposto (ICMS-ZF)
+        vl_valipi  LIKE j_1bnfstx-taxval,   "Montante imposto (IPI)
+        vl_excicms LIKE j_1bnfstx-excbas,   "Parcela excluída ICMS
+        vl_excipi  LIKE j_1bnfstx-excbas,   "Parcela excluída IPI
+        vl_othicms LIKE j_1bnfstx-othbas,   "Outro montante base ICMS
+        vl_othipi  LIKE j_1bnfstx-othbas,   "Outro montante base IPI
+        vl_cont    TYPE i.                  "Contador de registros
+
+  SORT: t_j1doc BY docnum,
+        t_j1lin BY docnum itmnum,
+        t_j1stx BY docnum itmnum,
+        t_kna1  BY kunnr,
+        t_lfa1  BY lifnr.
+
+  LOOP AT t_j1doc.
+    IF t_j1doc-partyp = 'C'.                     "Tipo parceiro=Cliente
+      READ TABLE t_kna1
+           WITH KEY kunnr = t_j1doc-parid        "Nº cliente
+                BINARY SEARCH.
+    ELSEIF t_j1doc-partyp = 'V'.                 "Tipo parceiro=Forneced
+      READ TABLE t_lfa1
+           WITH KEY lifnr = t_j1doc-parid        "Nº fornecedor
+                BINARY SEARCH.
+    ENDIF.
+
+    IF sy-subrc <> 0.                            "Return code
+      CONTINUE.                                  "Ler próximo registro
+    ENDIF.
+
+    LOOP AT t_j1lin
+         WHERE docnum = t_j1doc-docnum.          "Nº Documento
+      CLEAR vl_cont.                             "Contador de registros
+
+      LOOP AT t_j1stx
+           WHERE docnum  = t_j1lin-docnum AND    "Nº Documento
+                 itmnum  = t_j1lin-itmnum.       "Nº item do documento
+        ADD 1 TO vl_cont.                        "Contador de registros
+
+* Base *
+        IF vl_cont = 1.                          "Contador de registros
+          MOVE t_j1stx-base TO vl_base.          "Montante base
+        ENDIF.
+
+* ICMS *
+        IF t_j1stx-taxtyp IN s_tpicms.           "Tp.imp.: ICMS
+          MOVE: t_j1stx-taxval TO vl_valicms,    "Mont.imposto (ICMS)
+                t_j1stx-excbas TO vl_excicms,    "Parcela excluída ICMS
+                t_j1stx-othbas TO vl_othicms.    "Outro mont.base ICMS
+        ENDIF.
+
+* ICMS - Zona Franca *
+        IF t_j1stx-taxtyp IN s_tpiczf.           "Tp.imp.: ICMS Z.Franca
+          MOVE: t_j1stx-taxval TO vl_valiczf.    "Mont.imposto (ICMS-ZF)
+        ENDIF.
+
+* IPI *
+        IF t_j1stx-taxtyp IN s_tpipi.            "Tp.imp.: IPI
+          MOVE: t_j1stx-taxval TO vl_valipi,     "Montante imposto (IPI)
+                t_j1stx-excbas TO vl_excipi,     "Parcela excluída IPI
+                t_j1stx-othbas TO vl_othipi.     "Outro mont.base IPI
+        ENDIF.
+      ENDLOOP.
+
+      CLEAR t_saida.
+
+* 12/01/11 - Início: Aj.layout para NFe (9 dígitos) -------------------*
+*     MOVE: t_j1doc-nfnum  TO t_saida-nfnum,     "Nº nota fiscal
+      IF t_j1doc-nfe = 'X'.
+        MOVE t_j1doc-nfenum TO t_saida-nfnum.    "Nº da NF-e
+      ELSE.
+        MOVE t_j1doc-nfnum  TO t_saida-nfnum.    "Nº nota fiscal
+      ENDIF.
+* 12/01/11 - F i m : Aj.layout para NFe (9 dígitos) -------------------*
+
+      MOVE: t_j1doc-docnum TO t_saida-docnum,    "Nº Documento
+            t_j1lin-itmnum TO t_saida-itmnum,    "Nº item do documento
+            t_j1doc-bukrs  TO t_saida-bukrs,     "Empresa
+            t_j1doc-branch TO t_saida-branch,    "Filial
+            t_j1doc-series TO t_saida-series,    "Série
+            t_j1lin-cfop   TO t_saida-cfop,      "Código CFOP e extensão
+            t_j1lin-netwr  TO t_saida-netwr,     "Montante líquido
+            t_j1lin-netdis TO t_saida-netdis,    "Montante desconto
+            vl_base        TO t_saida-base,      "Montante base
+            vl_valicms     TO t_saida-valicms,   "Mont.imposto (ICMS)
+            vl_valiczf     TO t_saida-valiczf,   "Mont.imposto (ICMS-ZF)
+            vl_valipi      TO t_saida-valipi,    "Montante imposto (IPI)
+            vl_excicms     TO t_saida-excicms,   "Parcela excluída ICMS
+            vl_excipi      TO t_saida-excipi,    "Parcela excluída IPI
+            vl_othicms     TO t_saida-othicms,   "Outro mont.base ICMS
+            vl_othipi      TO t_saida-othipi,    "Outro mont.base IPI
+            t_j1doc-pstdat TO t_saida-pstdat,    "Data de Lançamento
+            t_j1doc-parid  TO t_saida-parid.     "Identificação parceiro
+
+      IF t_j1doc-partyp = 'C'.                   "Tipo parceiro=Cliente
+        MOVE: t_kna1-stcd1 TO t_saida-stcd1,     "CNPJ cliente
+              t_kna1-ort01 TO t_saida-ort01,     "Cidade
+              t_kna1-regio TO t_saida-regio.     "País
+      ENDIF.
+
+      IF t_j1doc-partyp = 'V'.                   "Tipo parceiro=Forneced
+        MOVE: t_lfa1-stcd1 TO t_saida-stcd2,     "CNPJ Fornecedor
+              t_lfa1-ort01 TO t_saida-ort01,     "Cidade
+              t_lfa1-regio TO t_saida-regio.     "País
+      ENDIF.
+
+      PERFORM calcular_valor_item_nf
+              USING    t_saida-docnum t_saida-itmnum
+              CHANGING t_saida-nftot.
+
+      APPEND t_saida.
+    ENDLOOP.
+  ENDLOOP.
+
+  CLEAR: t_j1doc, t_j1lin, t_j1stx, t_kna1, t_lfa1.
+  FREE:  t_j1doc, t_j1lin, t_j1stx, t_kna1, t_lfa1.
+ENDFORM.                               " TRATAR_DADOS
+
+*&---------------------------------------------------------------------*
+*&      Form  CALCULAR_VALOR_ITEM_NF
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_DOCNUM  text
+*      -->P_ITMNUM  text
+*      <--P_NFTOT   text
+*----------------------------------------------------------------------*
+FORM calcular_valor_item_nf  USING    p_docnum TYPE any
+                                      p_itmnum TYPE any
+                             CHANGING p_nftot  TYPE any.
+  DATA: BEGIN OF wal_j_1bnfdoc.
+          INCLUDE STRUCTURE j_1bnfdoc.   "Cabeçalho da nota fiscal
+  DATA: END OF wal_j_1bnfdoc.
+
+  DATA: BEGIN OF til_j_1bnflin OCCURS 0.
+          INCLUDE STRUCTURE j_1bnflin.   "Partidas individuais da N.F.
+  DATA: END OF til_j_1bnflin.
+
+  DATA: BEGIN OF til_j_1bnfstx OCCURS 0.
+          INCLUDE STRUCTURE j_1bnfstx.   "Nota fiscal: imposto por item
+  DATA: END OF til_j_1bnfstx.
+
+  DATA: BEGIN OF til_j_1binlin OCCURS 0.
+          INCLUDE STRUCTURE j_1binlin.   "Partidas indiv.N.F.-segto.adic.
+  DATA: END OF til_j_1binlin.
+
+  DATA: BEGIN OF til_j_1bintax OCCURS 0. "Imposto total da nota fiscal
+          INCLUDE STRUCTURE j_1bintax.
+  DATA: END OF til_j_1bintax.
+
+  CLEAR:   p_nftot, wal_j_1bnfdoc,
+           til_j_1bnflin, til_j_1bnfstx, til_j_1binlin, til_j_1bintax,
+           til_j_1binlin, til_j_1bintax.
+  REFRESH: til_j_1bnflin, til_j_1bnfstx, til_j_1binlin, til_j_1bintax,
+           til_j_1binlin, til_j_1bintax.
+
+* Leitura do cabeçalho da nota fiscal *
+  SELECT SINGLE *
+         INTO wal_j_1bnfdoc
+         FROM j_1bnfdoc                "Cabeçalho da nota fiscal
+         WHERE docnum = p_docnum.      "Nº documento
+  IF sy-subrc <> 0.                    "Return code
+    CLEAR wal_j_1bnfdoc.
+  ENDIF.
+
+* Leitura do item da nota fiscal *
+  SELECT *
+         INTO TABLE til_j_1bnflin
+         FROM j_1bnflin                "Partidas indiv. da nota fiscal
+         WHERE docnum = p_docnum AND   "Nº documento
+               itmnum = p_itmnum.      "Nº item do documento
+  IF sy-subrc <> 0.                    "Return code
+    REFRESH til_j_1bnflin.
+  ENDIF.
+
+* Leitura dos impostos do item da nota fiscal *
+  SELECT *
+         INTO TABLE til_j_1bnfstx
+         FROM j_1bnfstx                "Nota fiscal: imposto por item
+         WHERE docnum = p_docnum AND   "Nº documento
+               itmnum = p_itmnum.      "Nº item do documento
+  IF sy-subrc <> 0.                    "Return code
+    REFRESH til_j_1bnfstx.
+  ENDIF.
+
+* Determinação do valor *
+  CALL FUNCTION 'J_1B_NF_VALUE_DETERMINATION'
+    EXPORTING
+      nf_header     = wal_j_1bnfdoc
+    TABLES
+      nf_item       = til_j_1bnflin
+      nf_item_tax   = til_j_1bnfstx
+      ext_item      = til_j_1binlin
+      ext_total_tax = til_j_1bintax
+    EXCEPTIONS
+      OTHERS        = 1.
+  IF sy-subrc <> 0.
+    MESSAGE e000
+      WITH 'Erro na call "J_1B_NF_VALUE_DETERMINATION" !!!'(002)
+           'Código do erro:'(001) sy-subrc.
+  ENDIF.
+
+  MOVE til_j_1binlin-nftot TO p_nftot. "Valor + impostos
+ENDFORM.                    " CALCULAR_VALOR_ITEM_NF
+
+*&---------------------------------------------------------------------*
+*&      Form  MONTAR_CAMPOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM montar_campos.
+  DATA v_local_col_pos LIKE sy-cucol.  "Posição da coluna
+
+  REFRESH fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'NFNUM'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFDOC'.
+* 12/01/11 - Início: Aj.layout para NFe (9 dígitos) -------------------*
+  fieldcat-ref_fieldname = 'NFENUM'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_l     = 'Nota fiscal'(025).
+  fieldcat-seltext_m     = 'N.fiscal'(024).
+  fieldcat-ddictxt       = 'M'.
+* 12/01/11 - F i m : Aj.layout para NFe (9 dígitos) -------------------*
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'ITMNUM'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFLIN'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'SERIES'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFDOC'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'PSTDAT'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFDOC'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'REGIO'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'KNA1'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'NFTOT'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BINLIN'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_m     = 'Valor contábil'(019).
+  fieldcat-ddictxt       = 'M'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'CFOP'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFLIN'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'BASE'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFSTX'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_s     = 'Valor base'(018).
+  fieldcat-ddictxt       = 'S'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'VALICMS'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFSTX'.
+  fieldcat-ref_fieldname = 'TAXVAL'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_s     = 'Valor ICMS'(017).
+  fieldcat-ddictxt       = 'S'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'VALICZF'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFSTX'.
+  fieldcat-ref_fieldname = 'TAXVAL'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_l     = 'Valor ICMS-Zona Franca'(003).
+  fieldcat-ddictxt       = 'L'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'VALIPI'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFSTX'.
+  fieldcat-ref_fieldname = 'TAXVAL'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_s     = 'Valor IPI'(004).
+  fieldcat-ddictxt       = 'S'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'EXCICMS'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFSTX'.
+  fieldcat-ref_fieldname = 'EXCBAS'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_m     = 'Valor isentas ICMS'(016).
+  fieldcat-ddictxt       = 'M'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'EXCIPI'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFSTX'.
+  fieldcat-ref_fieldname = 'EXCBAS'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_m     = 'Valor isentas IPI'(022).
+  fieldcat-ddictxt       = 'M'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'OTHICMS'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFSTX'.
+  fieldcat-ref_fieldname = 'OTHBAS'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_m     = 'Valor outras ICMS'(015).
+  fieldcat-ddictxt       = 'M'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'OTHIPI'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFSTX'.
+  fieldcat-ref_fieldname = 'OTHBAS'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_m     = 'Valor outras IPI'(023).
+  fieldcat-ddictxt       = 'M'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'STCD1'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'KNA1'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_m     = 'CNPJ cliente'(014).
+  fieldcat-ddictxt       = 'M'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'STCD2'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'LFA1'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_m     = 'CNPJ Fornecedor'(021).
+  fieldcat-ddictxt       = 'M'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'ORT01'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'KNA1'.
+  fieldcat-rollname      = 'A10_FR'.
+  fieldcat-seltext_s     = 'Município'(013).
+  fieldcat-ddictxt       = 'S'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'BUKRS'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFDOC'.
+  fieldcat-no_out        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'BRANCH'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFDOC'.
+  fieldcat-no_out        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'PARID'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFDOC'.
+  fieldcat-no_out        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'NETWR'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFLIN'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-no_out        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'NETDIS'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFLIN'.
+  fieldcat-do_sum        = 'X'.
+  fieldcat-no_out        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+
+  ADD 1 TO v_local_col_pos.
+  CLEAR fieldcat.
+  fieldcat-fieldname     = 'DOCNUM'.
+  fieldcat-tabname       = 'T_SAIDA'.
+  fieldcat-ref_tabname   = 'J_1BNFDOC'.
+  fieldcat-no_out        = 'X'.
+  fieldcat-col_pos       = v_local_col_pos.
+  APPEND fieldcat.
+ENDFORM.                    " MONTAR_CAMPOS
+
+*&---------------------------------------------------------------------*
+*&      Form  MONTAR_RELATORIO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM montar_relatorio.
+  PERFORM eventos.
+  PERFORM sort.
+
+  MOVE: 'X'             TO layout-zebra,
+        'X'             TO layout-detail_initial_lines,
+        'X'             TO layout-detail_popup,
+        'Exibição'(012) TO layout-detail_titlebar,
+        sy-repid        TO repid,
+        p_var           TO variante-variant.
+
+  MOVE: 2               TO gt_print-reserve_lines,
+       'X'              TO gt_print-no_print_listinfos.
+
+  CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+       EXPORTING
+*           i_interface_check        = ''
+            i_callback_program       = repid
+            i_callback_pf_status_set = 'STATUS'
+            i_callback_user_command  = 'USER_COMMAND'
+*           I_STRUCTURE_NAME         =
+            is_layout                = layout
+            it_fieldcat              = fieldcat[]
+*           IT_EXCLUDING             =
+*           it_special_groups        = gruppen[]
+            it_sort                  = sort[]
+*           it_filter                = filttab[]
+*           IS_SEL_HIDE              =
+            i_default                = 'X'
+            i_save                   = 'A'
+            is_variant               = variante
+            it_events                = events[]
+*           it_event_exit            = event_exit[]
+            is_print                 = gt_print
+*           i_screen_start_column    = 0
+*           i_screen_start_line      = 0
+*           i_screen_end_column      = 0
+*           i_screen_end_line        = 0
+*      IMPORTING
+*           e_exit_caused_by_caller  = 'X'
+*           es_exit_caused_by_user   = 'X'
+       TABLES
+            t_outtab                 = t_saida
+       EXCEPTIONS
+            program_error            = 1
+            OTHERS                   = 2.
+  IF sy-subrc <> 0.
+    MESSAGE e000
+      WITH 'Erro na call "REUSE_ALV_LIST_DISPLAY" !!!'(011)
+           'Código do erro:'(001) sy-subrc.
+  ENDIF.
+ENDFORM.                    " MONTAR_RELATORIO
+
+*&---------------------------------------------------------------------*
+*&      Form  EVENTOS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM eventos.
+  REFRESH events.
+
+  CLEAR events.
+  events-name = 'TOP_OF_PAGE'.
+  events-form = 'CABECALHO'.
+  APPEND events.
+ENDFORM.                    " EVENTOS
+
+*&---------------------------------------------------------------------*
+*&      Form  SORT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM sort.
+  REFRESH sort.
+
+  CLEAR sort.
+  sort-spos      = '01'.
+  sort-fieldname = 'NFNUM'.
+  sort-tabname   = 'T_SAIDA'.
+  sort-up        = 'X'.
+  APPEND sort.
+
+  CLEAR sort.
+  sort-spos      = '02'.
+  sort-fieldname = 'ITMNUM'.
+  sort-tabname   = 'T_SAIDA'.
+  sort-up        = 'X'.
+  APPEND sort.
+ENDFORM.                    " SORT
+
+*&---------------------------------------------------------------------*
+*&      Form  CABECALHO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM cabecalho.
+  WRITE  sy-uline(72).
+  FORMAT COLOR COL_TOTAL.
+  FORMAT INTENSIFIED ON.
+  WRITE: / sy-vline,
+           'Data:'(010), sy-datum, '/', sy-uzeit, '-',
+           'Relatório Fiscal de Saídas Zona Franca'(009),
+           sy-vline.
+ENDFORM.                    " CABECALHO
+
+*&---------------------------------------------------------------------*
+*&      Form  STATUS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM status USING extab TYPE slis_t_extab.
+  DATA: BEGIN OF ti_local_func OCCURS 0,
+          fcode LIKE rsmpe-func,       "Menu Painter: code de objeto
+        END OF ti_local_func.
+
+  REFRESH ti_local_func.
+
+  CLEAR ti_local_func.
+  MOVE '&ALL' TO ti_local_func-fcode.
+  APPEND ti_local_func.
+
+  CLEAR ti_local_func.
+  MOVE '&SAL' TO ti_local_func-fcode.
+  APPEND ti_local_func.
+
+  CLEAR ti_local_func.
+  MOVE '&XPA' TO ti_local_func-fcode.
+  APPEND ti_local_func.
+
+  CLEAR ti_local_func.
+  MOVE '&OMP' TO ti_local_func-fcode.
+  APPEND ti_local_func.
+
+  SET PF-STATUS 'STDD_VAR' EXCLUDING ti_local_func.
+ENDFORM.                               " STATUS
+
+*&---------------------------------------------------------------------*
+*&      Form  USER_COMMAND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM user_command USING r_ucomm     LIKE sy-ucomm
+                        rs_selfield TYPE slis_selfield.
+  CASE r_ucomm.
+    WHEN 'E-MAIL'.
+      PERFORM enviar_email.
+
+    WHEN 'DELIMIT'.
+      PERFORM montar_delimitacoes.
+  ENDCASE.
+ENDFORM.                               " USER_COMMAND
+
+*&---------------------------------------------------------------------*
+*&      Form  ENVIAR_EMAIL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM enviar_email.
+  CALL FUNCTION 'LIST_TO_OFFICE'
+       EXPORTING
+            list_index         = '0'
+            method             = 'SEND'
+*      TABLES
+*           LISTOBJECT         =
+       EXCEPTIONS
+            list_index_invalid = 1
+            empty_list         = 2
+            OTHERS             = 3.
+  IF sy-subrc <> 0.
+    MESSAGE e000
+      WITH 'Erro na call "LIST_TO_OFFICE" !!!'(008)
+           'Código do erro:'(001) sy-subrc.
+  ENDIF.
+ENDFORM.                    " ENVIAR_EMAIL
+
+*&---------------------------------------------------------------------*
+*&      Form  MONTAR_DELIMITACOES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM montar_delimitacoes.
+  DATA: BEGIN OF ti_local_selecao OCCURS 0,
+          filler(2) TYPE c,              "Campo não utilizado
+          linha     LIKE tline-tdline,   "Linhas da seleção
+        END OF ti_local_selecao.
+
+  DATA v_local_report LIKE rsvar-report.
+
+  MOVE repid TO v_local_report.
+  REFRESH ti_local_selecao.
+
+  CALL FUNCTION 'RS_COVERPAGE_SELECTIONS'
+       EXPORTING
+            report            = v_local_report
+            variant           = ' '
+*           NO_IMPORT         = ' '
+       TABLES
+            infotab           = ti_local_selecao
+       EXCEPTIONS
+            error_message     = 1
+            variant_not_found = 2
+            OTHERS            = 3.
+  IF sy-subrc <> 0.
+    MESSAGE e000
+      WITH 'Erro na call "RS_COVERPAGE_SELECTIONS" !!!'(007)
+           'Código do erro:'(001) sy-subrc.
+  ENDIF.
+
+  CALL FUNCTION 'COPO_POPUP_TO_DISPLAY_TEXTLIST'
+       EXPORTING
+            task       = 'DISPLAY'
+            titel      = 'Seleção'(006)
+*      IMPORTING
+*           function   = ' '
+       TABLES
+            text_table = ti_local_selecao
+       EXCEPTIONS
+            OTHERS     = 1.
+  IF sy-subrc <> 0.
+    MESSAGE e000
+      WITH 'Erro na call "COPO_POPUP_TO_DISPLAY_TEXTLIST" !!!'(005)
+           'Código do erro:'(001) sy-subrc.
+  ENDIF.
+ENDFORM.                    " MONTAR_DELIMITACOES
+
+* 12/01/11 - Início: Aj.layout para NFe (9 dígitos) -------------------*
+*&---------------------------------------------------------------------*
+*&      Form  AJUSTAR_CAMPO_NFNUM_DEVIDO_NFE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_NFNUM       text
+*      -->P_NFENUM      text
+*      <--P_NFNUM_CONV  text
+*----------------------------------------------------------------------*
+*FORM ajustar_campo_nfnum_devido_nfe  USING    p_nfnum      TYPE any
+*                                              p_nfenum     TYPE any
+*                                     CHANGING p_nfnum_conv TYPE any.
+*  DATA: vl_mensagem LIKE syst-msgv1.        "Mensagem
+*
+*  CALL FUNCTION 'ZSV_DS_GE_0005'
+*    EXPORTING
+*      nfnum               = p_nfnum
+*      nfenum              = p_nfenum
+*    IMPORTING
+*      nfnum_conv          = p_nfnum_conv
+*      mensagem            = vl_mensagem
+*    EXCEPTIONS
+*      nfe_nao_numerico    = 1
+*      qtd_dig_nfe_maior_6 = 2
+*      OTHERS              = 3.
+*  IF sy-subrc <> 0.                       "Return code
+*    MESSAGE e000 WITH vl_mensagem.
+*  ENDIF.
+*ENDFORM.                    " AJUSTAR_CAMPO_NFNUM_DEVIDO_NFE
+* 12/01/11 - F i m : Aj.layout para NFe (9 dígitos) -------------------*=

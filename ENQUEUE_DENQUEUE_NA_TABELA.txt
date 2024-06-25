@@ -1,0 +1,149 @@
+REPORT z_demo_alv_jg.*******************************************************************
+* TYPE-POOLS                                                      *
+*******************************************************************
+TYPE-POOLS: slis. *******************************************************************
+* INTERNAL TABLES/WORK AREAS/VARIABLES     *
+*******************************************************************
+DATA: i_fieldcat TYPE slis_t_fieldcat_alv,
+      i_index TYPE STANDARD TABLE OF i WITH HEADER LINE,
+      w_field TYPE slis_fieldcat_alv,
+      p_table LIKE dd02l-tabname,
+      dy_table TYPE REF TO data,
+      dy_tab TYPE REF TO data,
+      dy_line TYPE REF TO data.*******************************************************************
+* FIELD-SYMBOLS                                                   *
+*******************************************************************
+FIELD-SYMBOLS: <dyn_table> TYPE STANDARD TABLE,
+               <dyn_wa> TYPE ANY,
+               <dyn_field> TYPE ANY,
+               <dyn_tab_temp> TYPE STANDARD TABLE.*******************************************************************
+* SELECTION SCREEN                                                *
+*******************************************************************
+PARAMETERS: tabname(30) TYPE c,
+            lines(5)  TYPE n.*******************************************************************
+* START-OF-SELECTION                                              *
+*******************************************************************
+START-OF-SELECTION.* Storing table name
+  p_table = tabname.* Create internal table dynamically with the stucture of table name
+* entered in the selection screen
+  CREATE DATA dy_table TYPE STANDARD TABLE OF (p_table).
+  ASSIGN dy_table->* TO <dyn_table>.
+  IF sy-subrc <> 0.
+    MESSAGE i000(z_zzz_ca_messages) WITH ' No table found'.    LEAVE TO LIST-PROCESSING.
+  ENDIF.
+* Create workarea for the table
+  CREATE DATA dy_line LIKE LINE OF <dyn_table>.
+  ASSIGN dy_line->* TO <dyn_wa>.* Create another temp. table
+  CREATE DATA dy_tab TYPE STANDARD TABLE OF (p_table).
+  ASSIGN dy_tab->* TO <dyn_tab_temp>.  SORT i_fieldcat BY col_pos.* Select data from table
+  SELECT * FROM (p_table)
+  INTO TABLE <dyn_table>
+  UP TO lines ROWS.  REFRESH <dyn_tab_temp>.* Display report
+  CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+      i_structure_name         = p_table
+      i_callback_user_command  = 'USER_COMMAND'
+      i_callback_pf_status_set = 'SET_PF_STATUS'
+    TABLES
+      t_outtab                 = <dyn_table>
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.  IF sy-subrc <> 0.  ENDIF.*&-----------------------------------------------------------------*
+*&      Form  SET_PF_STATUS
+*&-----------------------------------------------------------------*
+*       Setting custom PF-Status
+*------------------------------------------------------------------*
+*      -->RT_EXTAB   Excluding table
+*------------------------------------------------------------------*
+FORM set_pf_status USING rt_extab TYPE slis_t_extab.  SET PF-STATUS 'Z_STANDARD'.ENDFORM.                    "SET_PF_STATUS*&----------------------------------------------------------------*
+*&      Form  user_command
+*&-----------------------------------------------------------------*
+*       Handling custom function codes
+*------------------------------------------------------------------*
+*      -->R_UCOMM      Function code value
+*      -->RS_SELFIELD  Info. of cursor position in ALV
+*------------------------------------------------------------------*
+FORM user_command  USING    r_ucomm LIKE sy-ucomm
+        			    rs_selfield TYPE slis_selfield.* Local data declaration
+  DATA: li_tab TYPE REF TO data,
+        l_line TYPE REF TO data.* Local field-symbols
+  FIELD-SYMBOLS:<l_tab> TYPE table,
+                <l_wa>  TYPE ANY.* Create table
+  CREATE DATA li_tab TYPE STANDARD TABLE OF (p_table).
+  ASSIGN li_tab->* TO <l_tab>.* Create workarea
+  CREATE DATA l_line LIKE LINE OF <l_tab>.
+  ASSIGN l_line->* TO <l_wa>.  CASE r_ucomm.*   When a record is selected
+    WHEN '&IC1'.*     Read the selected record
+      READ TABLE <dyn_table> ASSIGNING <dyn_wa> INDEX
+      rs_selfield-tabindex.      IF sy-subrc = 0.*       Store the record in an internal table
+        APPEND <dyn_wa> TO <l_tab>.*       Fetch the field catalog info
+        CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+          EXPORTING
+            i_program_name         = 'Z_DEMO_PDF_JG'
+            i_structure_name       = p_table
+          CHANGING
+            ct_fieldcat            = i_fieldcat
+          EXCEPTIONS
+            inconsistent_interface = 1
+            program_error          = 2
+            OTHERS                 = 3.
+        IF sy-subrc = 0.*         Make all the fields input enabled except key fields
+          w_field-input = 'X'.          MODIFY i_fieldcat FROM w_field TRANSPORTING input
+          WHERE key IS INITIAL.        ENDIF.*       Display the record for editing purpose
+        CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+          EXPORTING
+            i_callback_program    = sy-repid
+            i_structure_name      = p_table
+            it_fieldcat           = i_fieldcat
+            i_screen_start_column = 10
+            i_screen_start_line   = 15
+            i_screen_end_column   = 200
+            i_screen_end_line     = 20
+          TABLES
+            t_outtab              = <l_tab>
+          EXCEPTIONS
+            program_error         = 1
+            OTHERS                = 2.        IF sy-subrc = 0.*         Read the modified data
+          READ TABLE <l_tab> INDEX 1 INTO <l_wa>.*         If the record is changed then track its index no.
+*         and populate it in an internal table for future
+*         action
+          IF sy-subrc = 0 AND <dyn_wa> <> <l_wa>.
+            <dyn_wa> = <l_wa>.
+            i_index = rs_selfield-tabindex.
+            APPEND i_index.
+          ENDIF.
+        ENDIF.      ENDIF.*   When save button is pressed
+    WHEN 'SAVE'.*     Sort the index table
+      SORT i_index.*     Delete all duplicate records
+      DELETE ADJACENT DUPLICATES FROM i_index.      LOOP AT i_index.*       Find out the changes in the internal table
+*       and populate these changes in another internal table
+        READ TABLE <dyn_table> ASSIGNING <dyn_wa> INDEX i_index.
+        IF sy-subrc = 0.
+          APPEND <dyn_wa> TO <dyn_tab_temp>.
+        ENDIF.      ENDLOOP.*     Lock the table
+
+      CALL FUNCTION 'ENQUEUE_E_TABLE'
+        EXPORTING
+          mode_rstable   = 'E'
+          tabname        = p_table
+        EXCEPTIONS
+          foreign_lock   = 1
+          system_failure = 2
+          OTHERS         = 3.      
+	
+	IF sy-subrc = 0.
+
+*       Modify the database table with these changes
+        MODIFY (p_table) FROM TABLE <dyn_tab_temp>.       
+        
+        REFRESH <dyn_tab_temp>.
+*       Unlock the table
+        CALL FUNCTION 'DEQUEUE_E_TABLE'
+          EXPORTING
+            mode_rstable = 'E'
+            tabname      = p_table.    
+      
+        ENDIF.
+
+  ENDCASE.  rs_selfield-refresh = 'X'.ENDFORM.                    "user_command

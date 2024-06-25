@@ -1,0 +1,34 @@
+LOCAL
+ 
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_dirarq.
+* Cria Matchcode para Diretório LOCAL
+  CALL FUNCTION 'KD_GET_FILENAME_ON_F4'
+    EXPORTING
+      field_name    = p_dirarq
+    CHANGING
+      file_name     = p_dirarq
+    EXCEPTIONS
+      mask_too_long = 1
+      OTHERS        = 2.
+  IF sy-subrc IS NOT INITIAL.
+    PERFORM zf_erro USING sy-tcode space space space
+                          sy-datum sy-msgid sy-msgty sy-msgno
+                          sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_saida.
+* Cria Matchcode para Diretório LOG
+  CALL FUNCTION 'TMP_GUI_BROWSE_FOR_FOLDER'
+    EXPORTING
+      window_title    = text-t06      " Selecionar Local para Arquivo de LOG
+      initial_folder  = c_initial     " C:\
+    IMPORTING
+      selected_folder = p_saida
+    EXCEPTIONS
+      cntl_error      = 1
+      OTHERS          = 2.
+  IF sy-subrc <> 0.
+    PERFORM zf_erro USING sy-tcode space space space
+                          sy-datum sy-msgid sy-msgty sy-msgno
+                          sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.

@@ -1,0 +1,1048 @@
+OUTRA OPCAO:
+TMP_GUI_DIRECTORY_LIST_FILES
+
+*-----------------------------------------------------------------------
+* Programa : Z3FIRP11
+* Cliente  : Sonae Sierra
+* Módulo   : FI
+* Transação: Z3FIRP11
+* Descrição: Processa arquivos de retorno bancário
+* Autor    : Jonas Rabello Data: 22.07.2010
+*-----------------------------------------------------------------------
+* Histórico de Alterações:
+*-----------------------------------------------------------------------
+* Data       |Change #   |Autor          |Alteração
+*-----------------------------------------------------------------------
+* 22.07.2010 |DEVK906650 |Jonas Rabello  |Desenvolvimento Inicial
+*-----------------------------------------------------------------------
+
+REPORT z3firp11 .
+
+TABLES: trmmapp, sscrfields.
+
+*-----------------------------------------------------------------------
+* Constantes
+*-----------------------------------------------------------------------
+CONSTANTS:
+c_mark       TYPE c          VALUE 'X',
+c_tcode      TYPE tcode      VALUE 'FF.5',
+c_dismod     TYPE c          VALUE 'N',
+c_updmod     TYPE c          VALUE 'S',
+c_sucesso    TYPE bdc_mart   VALUE 'S',
+c_apagar     TYPE char2      VALUE 'AP',
+c_areceb     TYPE char2      VALUE 'AR',
+c_fldconv    TYPE char11     VALUE 'Convertidos',
+c_fldproc    TYPE char11     VALUE 'Processados',
+c_prgap      TYPE sy-tcode   VALUE 'Z3FIRP01', "AP
+c_prgar      TYPE sy-tcode   VALUE 'Z3FIRP06', "AR
+c_prgtr      TYPE sy-tcode   VALUE 'Z3FIRP08'. "TR
+
+*-----------------------------------------------------------------------
+* Definição de Tipos
+*-----------------------------------------------------------------------
+TYPES:
+BEGIN OF y_email,
+  folder  TYPE char255,
+  arquivo TYPE char255,
+END OF y_email.
+
+TYPES: y_t_email TYPE TABLE OF y_email.
+
+*-----------------------------------------------------------------------
+* Definição de Tabelas Internas
+*-----------------------------------------------------------------------
+DATA:
+t_bdcdata    TYPE TABLE OF bdcdata,
+t_bdcerr     TYPE TABLE OF bdcmsgcoll,
+t_bdcerr_aux TYPE TABLE OF bdcmsgcoll,
+t_email_ap   TYPE TABLE OF y_email,
+t_email_ar   TYPE TABLE OF y_email,
+t_diret      TYPE TABLE OF string,
+t_files      TYPE TABLE OF string.
+
+*-----------------------------------------------------------------------
+* Definição de Estruturas
+*-----------------------------------------------------------------------
+DATA:
+w_bdcdata   TYPE bdcdata,
+w_options   TYPE ctu_params,
+w_email     TYPE y_email.
+
+*-----------------------------------------------------------------------
+*	Definição de Variáveis
+*-----------------------------------------------------------------------
+DATA:
+v_subrc TYPE sy-subrc.
+
+*-----------------------------------------------------------------------
+* Definição de field-symbols
+*-----------------------------------------------------------------------
+FIELD-SYMBOLS:
+<bdcerr> TYPE bdcmsgcoll,
+<email>  TYPE y_email,
+<diret>  TYPE string,
+<files>  TYPE string.
+
+*-----------------------------------------------------------------------
+* Definição da Tela de Seleções
+*-----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK parm WITH FRAME TITLE text-001.
+PARAMETERS:
+  p_folder TYPE rlgrap-filename.  "nome da pasta origem
+SELECT-OPTIONS:
+  s_ema_ap FOR trmmapp-stext NO INTERVALS,
+  s_ema_ar FOR trmmapp-stext NO INTERVALS.
+SELECTION-SCREEN END OF BLOCK parm.
+
+*-----------------------------------------------------------------------
+* Evento: INITIALIZATION
+*-----------------------------------------------------------------------
+INITIALIZATION.
+  sscrfields-functxt_01 = 'LOG'.
+
+  SELECTION-SCREEN: FUNCTION KEY 1.
+
+*-----------------------------------------------------------------------
+* Evento: At Selection-Screen
+*-----------------------------------------------------------------------
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_folder.
+
+  PERFORM f_seleciona_diretorio.
+
+*-----------------------------------------------------------------------
+* Evento: At Selection-Screen
+*-----------------------------------------------------------------------
+AT SELECTION-SCREEN.
+
+  IF sscrfields-ucomm EQ 'FC01'.
+
+    CALL TRANSACTION 'Z3FIRP11B'.
+
+  ELSE.
+
+    IF p_folder IS INITIAL   OR
+       s_ema_ap[] IS INITIAL OR
+       s_ema_ap[] IS INITIAL.
+
+      MESSAGE e208(00) WITH text-010.
+
+    ENDIF.
+
+    PERFORM f_verifica_diretorio
+    USING    p_folder
+    CHANGING v_subrc.
+
+    IF NOT v_subrc IS INITIAL.
+      MESSAGE e208(00) WITH text-005.
+    ENDIF.
+
+  ENDIF.
+
+*-----------------------------------------------------------------------
+*	Evento: Start-of-Selection
+*-----------------------------------------------------------------------
+START-OF-SELECTION.
+
+  PERFORM f_recupera_diretorios.
+
+  PERFORM f_processa_arquivos.
+
+  IF NOT t_email_ap IS INITIAL.
+    SORT t_email_ap BY folder.
+    PERFORM f_envia_email
+    USING t_email_ap c_apagar.
+  ENDIF.
+
+  IF NOT t_email_ar IS INITIAL.
+    SORT t_email_ap BY folder.
+    PERFORM f_envia_email
+    USING t_email_ar c_areceb.
+  ENDIF.
+
+  MESSAGE s208(00) WITH text-006.
+
+
+*&---------------------------------------------------------------------*
+*&      Form  f_processa_arquivos
+*&---------------------------------------------------------------------*
+FORM f_processa_arquivos.
+
+  DATA: l_arq   TYPE rlgrap-filename,
+        l_prg   TYPE sy-tcode,
+        l_file1 TYPE string,
+        l_file2 TYPE string.
+
+  CHECK NOT t_diret IS INITIAL.
+
+  DELETE FROM zfi_ff5_log WHERE arquivo NE space.
+  DELETE FROM zfi_ff5_log WHERE arquivo EQ space.
+
+  LOOP AT t_diret ASSIGNING <diret>.
+
+    PERFORM f_cria_diretorios_destino
+    USING <diret>.
+
+    PERFORM f_recupera_diret_arquivos
+    USING <diret> c_mark space.
+
+    LOOP AT t_files ASSIGNING <files>.
+
+      CONCATENATE <diret> <files> INTO l_arq.
+
+      PERFORM f_verifica_arquivo
+      USING <files> CHANGING v_subrc.
+
+      CHECK v_subrc IS INITIAL.
+
+      PERFORM f_recupera_tipo_arquivo
+      USING l_arq l_prg.
+
+      CASE l_prg.
+
+        WHEN c_prgap.
+
+          PERFORM f_converte_arquivos
+          USING l_arq <diret> <files> c_prgap.
+
+        WHEN c_prgar.
+
+          PERFORM f_converte_arquivos
+          USING l_arq <diret> <files> c_prgar.
+
+        WHEN c_prgtr.
+
+          PERFORM f_converte_arquivos
+          USING l_arq <diret> <files> c_prgtr.
+
+        WHEN OTHERS.
+
+          l_file1 = l_arq.
+          PERFORM f_executa_batch_ff-5
+          USING l_file1
+                l_file2
+                <diret>
+                <files>
+                c_tcode.
+
+      ENDCASE.
+
+    ENDLOOP.
+
+  ENDLOOP.
+
+ENDFORM.                    " f_processa_arquivos
+
+*&---------------------------------------------------------------------*
+*&      Form  f_verifica_arquivo
+*&---------------------------------------------------------------------*
+FORM f_verifica_arquivo
+  USING    p_arquiv TYPE string
+  CHANGING p_subrc  TYPE sy-subrc.
+
+  DATA: l_arquiv(1000) TYPE c,
+        l_char         TYPE c,
+        l_pos          TYPE i,
+        l_tam          TYPE i.
+
+
+  l_arquiv = p_arquiv.
+  CONDENSE l_arquiv.
+  l_tam = strlen( l_arquiv ).
+  CLEAR l_arquiv.
+
+  p_subrc = 1.
+
+  l_pos = l_tam - 1.
+
+  DO l_tam TIMES.
+    l_char = p_arquiv+l_pos(1).
+    CONCATENATE l_arquiv l_char INTO l_arquiv.
+    l_pos = l_pos - 1.
+  ENDDO.
+
+  TRANSLATE l_arquiv TO UPPER CASE.
+
+  CHECK l_arquiv(3) EQ 'TER' OR l_arquiv(3) EQ 'XCI'.
+
+  CLEAR p_subrc.
+
+ENDFORM.                    " f_verifica_arquivo
+
+*&---------------------------------------------------------------------*
+*&      Form  f_converte_arquivos
+*&---------------------------------------------------------------------*
+FORM f_converte_arquivos
+  USING p_arq   TYPE rlgrap-filename
+        p_diret TYPE string
+        p_narq  TYPE string
+        p_prog  TYPE tcode.
+
+  DATA: l_prog  TYPE bdcdata-program,
+        l_file  TYPE bdcdata-fval,
+        l_file1 TYPE string,
+        l_file2 TYPE string.
+
+
+  REFRESH: t_bdcdata, t_bdcerr.
+
+  l_prog = p_prog.
+  l_file = p_arq.
+
+  PERFORM zf_bdc_dynpro
+  USING  l_prog '1000'.
+
+  PERFORM zf_bdc_field
+  USING: 'BDC_OKCODE' '=ONLI',
+         'P_ARQ'      l_file.
+
+  CLEAR w_options.
+  w_options-dismode = c_dismod. " N
+  w_options-updmode = c_updmod. " S
+  w_options-defsize = c_mark.   " X
+
+  CALL TRANSACTION p_prog
+  USING            t_bdcdata
+  OPTIONS FROM     w_options
+  MESSAGES INTO    t_bdcerr.
+
+  SORT t_bdcerr BY msgtyp msgid msgnr.
+
+* Verifica mensagens de retorno
+  PERFORM f_verifica_mensagens
+  USING    p_prog p_diret p_narq
+  CHANGING v_subrc.
+
+  CHECK v_subrc IS INITIAL.
+
+  l_file1 = l_file.
+
+  IF p_prog EQ c_prgap OR p_prog EQ c_prgar.
+    REPLACE '.' WITH '_cv.' INTO l_file1.
+  ELSE.
+    l_file2 = l_file.
+    REPLACE '.' WITH '_cab.' INTO l_file1.
+    REPLACE '.' WITH '_det.' INTO l_file2.
+  ENDIF.
+
+  PERFORM f_executa_batch_ff-5
+  USING l_file1
+        l_file2
+        p_diret
+        p_narq
+        p_prog.
+
+
+ENDFORM.                    " f_converte_arquivos
+
+*&---------------------------------------------------------------------*
+*&      Form  f_executa_batch_ff-5
+*&---------------------------------------------------------------------*
+FORM f_executa_batch_ff-5
+  USING p_file1  TYPE string
+        p_file2  TYPE string
+        p_diret  TYPE string
+        p_narq   TYPE string
+        p_prog   TYPE tcode.
+
+
+  DATA:
+  t_list   TYPE TABLE OF abaplist,
+  t_logff5 TYPE TABLE OF char255,
+  t_result TYPE TABLE OF zfi_ff5_log,
+  w_result TYPE zfi_ff5_log,
+  l_format TYPE bdcdata-fval,
+  l_narq   TYPE tbtcjob-jobname,
+  l_diret  TYPE bdcdata-fval,
+  l_file1  TYPE bdcdata-fval,
+  l_file2  TYPE bdcdata-fval.
+
+  FIELD-SYMBOLS:
+  <logff5> TYPE char255.
+
+  l_narq  = p_narq.
+  l_diret = p_diret.
+  l_file1 = p_file1.
+  l_file2 = p_file2.
+  TRANSLATE l_narq  TO UPPER CASE.
+  TRANSLATE l_diret TO UPPER CASE.
+
+  SUBMIT z3firp11a
+  WITH p_narqu = l_narq
+  WITH p_diret = l_diret
+  WITH p_file1 = l_file1
+  WITH p_file2 = l_file2
+  EXPORTING LIST TO MEMORY
+  AND RETURN.
+
+  CALL FUNCTION 'LIST_FROM_MEMORY'
+       TABLES
+            listobject = t_list
+       EXCEPTIONS
+            not_found  = 1
+            OTHERS     = 2.
+
+  IF sy-subrc IS INITIAL.
+
+    CALL FUNCTION 'LIST_TO_ASCI'
+         TABLES
+              listasci           = t_logff5
+              listobject         = t_list
+         EXCEPTIONS
+              empty_list         = 1
+              list_index_invalid = 2
+              OTHERS             = 3.
+
+    IF sy-subrc IS INITIAL.
+
+      LOOP AT t_logff5 ASSIGNING <logff5>.
+        w_result-indice  = sy-tabix.
+        w_result-arquivo = l_narq.
+        w_result-log     = <logff5>.
+        APPEND w_result TO t_result.
+        CLEAR w_result.
+      ENDLOOP.
+
+      IF NOT t_result IS INITIAL.
+        MODIFY zfi_ff5_log FROM TABLE t_result.
+      ENDIF.
+
+    ENDIF.
+
+  ENDIF.
+
+  IMPORT v_subrc FROM MEMORY ID 'Z3FIRP11A'.
+
+  IF NOT v_subrc IS INITIAL.
+
+    CLEAR w_email.
+    w_email-folder  = p_diret.
+    w_email-arquivo = p_narq.
+
+    IF p_prog EQ c_prgap OR p_prog EQ c_prgtr OR p_prog EQ c_tcode.
+
+      APPEND w_email TO t_email_ap.
+      CLEAR w_email.
+
+    ELSEIF p_prog EQ c_prgar.  "AR
+
+      APPEND w_email TO t_email_ar.
+      CLEAR w_email.
+
+    ENDIF.
+
+  ENDIF.
+
+  IF v_subrc IS INITIAL.
+    PERFORM f_move_arquivos
+    USING p_prog p_file1 p_file2 p_diret p_narq c_mark.
+  ELSE.
+    PERFORM f_move_arquivos
+    USING p_prog p_file1 p_file2 p_diret p_narq space.
+  ENDIF.
+
+ENDFORM.                    " f_executa_batch_ff-5
+
+*-----------------------------------------------------------------------
+* Form     : ZF_BDC_DYNPRO
+* Descrição: Grava informações da tela na tabela bdcdata
+* Entradas : pc_program - Pool de módulos BDC
+*            pc_dynpro  - NÚmero de tela BDC
+* Saídas   : N/A
+*-----------------------------------------------------------------------
+FORM zf_bdc_dynpro
+    USING pc_program TYPE bdcdata-program
+          pc_dynpro  TYPE bdcdata-dynpro.
+
+  CLEAR w_bdcdata.
+  w_bdcdata-program  = pc_program.
+  w_bdcdata-dynpro   = pc_dynpro.
+  w_bdcdata-dynbegin = c_mark.  " X
+  APPEND w_bdcdata TO t_bdcdata.
+
+ENDFORM.                    " ZF_BDC_DYNPRO
+
+
+*-----------------------------------------------------------------------
+* Form     : ZF_BDC_FIELD
+* Descrição: Grava informações dos campos na tabela bdcdata
+* Entradas : pc_fnam - Nome do campo
+*            pc_fval - Valor do campo BDC
+* Saídas   : N/A
+*-----------------------------------------------------------------------
+FORM zf_bdc_field
+  USING pc_fnam  TYPE bdcdata-fnam
+        pc_fval  TYPE bdcdata-fval.
+
+  CLEAR w_bdcdata.
+  w_bdcdata-fnam = pc_fnam.
+  w_bdcdata-fval = pc_fval.
+  APPEND w_bdcdata TO t_bdcdata.
+
+ENDFORM.                    " ZF_BDC_FIELD
+
+*&---------------------------------------------------------------------*
+*&      Form  f_verifica_mensagens
+*&---------------------------------------------------------------------*
+FORM f_verifica_mensagens
+  USING    p_prog  TYPE tcode
+           p_diret TYPE string
+           p_narq  TYPE string
+  CHANGING p_subrc TYPE sy-subrc.
+
+  CLEAR: w_email, p_subrc.
+
+  t_bdcerr_aux = t_bdcerr.
+  DELETE t_bdcerr_aux WHERE msgtyp EQ c_sucesso.
+
+  CHECK NOT t_bdcerr_aux IS INITIAL.
+
+  p_subrc = 1.
+
+  w_email-folder  = p_diret.
+  w_email-arquivo = p_narq.
+
+  IF p_prog EQ c_prgap OR p_prog EQ c_prgtr OR p_prog EQ c_tcode.
+
+    APPEND w_email TO t_email_ap.
+    CLEAR w_email.
+
+  ELSEIF p_prog EQ c_prgar.  "AR
+
+    APPEND w_email TO t_email_ar.
+    CLEAR w_email.
+
+  ENDIF.
+
+ENDFORM.                    " f_verifica_mensagens
+
+*&---------------------------------------------------------------------*
+*&      Form  f_envia_email
+*&---------------------------------------------------------------------*
+FORM f_envia_email
+ USING p_email TYPE y_t_email
+       p_setor TYPE char2.
+
+  DATA:
+  w_objtxt       TYPE solisti1,
+  w_reclist      TYPE somlreci1,
+  w_packing_list TYPE sopcklsti1,
+  w_doc_chng     TYPE sodocchgi1,
+  w_destinat      LIKE LINE OF s_ema_ap,
+  t_objtxt       TYPE TABLE OF solisti1,
+  t_reclist      TYPE TABLE OF somlreci1,
+  t_packing_list TYPE TABLE OF sopcklsti1.
+
+  CONSTANTS:
+  c_x   TYPE sonv-flag            VALUE 'X',
+  c_u   TYPE somlreci1-rec_type   VALUE 'U',
+  c_raw TYPE sopcklsti1-doc_type  VALUE 'RAW',
+  c_1   TYPE n                    VALUE 1,
+  c_0   TYPE n                    VALUE 0.
+
+*** Assunto, título do e-mail
+  w_doc_chng-obj_descr = text-002.
+
+***Corpo do texto.
+  w_objtxt = text-003.
+  APPEND w_objtxt TO t_objtxt.
+  CLEAR w_objtxt.
+  APPEND w_objtxt TO t_objtxt.
+
+  LOOP AT p_email ASSIGNING <email>.
+
+    AT NEW folder.
+      CONCATENATE text-009 <email>-folder INTO w_objtxt
+      SEPARATED BY space.
+      APPEND w_objtxt TO t_objtxt.
+      CLEAR w_objtxt.
+      APPEND w_objtxt TO t_objtxt.
+    ENDAT.
+
+    w_objtxt = <email>-arquivo.
+    APPEND w_objtxt TO t_objtxt.
+    CLEAR  w_objtxt.
+
+    AT END OF folder.
+      APPEND w_objtxt TO t_objtxt.
+    ENDAT.
+
+  ENDLOOP.
+
+
+***Para que o corpo do e-mail possua formatação,o parâmetro abaixo
+***é necessário.
+
+  DESCRIBE TABLE t_objtxt LINES sy-tfill.
+
+  READ TABLE t_objtxt INTO w_objtxt INDEX sy-tfill.
+
+  w_doc_chng-doc_size = ( sy-tfill - 1 ) * 255 + STRLEN( w_objtxt ).
+
+  CLEAR w_packing_list-transf_bin.
+  w_packing_list-head_start = c_1.
+  w_packing_list-head_num   = c_0.
+  w_packing_list-body_start = c_1.
+  w_packing_list-body_num   = sy-tfill.
+  w_packing_list-doc_type   = c_raw.
+
+  APPEND w_packing_list TO t_packing_list.
+  CLEAR w_packing_list.
+
+***Preenche tabela de destinatários
+  IF p_setor EQ c_apagar.
+    LOOP AT s_ema_ap INTO w_destinat.
+
+      w_reclist-receiver = w_destinat-low.
+      w_reclist-rec_type = c_u.
+
+      APPEND w_reclist TO t_reclist.
+      CLEAR  w_reclist.
+
+    ENDLOOP.
+  ELSE.
+    LOOP AT s_ema_ar INTO w_destinat.
+
+      w_reclist-receiver = w_destinat-low.
+      w_reclist-rec_type = c_u.
+
+      APPEND w_reclist TO t_reclist.
+      CLEAR  w_reclist.
+
+    ENDLOOP.
+  ENDIF.
+
+
+  CALL FUNCTION 'SO_NEW_DOCUMENT_ATT_SEND_API1'
+       EXPORTING
+            document_data              = w_doc_chng
+            put_in_outbox              = c_x
+       TABLES
+            packing_list               = t_packing_list
+            contents_txt               = t_objtxt
+            receivers                  = t_reclist
+       EXCEPTIONS
+            too_many_receivers         = 1
+            document_not_sent          = 2
+            document_type_not_exist    = 3
+            operation_no_authorization = 4
+            parameter_error            = 5
+            x_error                    = 6
+            enqueue_error              = 7
+            OTHERS                     = 8.
+
+  CHECK NOT sy-subrc IS INITIAL.
+
+ENDFORM.                    " f_envia_email
+
+*&---------------------------------------------------------------------*
+*&      Form  f_seleciona_diretorio
+*&---------------------------------------------------------------------*
+FORM f_seleciona_diretorio.
+
+  DATA: l_titulo    TYPE string,
+        l_folder    TYPE string,
+        l_folder_in TYPE string.
+
+
+* Seleciona o diretório origem
+  l_titulo    = text-004.
+  CALL METHOD cl_gui_frontend_services=>directory_browse
+    EXPORTING
+       window_title   = l_titulo
+       initial_folder = l_folder
+    CHANGING
+      selected_folder = l_folder_in
+    EXCEPTIONS
+      cntl_error      = 1
+      error_no_gui    = 2
+      OTHERS          = 3.
+
+  CALL METHOD cl_gui_cfw=>flush.
+
+  CHECK NOT l_folder_in IS INITIAL.
+
+  p_folder = l_folder_in.
+
+ENDFORM.                    " f_seleciona_diretorio
+
+*&---------------------------------------------------------------------*
+*&      Form  f_verifica_diretorio
+*&---------------------------------------------------------------------*
+FORM f_verifica_diretorio
+  USING    p_folder TYPE rlgrap-filename
+  CHANGING p_subrc  TYPE sy-subrc.
+
+
+  DATA:
+  l_folder  TYPE string,
+  l_result  TYPE c.
+
+  l_folder = p_folder.
+
+  CLEAR p_subrc.
+
+  CALL METHOD cl_gui_frontend_services=>directory_exist
+  EXPORTING
+    directory            = l_folder
+  RECEIVING
+    result               = l_result
+  EXCEPTIONS
+    cntl_error           = 1
+    error_no_gui         = 2
+    wrong_parameter      = 3
+    not_supported_by_gui = 4
+    OTHERS               = 5.
+
+  CHECK l_result IS INITIAL.
+
+  p_subrc = 1.
+
+ENDFORM.                    " f_verifica_diretorio
+
+*&---------------------------------------------------------------------*
+*&      Form  f_recupera_diretorios
+*&---------------------------------------------------------------------*
+FORM f_recupera_diretorios.
+
+  DATA: l_folder TYPE string.
+
+  l_folder = p_folder.
+
+  PERFORM f_recupera_diret_arquivos
+  USING l_folder space c_mark.
+
+ENDFORM.                    " f_recupera_diretorios
+
+*&---------------------------------------------------------------------*
+*&      Form  f_recupera_diret_arquivos
+*&---------------------------------------------------------------------*
+FORM f_recupera_diret_arquivos
+USING p_folder TYPE string
+      p_files  TYPE char1
+      p_diret  TYPE char1.
+
+  TYPES:
+  BEGIN OF y_arquivo,
+    arquivo TYPE char255,
+  END OF y_arquivo.
+
+
+  DATA:
+  t_arquiv TYPE TABLE OF y_arquivo,
+  w_arquiv TYPE y_arquivo,
+  l_folder TYPE string,
+  l_diret(1000) TYPE c,
+  l_files  TYPE i.
+
+  IF NOT p_diret IS INITIAL.
+    CONCATENATE p_folder '\' w_arquiv INTO p_folder.
+  ENDIF.
+
+* Recupera os arquivos do diretório origem
+  CALL METHOD cl_gui_frontend_services=>directory_list_files
+      EXPORTING
+        directory                   = p_folder
+        files_only                  = p_files
+        directories_only            = p_diret
+      CHANGING
+        file_table                  = t_arquiv
+        count                       = l_files
+      EXCEPTIONS
+        cntl_error                  = 1
+        directory_list_files_failed = 2
+        wrong_parameter             = 3
+        error_no_gui                = 4
+        OTHERS                      = 5.
+
+
+  IF NOT p_diret IS INITIAL.
+
+    DELETE t_arquiv WHERE arquivo EQ c_fldconv. "Convertidos
+    DELETE t_arquiv WHERE arquivo EQ c_fldproc. "Processados
+
+    IF t_arquiv IS INITIAL.
+
+      APPEND p_folder TO t_diret.
+
+    ELSE.
+
+      LOOP AT t_arquiv INTO w_arquiv.
+        CONCATENATE p_folder w_arquiv-arquivo INTO l_diret.
+        CONDENSE l_diret.
+        l_folder = l_diret.
+        PERFORM f_recupera_diret_arquivos
+        USING l_folder space c_mark.
+      ENDLOOP.
+
+    ENDIF.
+
+  ENDIF.
+
+  IF NOT p_files IS INITIAL.
+    REFRESH: t_files.
+    t_files = t_arquiv.
+  ENDIF.
+
+ENDFORM.                    " f_recupera_diret_arquivos
+
+*&---------------------------------------------------------------------*
+*&      Form  f_recupera_tipo_arquivo
+*&---------------------------------------------------------------------*
+FORM f_recupera_tipo_arquivo
+  USING p_arq TYPE rlgrap-filename
+        p_prg TYPE sy-tcode.
+
+  DATA: l_arq TYPE          string,
+        t_arq TYPE TABLE OF string.
+
+  FIELD-SYMBOLS: <arq> TYPE string.
+
+  l_arq = p_arq.
+
+  CLEAR p_prg.
+
+  CALL METHOD cl_gui_frontend_services=>gui_upload
+  EXPORTING
+      filename                = l_arq
+      filetype                = 'ASC'
+  CHANGING
+      data_tab                = t_arq
+  EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      OTHERS                  = 17.
+
+  UNASSIGN <arq>.
+  READ TABLE t_arq ASSIGNING <arq> INDEX 1.
+
+  CHECK <arq> IS ASSIGNED.
+
+* Verifica se é arquivo de retorno e cobrança
+  IF <arq>+76(3) EQ '341' AND <arq>+1(1) EQ '2' AND <arq>+9(2) EQ '01'.
+    p_prg = c_prgar.
+
+* Verifica se é arquivo de tributos e concecionárias
+  ELSEIF <arq>(3) EQ '341' AND <arq>+14(3) EQ '080'.
+    LOOP AT t_arq ASSIGNING <arq>.
+
+      CHECK <arq>+7(1) EQ '3'.
+
+      CHECK <arq>+13(1) EQ 'N' OR <arq>+13(1) EQ 'O'.
+
+      p_prg = c_prgtr.
+
+      EXIT.
+
+    ENDLOOP.
+
+* Verifica se é arquivo de contas à pagar
+  ELSEIF <arq>(3) EQ '341' AND <arq>+14(3) EQ '010'.
+    p_prg = c_prgap.
+
+  ENDIF.
+
+ENDFORM.                    " f_recupera_tipo_arquivo
+
+*&---------------------------------------------------------------------*
+*&      Form  f_cria_diretorios_destino
+*&---------------------------------------------------------------------*
+FORM f_cria_diretorios_destino
+USING p_diret TYPE string.
+
+  DATA: l_diret(1000) TYPE c,
+        l_fldver      TYPE rlgrap-filename,
+        l_folder      TYPE string,
+        l_retorno     TYPE i.
+
+
+  l_diret = p_diret.
+  CONDENSE l_diret.
+
+  CONCATENATE l_diret c_fldconv INTO l_folder.
+
+  l_fldver = l_folder.
+
+  PERFORM f_verifica_diretorio
+  USING    l_fldver
+  CHANGING v_subrc.
+
+  IF NOT v_subrc IS INITIAL.
+
+    CALL METHOD cl_gui_frontend_services=>directory_create
+      EXPORTING
+       directory                = l_folder
+      CHANGING
+       rc                       = l_retorno
+      EXCEPTIONS
+       directory_create_failed  = 1
+       cntl_error               = 2
+       error_no_gui             = 3
+       path_not_found           = 4
+       directory_access_denied  = 5
+       directory_already_exists = 6
+       unknown_error            = 7
+       OTHERS                   = 8.
+
+    IF NOT sy-subrc IS INITIAL.
+      MESSAGE e208(00) WITH text-007.
+    ENDIF.
+
+  ENDIF.
+
+  CONCATENATE l_diret c_fldproc INTO l_folder.
+
+  l_fldver = l_folder.
+
+  PERFORM f_verifica_diretorio
+  USING    l_fldver
+  CHANGING v_subrc.
+
+  IF NOT v_subrc IS INITIAL.
+
+    CALL METHOD cl_gui_frontend_services=>directory_create
+      EXPORTING
+       directory                = l_folder
+      CHANGING
+       rc                       = l_retorno
+      EXCEPTIONS
+       directory_create_failed  = 1
+       cntl_error               = 2
+       error_no_gui             = 3
+       path_not_found           = 4
+       directory_access_denied  = 5
+       directory_already_exists = 6
+       unknown_error            = 7
+       OTHERS                   = 8.
+
+    IF NOT sy-subrc IS INITIAL.
+      MESSAGE e208(00) WITH text-008.
+    ENDIF.
+
+  ENDIF.
+
+ENDFORM.                    " f_cria_diretorios_destino
+
+*&---------------------------------------------------------------------*
+*&      Form  f_move_arquivos
+*&---------------------------------------------------------------------*
+FORM f_move_arquivos
+  USING p_prog  TYPE tcode
+        p_file1 TYPE string
+        p_file2 TYPE string
+        p_diret TYPE string
+        p_narq  TYPE string
+        p_tff5  TYPE char1.
+
+
+  DATA:
+  l_orig1 TYPE rlgrap-filename,
+  l_orig2 TYPE rlgrap-filename,
+  l_orig3 TYPE rlgrap-filename,
+  l_dest1 TYPE rlgrap-filename,
+  l_dest2 TYPE rlgrap-filename,
+  l_dest3 TYPE rlgrap-filename,
+  l_endf  TYPE char11,
+  l_arq   TYPE string.
+
+  IF p_tff5 IS INITIAL.
+    l_endf = c_fldconv.
+  ELSE.
+    l_endf = c_fldproc.
+  ENDIF.
+
+  IF NOT p_file2 IS INITIAL.
+
+    IF NOT p_prog EQ c_tcode.
+
+      l_orig1 = p_file1.
+      l_arq = p_narq.
+      REPLACE '.' WITH '_cab.'             INTO l_arq.
+      CONCATENATE p_diret l_endf '\' l_arq INTO l_dest1.
+
+      l_orig2 = p_file2.
+      l_arq = p_narq.
+      REPLACE '.' WITH '_det.' INTO l_arq.
+      CONCATENATE p_diret l_endf '\' l_arq INTO l_dest2.
+
+      CONCATENATE p_diret p_narq            INTO l_orig3.
+      CONCATENATE p_diret l_endf '\' p_narq INTO l_dest3.
+
+    ELSEIF l_endf EQ c_fldproc.
+
+      CONCATENATE p_diret p_narq            INTO l_orig3.
+      CONCATENATE p_diret l_endf '\' p_narq INTO l_dest3.
+
+    ENDIF.
+
+  ELSE.
+
+    IF NOT p_prog EQ c_tcode.
+
+      l_orig1 = p_file1.
+      l_arq = p_narq.
+      REPLACE '.' WITH '_cv.'              INTO l_arq.
+      CONCATENATE p_diret l_endf '\' l_arq INTO l_dest1.
+
+      CONCATENATE p_diret p_narq            INTO l_orig2.
+      CONCATENATE p_diret l_endf '\' p_narq INTO l_dest2.
+
+    ELSEIF l_endf EQ c_fldproc.
+
+      CONCATENATE p_diret p_narq            INTO l_orig2.
+      CONCATENATE p_diret l_endf '\' p_narq INTO l_dest2.
+
+    ENDIF.
+
+  ENDIF.
+
+  IF NOT l_orig1 IS INITIAL.
+
+    CALL FUNCTION 'WS_FILE_COPY'
+         EXPORTING
+              destination = l_dest1
+              source      = l_orig1.
+
+    CALL FUNCTION 'WS_FILE_DELETE'
+         EXPORTING
+              file = l_orig1.
+  ENDIF.
+
+  IF NOT l_orig2 IS INITIAL.
+
+    CALL FUNCTION 'WS_FILE_COPY'
+         EXPORTING
+              destination = l_dest2
+              source      = l_orig2.
+
+    CALL FUNCTION 'WS_FILE_DELETE'
+         EXPORTING
+              file = l_orig2.
+  ENDIF.
+
+  IF NOT l_orig3 IS INITIAL.
+
+    CALL FUNCTION 'WS_FILE_COPY'
+         EXPORTING
+              destination = l_dest3
+              source      = l_orig3.
+
+    CALL FUNCTION 'WS_FILE_DELETE'
+         EXPORTING
+              file = l_orig3.
+  ENDIF.
+
+ENDFORM.                    " f_move_arquivos

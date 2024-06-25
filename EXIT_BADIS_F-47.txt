@@ -1,0 +1,55 @@
+10-19-2007                                                      acha badi e exit                                                             1
+----------------------------------------------------------------------------------------------------------------------------------------------
+Transaction Code - F-47                     Solicitação de adiantamento
+
+---------------------------------------------------------------------------------------------------------
+|Enhancement/ Business Add-in           |Description                                                    |
+---------------------------------------------------------------------------------------------------------
+|Enhancement                                                                                            |
+|SAPLF051                               |Workflow para FI (pré-edição, liberação p/pagamento)           |
+|RFKORIEX                               |Correspondência automática                                     |
+|RFEPOS00                               |Exibição part.individ.: verificação das condições de seleção   |
+|RFAVIS01                               |Exit do cliente para modificação do texto segmento aviso       |
+|FARC0002                               |Verificações adicionais arquivamento dados mestre fornec.MM    |
+|F180A001                               |Débito posterior balanço                                       |
+|F050S007                               |Saída FIDCCH: influência sobre IDoc p/modificação documento    |
+|F050S001                               |FIDCMT, FIDCC1, FIDCC2: processar segmento IDOC espec.usuár.   |
+|F050S002                               |FIDCC1: modificar IDOC / não transmitir                        |
+|F050S003                               |FIDCC2: modificar IDOC / não transmitir                        |
+|F050S004                               |FIDCMT, FIDCC1, FIDCC2: modificar saída IDOC / não transmit.   |
+|F050S005                               |FIDCMT, FIDCC1, FIDCC2 entrada IDOC: modificar doc.FI          |
+|F050S006                               |FI saída IDoc: anular compensação no documento FI              |
+---------------------------------------------------------------------------------------------------------
+| Business Add-in                                                                                       |
+|FBAS_CIN_MF05AFA0                      |Rubr.sal.anál. - compens.adiantamento - transf.imposto p/CIN   |
+|FISPLIT                                |Partição on-line: desconto, diferenças de câmbio               |
+|FI_AUTHORITY_ITEM                      |Verificação de autorização ampliada p/visualiz.doc.(FB03)      |
+|FI_DOC_DISP_LI                         |Desvio da marca de salto em itens de documento (FB03)          |
+|FI_FB08_SUBST_BUDAT                    |FB08: verificar data lçto.p/estorno do doc.contábil c/FB08     |
+|FI_GET_INV_PYMT_AMT                    |BAdI de determinação do montante do pagamento de uma fatura    |
+|FI_HEADER_SUB_1300                     |Ampliação de tela para cabeçalho do documento SAPMF05A         |
+|FI_PAYREF_BADI_010                     |Determinação divergente de KIDNO                               |
+|FI_RES_ITEM_CURRENCY                   |Documento da partida residual com moeda da fatura              |
+|FI_TRANS_DATE_DERIVE                   |Derivar BKPF-WWERT dos outros dados do cabeçalho do doc.       |
+|FVFZ                                   |Substituição para módulo de função do grp.funções FVFZ         |
+|INVOIC_FI_INBOUND                      |BADIs p/processamento entrada INVOIC FI (Fatura fornecedor)    |
+|RFESR000_BADI_001                      |BAdI for Own Processing of POR Item                            |
+|AC_QUANTITY_GET                        |Transferência dos montantes p/contabilidade - exit cliente     |
+|ADJUST_NET_DAYS                        |Modificação do vencimento líquido                              |
+|BADI_BRNCH_TO_BUDAT                    |Derivando BUDAT com base em BRNCH (ENJOY)                      |
+|BADI_ENJ_ALT_ADR                       |Ir para dados alternativos fornecedor/cliente                  |
+|BADI_F040_SCREEN_600                   |Ampliação tela cabeçalho do documento F040 0600                |
+|BADI_FDCB_SUBBAS01                     |Ampliação de tela 1 em dados básicos tela FDCB (010, 510)      |
+|BADI_FDCB_SUBBAS02                     |Ampliação de tela 2 em dados básicos tela FDCB (010, 510)      |
+|BADI_FDCB_SUBBAS03                     |Ampliação de tela 2 em dados básicos tela FDCB (010, 510)      |
+|BADI_FDCB_SUBBAS04                     |Ampliação de tela 4 em dados básicos tela FDCB (010, 510)      |
+|BADI_FDCB_SUBBAS05                     |Ampliação de tela 5 em dados básicos tela FDCB (010, 510)      |
+|BADI_PRKNG_NO_UPDATE                   |BAdI for Deactivating Update of Parked Documents               |
+|F050S008                               |FIDCC1, FIDCC2 IDoc entrada: atualizar ledger de comparação    |
+|FBAS_CIN_LTAX1F02                      |Interface imposto                                              |
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+No.of Exits:         13
+No.of BADis:         26
+

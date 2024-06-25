@@ -1,0 +1,1382 @@
+*-----------------------------------------------------------------------
+* Programa : ZPLOANSR_010
+* Cliente  : GAFISA
+* Módulo   : LOANS
+* Transação: ZTLOANS018
+* Descrição: Controle de Mudança de Data
+* Autor    : Rodrigo Bettencourt       Data: 03/05/2008
+*-----------------------------------------------------------------------
+* Histórico de alterações :
+*-----------------------------------------------------------------------
+* Data      | Change # | Autor             | Alteração
+*-----------------------------------------------------------------------
+* 03/05/2008|DEVK905611|Rodrigo Bettencourt| Desenvolvimento Inicial
+*-----------------------------------------------------------------------
+REPORT  zploansr_010.
+
+*-------------------------------------------------------------------------
+*	Definicao de Tabelas
+*-------------------------------------------------------------------------
+TABLES: ztbloans_sdloans,
+        bseg,
+        vdarl,
+        a960.
+
+*-------------------------------------------------------------------------
+*	Definicao de Grupo de Tipos
+*-------------------------------------------------------------------------
+TYPE-POOLS:   slis.
+
+*-------------------------------------------------------------------------
+*	Definicao de Classe
+*-------------------------------------------------------------------------
+DATA cl_alv TYPE REF TO cl_gui_alv_grid.
+
+*-------------------------------------------------------------------------
+*	Definicao de Constantes
+*-------------------------------------------------------------------------
+CONSTANTS: cc_i(1)     TYPE  c  VALUE 'I',
+           cc_x(1)     TYPE  c  VALUE 'X',
+           cc_1(1)     TYPE  c  VALUE '1',
+           cc_3(1)     TYPE  c  VALUE '3',
+           cc_eq(2)    TYPE  c  VALUE 'EQ',
+           cc_brl(3)   TYPE  c  VALUE 'BRL',
+           cc_raw(3)   TYPE  c  VALUE 'RAW',
+           cc_255(3)   TYPE  c  VALUE '255',
+           cc_0001(4)  TYPE  c  VALUE '0001',
+
+           cn_0201(4)  TYPE  n  VALUE '0201',
+           cn_0261(4)  TYPE  n  VALUE '0261'.
+
+CONSTANTS: cc_gw_relat             TYPE tabname VALUE 'GW_RELAT',
+           cc_ztbloans_alt_dat     TYPE tabname VALUE 'ZTBLOANS_ALT_DAT',
+
+           cc_empresa              TYPE fieldname VALUE 'EMPRESA',
+           cc_descr_empresa        TYPE fieldname VALUE 'DESCR_EMPRESA',
+           cc_empreendimento       TYPE fieldname VALUE 'EMPREENDIMENTO',
+           cc_descr_empreendimento TYPE fieldname VALUE 'DESCR_EMPREENDIMENTO',
+           cc_unidade              TYPE fieldname VALUE 'UNIDADE',
+           cc_negocio              TYPE fieldname VALUE 'NEGOCIO',
+           cc_cliente              TYPE fieldname VALUE 'CLIENTE',
+           cc_descr_cliente        TYPE fieldname VALUE 'DESCR_CLIENTE',
+           cc_projeto_financeiro   TYPE fieldname VALUE 'PROJETO_FINANCEIRO',
+           cc_contrato             TYPE fieldname VALUE 'CONTRATO',
+           cc_dt_inicio_contr      TYPE fieldname VALUE 'DT_INICIO_CONTR',
+           cc_dt_fim_contrato      TYPE fieldname VALUE 'DT_FIM_CONTRATO',
+           cc_dt_inicio_juros      TYPE fieldname VALUE 'DT_INICIO_JUROS',
+           cc_dt_vencto            TYPE fieldname VALUE 'DT_VENCTO',
+           cc_dt_calculo           TYPE fieldname VALUE 'DT_CALCULO',
+           cc_vlr_parc_mi          TYPE fieldname VALUE 'VLR_PARC_MI',
+           cc_moeda_parc_mi        TYPE fieldname VALUE 'MOEDA_PARC_MI',
+           cc_vlr_parc_mt          TYPE fieldname VALUE 'VLR_PARC_MT',
+           cc_moeda_parc_mt        TYPE fieldname VALUE 'MOEDA_PARC_MT',
+
+           cc_n_dt_inic_juros      TYPE fieldname VALUE 'N_DT_INIC_JUROS',
+           cc_n_dt_vencto          TYPE fieldname VALUE 'N_DT_VENC_JUROS',
+           cc_n_dt_calc            TYPE fieldname VALUE 'N_DT_CALC_JUROS',
+           cc_vlr_parc_rec_mi      TYPE fieldname VALUE 'VLR_PARC_REC_MI',
+           cc_moeda_parc_rec_mi    TYPE fieldname VALUE 'MOEDA_PARC_REC_MI',
+           cc_vlr_parc_rec_mt      TYPE fieldname VALUE 'VLR_PARC_REC_MT',
+           cc_moeda_parc_rec_mt    TYPE fieldname VALUE 'MOEDA_PARC_REC_MT',
+
+           cc_zf_alv_ucomm         TYPE slis_formname VALUE 'ZF_ALV_UCOMM'.
+
+
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Tipos
+*-------------------------------------------------------------------------
+
+TYPES:
+
+BEGIN OF sdloans_type,
+  empresa        TYPE ztbloans_sdloans-empresa,
+  divisao        TYPE ztbloans_sdloans-divisao,
+  cliente        TYPE ztbloans_sdloans-cliente,
+  torre          TYPE ztbloans_sdloans-torre,
+  apartamento    TYPE ztbloans_sdloans-apartamento,
+  unidade_res    TYPE ztbloans_sdloans-unidade_res,
+  sequencia      TYPE ztbloans_sdloans-sequencia,
+  data_venda     TYPE ztbloans_sdloans-data_venda,
+  ag_ordem_venda TYPE ztbloans_sdloans-ag_ordem_venda,
+  contrato_serie TYPE ztbloans_sdloans-contrato_serie,
+  tipo_produto   TYPE ztbloans_sdloans-tipo_produto,
+END OF sdloans_type,
+
+BEGIN OF vdarl_type,
+  bukrs   TYPE vdarl-bukrs,
+  ranl    TYPE vdarl-ranl,
+  sanlf   TYPE vdarl-sanlf,
+  gsart   TYPE vdarl-gsart,
+  sgr1    TYPE vdarl-sgr1,
+  bzusage TYPE vdarl-bzusage,
+END OF vdarl_type,
+
+BEGIN OF vdbeki_type,
+ bukrs     TYPE vdbeki-bukrs,
+ rbelkpfd  TYPE vdbeki-rbelkpfd,
+ ranl      TYPE vdbeki-ranl,
+END OF vdbeki_type,
+
+BEGIN OF vdbepi_type,
+ bukrs     TYPE vdbepi-bukrs,
+ rbelkpfd  TYPE vdbepi-rbelkpfd,
+ sbewart   TYPE vdbepi-sbewart,
+END OF vdbepi_type,
+
+BEGIN OF usr_email_type,
+  bname      TYPE usr21-bname,
+  persnumber TYPE usr21-persnumber,
+  addrnumber TYPE usr21-addrnumber,
+  smtp_addr  TYPE adr6-smtp_addr,
+END OF usr_email_type,
+
+BEGIN OF vzzkoko_type,
+  bukrs    TYPE vzzkoko-bukrs,
+  rkey1    TYPE vzzkoko-rkey1,
+  dguel_kk TYPE vzzkoko-dguel_kk,
+  stilgart TYPE vzzkoko-stilgart,
+  kzahlung TYPE vzzkoko-kzahlung,
+  szbmeth  TYPE vzzkoko-szbmeth,
+  dblfz    TYPE vzzkoko-dblfz,
+  delfz    TYPE vzzkoko-delfz,
+  defsz    TYPE vzzkoko-defsz,
+  sincl    TYPE vzzkoko-sincl,
+  sultefsz TYPE vzzkoko-sultefsz,
+  skalidwt TYPE vzzkoko-skalidwt,
+END OF vzzkoko_type,
+
+BEGIN OF relat_type,
+  marc                 TYPE c, "Marcador de linha
+  empresa              TYPE ztbloans_sdloans-empresa,
+  descr_empresa        TYPE t001-butxt,
+  empreendimento       TYPE ztbloans_sdloans-divisao,
+  descr_empreendimento TYPE viob01-xwetext,
+  unidade              TYPE ztbloans_sdloans-apartamento,
+  negocio              TYPE vdarl-sgr1,
+  cliente              TYPE ztbloans_sdloans-cliente,
+  descr_cliente(40)    TYPE c,
+  projeto_financeiro   TYPE ztbloans_sdloans-ag_ordem_venda,
+  contrato             TYPE ztbloans_sdloans-contrato_serie,
+  dt_inicio_contr      TYPE vzzkopo-dguel_kk,
+  dt_fim_contrato      TYPE vzzkoko-delfz,
+  dt_inicio_juros      TYPE vzzkopo-dguel_kp,
+  dt_vencto            TYPE vzzkopo-dfaell,
+  dt_calculo           TYPE vzzkopo-dvalut,
+  vlr_parc_mi          TYPE vzzkopo-bkond,
+  moeda_parc_mi        TYPE vzzkopo-swhrkond,
+  vlr_parc_mt_curr     TYPE vzzkopo-bkond,
+  vlr_parc_mt(30)      TYPE c,
+  moeda_parc_mt        TYPE vzzkopo-swhrkond,
+  n_dt_inic_juros      TYPE vzzkopo-dguel_kp,
+  n_dt_venc_juros      TYPE vzzkopo-dfaell,
+  n_dt_calc_juros      TYPE vzzkopo-dvalut,
+  vlr_parc_rec_mi      TYPE vzzkopo-bkond,
+  moeda_parc_rec_mi    TYPE vzzkopo-swhrkond,
+  vlr_parc_rec_mt_curr TYPE vzzkopo-bkond,
+  vlr_parc_rec_mt(30)  TYPE c,
+  moeda_parc_rec_mt    TYPE vzzkopo-swhrkond,
+END OF relat_type,
+
+BEGIN OF t001_type,
+  bukrs  TYPE  t001-bukrs,
+  butxt  TYPE  t001-butxt,
+END OF t001_type,
+
+BEGIN OF viob01_type,
+  bukrs    TYPE viob01-bukrs,
+  gsber    TYPE viob01-gsber,
+  xwetext  TYPE viob01-xwetext,
+END OF viob01_type,
+
+BEGIN OF but000_type,
+  partner     TYPE but000-partner,
+  name_last   TYPE but000-name_last,
+  name_first  TYPE but000-name_first,
+END OF but000_type,
+
+BEGIN OF tzk01_type,
+  skoart   TYPE tzk01-skoart,
+  sbewart1 TYPE tzk01-sbewart1,
+  sbewziti TYPE tzk01-sbewziti,
+END OF tzk01_type,
+
+BEGIN OF envios_type,
+  usuario_aprov TYPE ztbloans_pf_data-usuario_aprov,
+  usuario_alter TYPE ztbloans_pf_data-usuario_alter,
+  n_alter(3)    TYPE n,
+END OF envios_type,
+
+
+***Estrutura para colunas do ALV
+slis_t_fieldcat_alv_type  TYPE slis_t_fieldcat_alv.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Tabelas Internas
+*-------------------------------------------------------------------------
+DATA: gw_sdloans      TYPE TABLE OF sdloans_type,
+      gw_sdloans_aux  TYPE TABLE OF sdloans_type,
+      gw_vdarl        TYPE TABLE OF vdarl_type,
+      gw_pfdata       TYPE TABLE OF ztbloans_pf_data,
+      gw_usr_email    TYPE TABLE OF usr_email_type,
+      gw_vzzkopo      TYPE TABLE OF vzzkopo,
+      gw_vzzkopo_aux  TYPE TABLE OF vzzkopo,
+      gw_vzzkoko      TYPE TABLE OF vzzkoko_type,
+      gw_t001         TYPE TABLE OF t001_type,
+      gw_viob01       TYPE TABLE OF viob01_type,
+      gw_but000       TYPE TABLE OF but000_type,
+      gw_relat        TYPE TABLE OF relat_type,
+      gw_sbepp        TYPE TABLE OF vzzbepp,
+      gw_vvzzkopo     TYPE TABLE OF vvzzkopo,
+      gw_tzk01        TYPE TABLE OF tzk01_type,
+      gw_log          TYPE TABLE OF zstloans_log010,
+      gw_alt_dat      TYPE TABLE OF ztbloans_alt_dat,
+      gw_envios       TYPE TABLE OF envios_type.
+
+***Tabelas internas para ALV
+DATA: gw_fieldcat  TYPE STANDARD TABLE OF slis_fieldcat_alv,
+      gw_sort      TYPE TABLE OF slis_sortinfo_alv.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Ponteiros
+*-------------------------------------------------------------------------
+FIELD-SYMBOLS: <fs_sdloans>       TYPE  sdloans_type,
+               <fs_vdarl>         TYPE  vdarl_type,
+               <fs_pfdata>        TYPE  ztbloans_pf_data,
+               <fs_usr_email>     TYPE  usr_email_type,
+               <fs_vzzkopo_0201>  TYPE  vzzkopo,
+               <fs_vzzkopo_0261>  TYPE  vzzkopo,
+               <fs_vzzkoko>       TYPE  vzzkoko_type,
+               <fs_t001>          TYPE  t001_type,
+               <fs_viob01>        TYPE  viob01_type,
+               <fs_but000>        TYPE  but000_type,
+               <fs_tzk01>         TYPE  tzk01_type.
+
+*-------------------------------------------------------------------------
+*	Definicao de Estruturas
+*-------------------------------------------------------------------------
+DATA:  gs_sdloans_aux  TYPE sdloans_type,
+       gs_relat        TYPE relat_type,
+       gs_vzzkopo      TYPE vzzkopo,
+       gs_vvzzkopo     TYPE vvzzkopo,
+       gs_log          TYPE zstloans_log010,
+       gs_alt_dat      TYPE ztbloans_alt_dat,
+       gs_envios       TYPE envios_type,
+       gs_sbepp        TYPE vzzbepp.
+
+***Estruturas para alv
+DATA:  gs_layout  TYPE slis_layout_alv,
+       gs_sort    LIKE LINE OF gw_sort.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Intervalos
+*-------------------------------------------------------------------------
+DATA: r_skoart  TYPE RANGE OF vzzkopo-skoart,
+      rs_skoart LIKE LINE OF r_skoart,
+
+      r_sbewart TYPE RANGE OF vdbepi-sbewart,
+      rs_sbewart LIKE LINE OF r_sbewart.
+
+
+*-------------------------------------------------------------------------
+*	Definicao de Variaveis
+*-------------------------------------------------------------------------
+
+
+*-------------------------------------------------------------------------
+*	Definicão da Tela de Selecão
+*-------------------------------------------------------------------------
+SELECT-OPTIONS:
+ so_bukrs  FOR  ztbloans_sdloans-empresa         OBLIGATORY,                "Empresa
+ so_div    FOR  bseg-gsber                       , "NO INTERVALS NO-EXTENSION, "Divisão
+ so_torre  FOR  a960-sgenr , "ztbloans_sdloans-torre, "NO INTERVALS NO-EXTENSION   MATCHCODE OBJECT hhb_sgenr, "Torre/Bloco
+ so_unid   FOR  ztbloans_sdloans-apartamento     , "NO INTERVALS NO-EXTENSION   MATCHCODE OBJECT mcme, "Unidade
+* so_ov     FOR  ztbloans_sdloans-ag_ordem_venda  NO INTERVALS NO-EXTENSION, "Ordem de venda
+ so_contr  FOR  vdarl-ranl                       , "NO INTERVALS NO-EXTENSION, "Nº Contrato
+ so_cli    FOR  ztbloans_sdloans-cliente         , "NO INTERVALS NO-EXTENSION, "Cliente
+ so_data   FOR  sy-datum                         OBLIGATORY.                "Data de Início de Juros
+
+*-------------------------------------------------------------------------
+*	Evento: Start-of-Selection
+*-------------------------------------------------------------------------
+START-OF-SELECTION.
+
+***Busca dados das tabelas transparentes
+  PERFORM zf_buscar_dados.
+
+***Carregar relatório de RELAT
+  PERFORM zf_carregar_relatorio.
+
+***Preenche estrutura de campos para o ALV
+  PERFORM zf_preencher_fieldcat .
+
+***Exibe relatório ALV
+  PERFORM zf_exibir_alv.
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_BUSCAR_DADOS
+*---------------------------------------------------------------------*
+*       Busca dados das tabelas transparentes
+*----------------------------------------------------------------------*
+FORM zf_buscar_dados .
+
+***Busca dados da tabela de interface entre os módulos SD e LOANS
+  SELECT empresa divisao cliente torre apartamento unidade_res sequencia
+         data_venda ag_ordem_venda contrato_serie tipo_produto
+    INTO TABLE gw_sdloans
+      FROM  ztbloans_sdloans
+        WHERE  empresa        IN so_bukrs
+        AND    divisao        IN so_div
+        AND    cliente        IN so_cli
+        AND    torre          IN so_torre
+        AND    apartamento    IN so_unid
+        AND    contrato_serie IN so_contr
+        AND    situacao       = 'VIGENTE'.
+  IF sy-subrc EQ 0.
+    SORT gw_sdloans BY empresa contrato_serie.
+  ELSE.
+    MESSAGE s002(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+
+**Verifica Autorização e exclui empresas sem permissão
+  gw_sdloans_aux[] = gw_sdloans[].
+  DELETE ADJACENT DUPLICATES FROM gw_sdloans_aux COMPARING empresa.
+
+  LOOP AT gw_sdloans_aux INTO gs_sdloans_aux.
+    AUTHORITY-CHECK OBJECT 'J_B_BUKRS'
+             ID 'BUKRS' FIELD gs_sdloans_aux-empresa.
+
+    IF sy-subrc <> 0.
+      CLEAR gs_log.
+      gs_log-empresa  = gs_sdloans_aux-empresa.
+      MESSAGE s013(zlloans001) INTO gs_log-obs.
+      APPEND gs_log TO gw_log.
+      DELETE gw_sdloans WHERE empresa = gs_sdloans_aux-empresa.
+    ENDIF.
+  ENDLOOP.
+
+  IF gw_sdloans IS INITIAL.
+    PERFORM zf_exibir_log.
+    STOP.
+  ENDIF.
+
+**Busca nome(s) da(s) empresa(s)
+  gw_sdloans_aux[] = gw_sdloans[].
+  DELETE ADJACENT DUPLICATES FROM gw_sdloans_aux COMPARING empresa.
+
+  SELECT bukrs butxt
+    INTO TABLE gw_t001
+      FROM t001
+        FOR ALL ENTRIES IN gw_sdloans_aux
+        WHERE bukrs = gw_sdloans_aux-empresa.
+  IF sy-subrc EQ 0.
+    SORT gw_t001 BY bukrs.
+  ENDIF.
+
+**Busca nome(s) do(s) empreendimento(s)
+  gw_sdloans_aux[] = gw_sdloans[].
+  DELETE ADJACENT DUPLICATES FROM gw_sdloans_aux COMPARING empresa divisao.
+
+  SELECT bukrs gsber xwetext
+    INTO TABLE gw_viob01
+      FROM viob01
+        FOR ALL ENTRIES IN gw_sdloans_aux
+        WHERE bukrs = gw_sdloans_aux-empresa
+        AND   gsber = gw_sdloans_aux-divisao.
+
+  IF sy-subrc EQ 0.
+    SORT gw_viob01 BY bukrs gsber.
+  ENDIF.
+
+**Busca nome(s) do(s) cliente(s)
+  gw_sdloans_aux[] = gw_sdloans[].
+  DELETE ADJACENT DUPLICATES FROM gw_sdloans_aux COMPARING cliente.
+
+  SELECT partner name_last name_first
+    INTO TABLE gw_but000
+      FROM but000
+        FOR ALL ENTRIES IN gw_sdloans_aux
+        WHERE partner = gw_sdloans_aux-cliente.
+  IF sy-subrc EQ 0.
+    SORT gw_but000 BY partner.
+  ENDIF.
+
+**Busca contratos na tabela de empréstimos
+  SELECT bukrs ranl sanlf gsart sgr1 bzusage
+    INTO TABLE gw_vdarl
+      FROM vdarl
+        FOR ALL ENTRIES IN gw_sdloans
+        WHERE bukrs = gw_sdloans-empresa
+        AND   ranl  = gw_sdloans-contrato_serie.
+  IF sy-subrc EQ 0.
+    SORT gw_vdarl BY sgr1.
+  ELSE.
+    MESSAGE s002(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+
+**Busca dados de perfil de usuário para Controle de mudança de data
+  SELECT *
+    INTO TABLE gw_pfdata
+      FROM ztbloans_pf_data
+      FOR ALL ENTRIES IN gw_vdarl
+      WHERE negocio       = gw_vdarl-sgr1
+      AND   usuario_alter = sy-uname.
+  IF sy-subrc EQ 0.
+    SORT gw_pfdata BY usuario_aprov.
+  ELSE.
+    MESSAGE s013(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+**Busca e-mail do usuário aprovador
+  SELECT a~bname a~persnumber a~addrnumber b~smtp_addr
+    INTO TABLE gw_usr_email
+      FROM usr21 AS a
+        INNER JOIN adr6 AS b
+        ON a~persnumber = b~persnumber AND
+           a~addrnumber = b~addrnumber
+          FOR ALL ENTRIES IN gw_pfdata
+          WHERE  a~bname = gw_pfdata-usuario_aprov.
+
+  rs_skoart-sign = cc_i.
+  rs_skoart-option = cc_eq.
+  rs_skoart-low = cn_0201.
+  APPEND rs_skoart TO r_skoart.
+  rs_skoart-low = cn_0261.
+  APPEND rs_skoart TO r_skoart.
+
+**Busca condições de 'Juros Nominal' e 'Amortização Principal' dos contratos
+  SELECT *
+    INTO TABLE gw_vzzkopo
+      FROM vzzkopo
+        FOR ALL ENTRIES IN gw_sdloans
+        WHERE bukrs    =  gw_sdloans-empresa
+        AND   rkey1    =  gw_sdloans-contrato_serie
+        AND   skoart   = '0201'
+        AND   dguel_kp IN so_data.
+
+
+  IF sy-subrc EQ 0.
+    SORT gw_vzzkopo BY bukrs rkey1 dguel_kk.
+
+**** Seleciona os movimentos 0261
+    SELECT *
+      INTO TABLE gw_vzzkopo_aux
+        FROM vzzkopo
+          FOR ALL ENTRIES IN gw_vzzkopo
+          WHERE bukrs    =  gw_vzzkopo-bukrs
+          AND   rkey1    =  gw_vzzkopo-rkey1
+          AND   skoart   IN r_skoart.
+
+    IF NOT gw_vzzkopo_aux[] IS INITIAL.
+      REFRESH: gw_vzzkopo[].
+      gw_vzzkopo[] = gw_vzzkopo_aux[].
+      REFRESH: gw_vzzkopo_aux[].
+    ENDIF.
+
+  ELSE.
+    MESSAGE s002(zlloans001) DISPLAY LIKE 'E'.
+    STOP.
+  ENDIF.
+
+
+**Busca dados de cabeçalho das condições dos contratos (Conforme itens encontrados)
+  SELECT bukrs rkey1 dguel_kk stilgart kzahlung szbmeth dblfz delfz defsz sincl sultefsz skalidwt
+    INTO TABLE gw_vzzkoko
+      FROM vzzkoko
+        FOR ALL ENTRIES IN gw_vzzkopo
+        WHERE bukrs    = gw_vzzkopo-bukrs
+        AND   rkey1    = gw_vzzkopo-rkey1
+        AND   dguel_kk = gw_vzzkopo-dguel_kk.
+
+**Busca tipos de condição
+  SELECT skoart sbewart1 sbewziti
+    INTO TABLE gw_tzk01
+      FROM tzk01
+         WHERE rantyp  =  cc_1
+         AND   skoart  IN r_skoart.
+
+ENDFORM.                    " ZF_BUSCAR_DADOS
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_CARREGAR_RELATORIO
+*---------------------------------------------------------------------*
+*      Carrega o relatório utilizando os dados obtidos
+*---------------------------------------------------------------------*
+FORM zf_carregar_relatorio .
+
+  LOOP AT gw_sdloans ASSIGNING <fs_sdloans>.
+
+    READ TABLE gw_t001 ASSIGNING <fs_t001> WITH KEY bukrs = <fs_sdloans>-empresa.
+
+    READ TABLE gw_viob01 ASSIGNING <fs_viob01> WITH KEY bukrs = <fs_sdloans>-empresa
+                                                        gsber = <fs_sdloans>-divisao.
+
+    READ TABLE gw_but000 ASSIGNING <fs_but000> WITH KEY partner = <fs_sdloans>-cliente.
+
+    READ TABLE gw_vdarl ASSIGNING <fs_vdarl> WITH KEY bukrs  =  <fs_sdloans>-empresa
+                                                      ranl   =  <fs_sdloans>-contrato_serie.
+
+    READ TABLE gw_vzzkopo ASSIGNING <fs_vzzkopo_0201> WITH KEY bukrs  = <fs_sdloans>-empresa
+                                                               rkey1  = <fs_sdloans>-contrato_serie
+                                                               skoart = cn_0201.
+    IF sy-subrc NE 0.
+      CONTINUE.
+    ENDIF.
+
+    READ TABLE gw_vzzkopo ASSIGNING <fs_vzzkopo_0261> WITH KEY bukrs  = <fs_sdloans>-empresa
+                                                               rkey1  = <fs_sdloans>-contrato_serie
+                                                               skoart = cn_0261.
+*                                                               skoart = cn_0201.
+    IF sy-subrc NE 0.
+      CONTINUE.
+    ENDIF.
+
+    READ TABLE gw_vzzkoko ASSIGNING <fs_vzzkoko> WITH KEY bukrs    = <fs_vzzkopo_0201>-bukrs
+                                                          rkey1    = <fs_vzzkopo_0201>-rkey1
+                                                          dguel_kk = <fs_vzzkopo_0201>-dguel_kk.
+
+    CLEAR gs_relat.
+    gs_relat-empresa               = <fs_sdloans>-empresa.
+    IF <fs_t001> IS ASSIGNED.
+      gs_relat-descr_empresa       = <fs_t001>-butxt.
+    ENDIF.
+    gs_relat-empreendimento        = <fs_sdloans>-divisao.
+    IF <fs_viob01> IS ASSIGNED.
+      gs_relat-descr_empreendimento = <fs_viob01>-xwetext.
+    ENDIF.
+    gs_relat-unidade               = <fs_sdloans>-apartamento.
+    IF <fs_vdarl> IS ASSIGNED.
+      gs_relat-negocio             = <fs_vdarl>-sgr1.
+    ENDIF.
+    gs_relat-cliente               = <fs_sdloans>-cliente.
+    IF <fs_but000> IS ASSIGNED.
+      CONCATENATE
+      <fs_but000>-name_first
+      <fs_but000>-name_last
+      INTO
+      gs_relat-descr_cliente SEPARATED BY space.
+    ENDIF.
+    gs_relat-projeto_financeiro    = <fs_sdloans>-ag_ordem_venda.
+    gs_relat-contrato              = <fs_sdloans>-contrato_serie.
+    gs_relat-dt_inicio_contr       = <fs_vzzkopo_0201>-dguel_kk.
+    IF <fs_vzzkoko> IS ASSIGNED.
+      gs_relat-dt_fim_contrato       = <fs_vzzkoko>-delfz.
+    ENDIF.
+    gs_relat-dt_inicio_juros       = <fs_vzzkopo_0201>-dguel_kp.
+    gs_relat-dt_vencto             = <fs_vzzkopo_0201>-dfaell.
+    gs_relat-dt_calculo            = <fs_vzzkopo_0201>-dvalut.
+
+    IF <fs_vzzkopo_0261>-swhrkond EQ cc_brl.
+      gs_relat-vlr_parc_mi         = <fs_vzzkopo_0261>-bkond.
+      gs_relat-moeda_parc_mi       = <fs_vzzkopo_0261>-swhrkond.
+    ELSE.
+      gs_relat-vlr_parc_mt_curr    = <fs_vzzkopo_0261>-bkond.
+      gs_relat-moeda_parc_mt       = <fs_vzzkopo_0261>-swhrkond.
+      WRITE <fs_vzzkopo_0261>-bkond CURRENCY <fs_vzzkopo_0261>-swhrkond TO gs_relat-vlr_parc_mt.
+      gs_relat-moeda_parc_mi       = cc_brl.
+      CALL FUNCTION 'CONVERT_TO_LOCAL_CURRENCY'
+        EXPORTING
+          date             = <fs_vzzkopo_0261>-dfaell
+          foreign_amount   = <fs_vzzkopo_0261>-bkond
+          foreign_currency = <fs_vzzkopo_0261>-swhrkond
+          local_currency   = cc_brl
+        IMPORTING
+          local_amount     = gs_relat-vlr_parc_mi.
+    ENDIF.
+    APPEND gs_relat TO gw_relat.
+
+  ENDLOOP.
+
+  UNASSIGN:
+  <fs_sdloans>,
+  <fs_t001>,
+  <fs_viob01>,
+  <fs_but000>,
+  <fs_vdarl>,
+  <fs_vzzkopo_0201>,
+  <fs_vzzkopo_0261>,
+  <fs_vzzkoko>.
+
+ENDFORM.                    " ZF_CARREGAR_RELATORIO
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_PREENCHER_FIELDCAT
+*---------------------------------------------------------------------*
+*      text
+*---------------------------------------------------------------------*
+FORM zf_preencher_fieldcat .
+
+* Catálogo de campos e respectivas descrições do relatório ALV
+  DATA: ls_fieldcat    TYPE slis_fieldcat_alv.
+
+* Posição da coluna
+  DATA: li_col_pos TYPE i.
+
+* Preenche fieldcat ALV
+  PERFORM zf_alv_fieldcat TABLES gw_fieldcat USING:
+* 01 Empresa
+      ls_fieldcat li_col_pos cc_empresa              cc_gw_relat space              space               space    text-010  space  '4' ,
+* 02 Descrição Empresa
+      ls_fieldcat li_col_pos cc_descr_empresa        cc_gw_relat space              space               space    text-011  cc_x   '25',
+* 03 Empreendimento
+      ls_fieldcat li_col_pos cc_empreendimento       cc_gw_relat space              space               space    text-012  space  '4' ,
+* 04 Descrição Empreendimento
+      ls_fieldcat li_col_pos cc_descr_empreendimento cc_gw_relat space              space               space    text-013  cc_x   '30',
+* 05 Unidade
+      ls_fieldcat li_col_pos cc_unidade              cc_gw_relat space              space               space    text-014  space  '8' ,
+* 06 Negócio
+      ls_fieldcat li_col_pos cc_negocio              cc_gw_relat space              space               space    text-015  space  '8' ,
+* 07 Cliente
+      ls_fieldcat li_col_pos cc_cliente              cc_gw_relat space              space               space    text-016  space  '10',
+* 08 Descrição Cliente
+      ls_fieldcat li_col_pos cc_descr_cliente        cc_gw_relat space              space               space    text-017  cc_x   '40',
+* 09 Projeto Financeiro
+      ls_fieldcat li_col_pos cc_projeto_financeiro   cc_gw_relat space              space               space    text-018  space  '13',
+* 10 Contrato
+      ls_fieldcat li_col_pos cc_contrato             cc_gw_relat space              space               space    text-019  space  '13',
+* 11 Data início Contrato
+      ls_fieldcat li_col_pos cc_dt_inicio_contr      cc_gw_relat space              space               space    text-020  space  '10',
+* 12 Data Fim Contrato
+      ls_fieldcat li_col_pos cc_dt_fim_contrato      cc_gw_relat space              space               space    text-021  space  '10',
+* 13 Data início Juros
+      ls_fieldcat li_col_pos cc_dt_inicio_juros      cc_gw_relat space              space               space    text-022  space  '10',
+* 14 Data Vencimento Juros
+      ls_fieldcat li_col_pos cc_dt_vencto            cc_gw_relat space              space               space    text-023  space  '10',
+* 15 Data Calculo Juros
+      ls_fieldcat li_col_pos cc_dt_calculo           cc_gw_relat space              space               space    text-024  space  '10',
+* 16 Valor da Parcela
+      ls_fieldcat li_col_pos cc_vlr_parc_mi          cc_gw_relat space              space               space    text-025  space  '13',
+* 17 Valor da Parcela
+      ls_fieldcat li_col_pos cc_moeda_parc_mi        cc_gw_relat space              space               space    text-026  space  '5' ,
+* 18 Valor da Parcela
+      ls_fieldcat li_col_pos cc_vlr_parc_mt          cc_gw_relat space              space               space    text-027  space  '13',
+* 19 Valor da Parcela
+      ls_fieldcat li_col_pos cc_moeda_parc_mt        cc_gw_relat space              space               space    text-026  space  '5' ,
+* 20 Nova Data Início de Juros
+      ls_fieldcat li_col_pos cc_n_dt_inic_juros     cc_gw_relat cc_n_dt_inic_juros  cc_ztbloans_alt_dat cc_x     space     space  '10',
+* 21 Nova Data Vencimento Juros
+      ls_fieldcat li_col_pos cc_n_dt_vencto         cc_gw_relat cc_n_dt_vencto      cc_ztbloans_alt_dat cc_x     space     space  '10',
+* 22 Nova Data de Cálculo
+      ls_fieldcat li_col_pos cc_n_dt_calc           cc_gw_relat cc_n_dt_calc        cc_ztbloans_alt_dat cc_x     space     space  '10',
+* 23 Valor da Parcela Recalculado
+      ls_fieldcat li_col_pos cc_vlr_parc_rec_mi     cc_gw_relat space               space                space   text-028  space  '13',
+* 24 Valor da Parcela Recalculado
+      ls_fieldcat li_col_pos cc_moeda_parc_rec_mi   cc_gw_relat space               space                space   text-026  space  '5' ,
+* 25 Valor da Parcela Recalculado
+      ls_fieldcat li_col_pos cc_vlr_parc_rec_mt     cc_gw_relat space               space                space   text-029  space  '13',
+* 26 Valor da Parcela Recalculado
+      ls_fieldcat li_col_pos cc_moeda_parc_rec_mt   cc_gw_relat space               space                space   text-026  space  '5' .
+
+
+* Preencher Lay-out do ALV
+  PERFORM zf_alv_fill_layout.
+
+ENDFORM.                    " ZF_PREENCHER_FIELDCAT
+
+
+*-----------------------------------------------------------------------
+* Form.....: zf_alv_fieldcat
+* Descrição: preenche fieldcat ALV
+* Entradas.: p_t_fieldcat          " tabela fieldcat
+*            p_s_fieldcat          " estrutura fieldcat
+*            p_col_pos             " posição da coluna
+*            p_fieldname           " nome do campo
+*            p_tabname             " nome da tabela
+*            p_ref_fieldname       " nome campo referencia
+*            p_ref_tabname         " nome tabela referencia
+*            p_edit                " possibilita edição
+*            p_seltext_l           " Nome do campo para exibição
+*            p_no_out              " Oculta campo
+*            p_outputlen           " Tamanho do campo
+* Saídas...: N/A
+*-----------------------------------------------------------------------
+FORM zf_alv_fieldcat TABLES p_t_fieldcat        TYPE slis_t_fieldcat_alv
+                     USING  p_s_fieldcat        TYPE slis_fieldcat_alv
+                            p_col_pos           TYPE sy-cucol
+                            p_fieldname         TYPE slis_fieldname
+                            p_tabname           TYPE slis_tabname
+                            p_ref_fieldname     TYPE dd03p-fieldname
+                            p_ref_tabname       TYPE dd03p-tabname
+                            p_edit              TYPE c
+                            p_seltext_l         TYPE dd03p-scrtext_l
+                            p_no_out            TYPE c
+                            p_outputlen         TYPE dd03p-outputlen.
+
+  p_col_pos = p_col_pos + 1.
+
+  p_s_fieldcat-col_pos       = p_col_pos.
+  p_s_fieldcat-fieldname     = p_fieldname.
+  p_s_fieldcat-tabname       = p_tabname.
+  p_s_fieldcat-ref_fieldname = p_ref_fieldname.
+  p_s_fieldcat-ref_tabname   = p_ref_tabname.
+  p_s_fieldcat-edit          = p_edit.
+  p_s_fieldcat-seltext_l     = p_seltext_l.
+  p_s_fieldcat-no_out        = p_no_out.
+  p_s_fieldcat-outputlen     = p_outputlen.
+
+  APPEND p_s_fieldcat TO p_t_fieldcat.
+  CLEAR p_s_fieldcat.
+
+ENDFORM.                    "zf_alv_fieldcat
+
+
+*-----------------------------------------------------------------------
+* Form:      ZF_ALV_FILL_LAYOUT
+* Descrição: Preenche estrutura de layout ALV
+* Entradas:  N/A
+* Saídas:    N/A
+*-----------------------------------------------------------------------
+FORM zf_alv_fill_layout.
+
+  gs_layout-expand_all        = 'X'.      "Abrir subitens.
+  gs_layout-colwidth_optimize = ' '.      "Largura melhor possível da coluna.
+  gs_layout-zebra             = 'X'.      "zebra.
+  gs_layout-box_fieldname     = 'MARC'.   "Box.
+
+  gs_sort-spos      = 1.
+  gs_sort-fieldname = 'EMPRESA'.
+  APPEND gs_sort TO gw_sort.
+
+ENDFORM.                    "zf_alv_fill_layout
+
+
+*---------------------------------------------------------------------*
+* Form  ZF_EXIBIR_ALV
+* Descrição: Exibe relatório ALV
+* Entradas:  N/A
+* Saídas:    N/A
+*---------------------------------------------------------------------*
+FORM zf_exibir_alv .
+
+*** Gera o ALV
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-repid
+      i_callback_pf_status_set = 'ZF_SET_PF_STATUS'
+      i_callback_user_command  = cc_zf_alv_ucomm
+      is_layout                = gs_layout
+      it_fieldcat              = gw_fieldcat
+      it_sort                  = gw_sort
+    TABLES
+      t_outtab                 = gw_relat
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+
+  CHECK sy-subrc = 0.
+
+  IF NOT gw_log IS INITIAL.
+    PERFORM zf_exibir_log.
+  ENDIF.
+
+ENDFORM.                    " ZF_EXIBIR_ALV
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_SET_PF_STATUS
+* Descrição: Carrega barra de botões
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_set_pf_status                                       "#EC CALLED
+                USING rt_extab TYPE slis_t_extab.           "#EC NEEDED
+
+  SET PF-STATUS 'ZF_ALV_PF_STATUS'.
+
+ENDFORM.                    "zf_set_pf_status
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_ALV_UCOMM
+* Descrição: Ações do usuário
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_alv_ucomm USING ucomm    LIKE sy-ucomm              "#EC CALLED
+                        selfield TYPE slis_selfield.        "#EC NEEDED
+  DATA lc_checkmodif TYPE c.
+
+  DATA:  ld_juros           TYPE vzzkopo-dguel_kp,
+         ld_venc_juros      TYPE vzzkopo-dfaell,
+         ld_calc_juros      TYPE vzzkopo-dvalut.
+  CLEAR gw_log[].
+
+  CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+    IMPORTING
+      e_grid = cl_alv.
+
+  CALL METHOD cl_alv->check_changed_data.
+break mcorreia.
+
+  IF ucomm EQ '&RECALCULO'.
+    PERFORM zf_recalcular_parcela CHANGING lc_checkmodif.
+    IF lc_checkmodif EQ cc_x.
+      selfield-refresh = cc_x.
+    ENDIF.
+  ENDIF.
+
+  IF ucomm EQ '&SALVAR'.
+    PERFORM zf_salvar_dados.
+  ENDIF.
+
+  CLEAR: ld_juros,
+         ld_venc_juros,
+         ld_calc_juros.
+
+  IF ucomm EQ 'ZCOPIA'.
+***Le os registros marcados para recalcular
+    CLEAR gs_relat.
+** Verifica se existe uma linha marcada
+    READ TABLE gw_relat INTO gs_relat WITH KEY marc = 'X'.
+    IF sy-subrc <> 0.
+      MESSAGE i000(0k) WITH 'Selecionar uma linha ou data que deseja preencher'.
+
+    ELSE.
+      ld_juros       = gs_relat-n_dt_inic_juros.
+      ld_venc_juros  = gs_relat-n_dt_venc_juros.
+      ld_calc_juros  = gs_relat-n_dt_calc_juros.
+
+      LOOP AT gw_relat INTO gs_relat.
+*       check gs_relat
+        gs_relat-n_dt_inic_juros = ld_juros.
+        gs_relat-n_dt_venc_juros = ld_venc_juros.
+        gs_relat-n_dt_calc_juros = ld_calc_juros.
+
+        MODIFY gw_relat FROM gs_relat INDEX sy-tabix.
+      ENDLOOP.
+***  Gera ALV Novamente
+***   Gera o ALV
+      CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+        EXPORTING
+          i_callback_program       = sy-repid
+          i_callback_pf_status_set = 'ZF_SET_PF_STATUS'
+          i_callback_user_command  = cc_zf_alv_ucomm
+          is_layout                = gs_layout
+          it_fieldcat              = gw_fieldcat
+          it_sort                  = gw_sort
+        TABLES
+          t_outtab                 = gw_relat
+        EXCEPTIONS
+          program_error            = 1
+          OTHERS                   = 2.
+
+      CHECK sy-subrc = 0.
+
+      IF NOT gw_log IS INITIAL.
+        PERFORM zf_exibir_log.
+      ENDIF.
+
+
+    ENDIF.
+  ENDIF.
+
+
+  IF ucomm EQ 'ZDESFAZ'.
+    LOOP AT gw_relat INTO gs_relat.
+*       check gs_relat
+      CLEAR:  gs_relat-n_dt_inic_juros,
+              gs_relat-n_dt_venc_juros,
+              gs_relat-n_dt_calc_juros.
+
+      MODIFY gw_relat FROM gs_relat INDEX sy-tabix.
+    ENDLOOP.
+*** Gera o ALV
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+      EXPORTING
+        i_callback_program       = sy-repid
+        i_callback_pf_status_set = 'ZF_SET_PF_STATUS'
+        i_callback_user_command  = cc_zf_alv_ucomm
+        is_layout                = gs_layout
+        it_fieldcat              = gw_fieldcat
+        it_sort                  = gw_sort
+      TABLES
+        t_outtab                 = gw_relat
+      EXCEPTIONS
+        program_error            = 1
+        OTHERS                   = 2.
+
+    CHECK sy-subrc = 0.
+
+    IF NOT gw_log IS INITIAL.
+      PERFORM zf_exibir_log.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " ZF_ALV_UCOMM
+
+
+*-------------------------------------------------------------------------
+* Form: ZF_RECALCULAR_PARCELA
+* Descrição: Ações do usuário
+* Entradas: N/A
+* Saídas:   N/A
+*-------------------------------------------------------------------------
+FORM zf_recalcular_parcela CHANGING p_checkmodif TYPE c.
+  DATA: ln_tabix  TYPE  sy-tabix,
+        ln_valor  TYPE  vzzkopo-bkond.
+
+  SORT gw_relat BY marc DESCENDING empresa contrato ASCENDING.
+
+***Le os registros marcados para recalcular
+  CLEAR gs_relat.
+  LOOP AT gw_relat INTO gs_relat.
+    IF gs_relat-marc IS INITIAL.
+      EXIT.
+    ENDIF.
+
+    CLEAR: gw_vvzzkopo[].
+    ln_tabix = sy-tabix.
+
+***Verifica se os campos editáveis do ALV foram preenchidos
+    IF  gs_relat-n_dt_inic_juros IS INITIAL OR
+        gs_relat-n_dt_venc_juros IS INITIAL OR
+        gs_relat-n_dt_calc_juros IS INITIAL .
+      CONTINUE.
+    ENDIF.
+
+***Le registro da tabela de interface SD-LOANS
+    READ TABLE gw_sdloans ASSIGNING <fs_sdloans> WITH KEY empresa        = gs_relat-empresa
+                                                          contrato_serie = gs_relat-contrato.
+    IF sy-subrc NE 0.
+      CONTINUE.
+    ENDIF.
+
+***Le registro da tabela de Empréstimos
+    READ TABLE gw_vdarl ASSIGNING <fs_vdarl> WITH KEY bukrs = gs_relat-empresa
+                                                      ranl  = gs_relat-contrato.
+    IF sy-subrc NE 0.
+      CONTINUE.
+    ELSE.
+
+*     Carrega range de Tipo de movimentos válidos
+      rs_sbewart-sign   = 'E'.
+      rs_sbewart-option = 'EQ'.
+      rs_sbewart-low    = cc_0001.
+      APPEND rs_sbewart TO r_sbewart.
+    ENDIF.
+
+***Le registro com tipo de condição igual a "Juros Nominal"
+    CLEAR: gs_vzzkopo, gs_vvzzkopo.
+    READ TABLE gw_vzzkopo INTO gs_vzzkopo WITH KEY bukrs    = gs_relat-empresa
+                                                   rkey1    = gs_relat-contrato
+                                                   dguel_kk = gs_relat-dt_inicio_contr
+                                                   skoart = cn_0201
+*                                                   skoart   = cn_0261
+                                                   dguel_kp = gs_relat-dt_inicio_juros.
+    IF sy-subrc EQ 0.
+      gs_vzzkopo-dguel_kp = gs_relat-n_dt_inic_juros.
+      gs_vzzkopo-dfaell   = gs_relat-n_dt_venc_juros.
+      gs_vzzkopo-dvalut   = gs_relat-n_dt_calc_juros.
+
+      MOVE-CORRESPONDING gs_vzzkopo TO gs_vvzzkopo.
+      READ TABLE gw_tzk01 ASSIGNING  <fs_tzk01> WITH KEY skoart = gs_vvzzkopo-skoart.
+      IF sy-subrc EQ 0.
+        gs_vvzzkopo-sberfima = <fs_tzk01>-sbewziti.
+        APPEND gs_vvzzkopo TO gw_vvzzkopo.
+*       Carrega range de Tipo de movimentos válidos
+        rs_sbewart-sign   = 'E'.
+        rs_sbewart-option = 'EQ'.
+        rs_sbewart-low    = <fs_tzk01>-sbewart1.
+        APPEND rs_sbewart TO r_sbewart.
+      ENDIF.
+    ELSE.
+      CONTINUE.
+    ENDIF.
+
+***Le registro com tipo de condição igual a "Amortização Principal"
+    READ TABLE gw_vzzkopo ASSIGNING <fs_vzzkopo_0201> WITH KEY bukrs  = gs_relat-empresa
+                                                               rkey1  = gs_relat-contrato
+*                                                               skoart = cn_0201.
+                                                               skoart  = cn_0261.
+    IF sy-subrc EQ 0.
+      CLEAR: gs_vzzkopo, gs_vvzzkopo.
+      gs_vzzkopo = <fs_vzzkopo_0201>.
+
+      MOVE-CORRESPONDING gs_vzzkopo TO gs_vvzzkopo.
+      READ TABLE gw_tzk01 ASSIGNING  <fs_tzk01> WITH KEY skoart = gs_vvzzkopo-skoart.
+      IF sy-subrc EQ 0.
+        gs_vvzzkopo-sberfima = <fs_tzk01>-sbewziti.
+        APPEND gs_vvzzkopo TO gw_vvzzkopo.
+*       Carrega range de Tipo de movimentos válidos
+        rs_sbewart-sign   = 'E'.
+        rs_sbewart-option = 'EQ'.
+        rs_sbewart-low    = <fs_tzk01>-sbewart1.
+        APPEND rs_sbewart TO r_sbewart.
+      ENDIF.
+    ELSE.
+      CONTINUE.
+    ENDIF.
+
+***Le registro de cabeçalho das condições do contrato
+    READ TABLE gw_vzzkoko ASSIGNING <fs_vzzkoko> WITH KEY bukrs    = gs_vzzkopo-bukrs
+                                                          rkey1    = gs_vzzkopo-rkey1
+                                                          dguel_kk = gs_vzzkopo-dguel_kk.
+    IF sy-subrc NE 0.
+      CONTINUE.
+    ENDIF.
+
+***Carrega tabela interna VDBEPP (Dados de movimento - item planejado)
+    CALL FUNCTION 'LOAN_FLOWS_SUPPLY'
+      EXPORTING
+        i_bukrs                  = gs_relat-empresa
+        i_ranl                   = gs_relat-contrato
+        no_storno                = ' '
+      TABLES
+        o_vzzbepp                = gw_sbepp
+      EXCEPTIONS
+        ranl_not_found           = 1
+        i_dvalut_until_too_early = 2
+        i_dfaell_until_too_early = 3
+        i_ddispo_until_too_early = 4
+        OTHERS                   = 5.
+    IF sy-subrc <> 0.
+      CLEAR gs_log.
+      gs_log-empresa  = gs_relat-empresa.
+      gs_log-contrato = gs_relat-contrato.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+      INTO gs_log-obs.
+      APPEND gs_log TO gw_log.
+    ENDIF.
+
+*   Alteracao Maisa
+*   Deleta registros com tipos de movimentos irrelevantes
+*    DELETE gw_sbepp WHERE sbewart IN r_sbewart.
+* alle vorher temporär eingestellten Sätze löschen, da eventuell Änd.
+* ALWAYS delete the simulated auszahlung-satz!    fp 2/4/98
+*  if flg_koko_first = true or tda10-status ne 'VER'.
+    LOOP AT gw_sbepp INTO gs_sbepp
+        WHERE  splanist NE 'I'
+          AND  swoher   NE 'K'
+          AND  nvorgang IS INITIAL
+          AND  rpnnr    IS INITIAL
+          AND  rbo      IS INITIAL
+          AND  jonlaen  IS INITIAL
+          AND  saend    IS INITIAL
+          AND  acenv    IS INITIAL
+          AND  jvoraus  IS INITIAL.
+      DELETE gw_sbepp.
+      CLEAR: gs_sbepp.
+    ENDLOOP.
+
+*   Fim alteracao Maisa
+***Efetua o novo calculo conforme dados preenchidos no ALV e carrega o Valor da Parcela Recalculada
+    CLEAR ln_valor.
+    CALL FUNCTION 'RATE_ERMITTELN'
+      EXPORTING
+        i_bzusage                 = <fs_vdarl>-bzusage
+        i_datum_bis               = <fs_vzzkoko>-delfz
+        i_datum_von               = gs_vzzkopo-dguel_kk
+        i_dblfz                   = <fs_vzzkoko>-dblfz
+        i_defsz                   = <fs_vzzkoko>-defsz
+        i_delfz                   = <fs_vzzkoko>-delfz
+        i_gsart                   = <fs_vdarl>-gsart
+        i_kzahlung                = <fs_vzzkoko>-kzahlung
+        i_rantyp                  = cc_1
+        i_sanlf                   = <fs_vdarl>-sanlf
+        i_sincl                   = <fs_vzzkoko>-sincl
+        i_sultefsz                = <fs_vzzkoko>-sultefsz
+        i_stilgart                = <fs_vzzkoko>-stilgart
+        i_szbmeth                 = <fs_vzzkoko>-szbmeth
+        i_skalid                  = <fs_vzzkoko>-skalidwt
+      IMPORTING
+        e_bfrate                  = ln_valor
+      TABLES
+        ibepp                     = gw_sbepp
+        ikopo                     = gw_vvzzkopo
+      EXCEPTIONS
+        keine_tilgungskonditionen = 1
+        laufzeitende_fehlt        = 2
+        OTHERS                    = 3.
+    IF sy-subrc <> 0.
+      CLEAR gs_log.
+      gs_log-empresa  = gs_relat-empresa.
+      gs_log-contrato = gs_relat-contrato.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+      INTO gs_log-obs.
+      APPEND gs_log TO gw_log.
+    ENDIF.
+
+***Carrega valor recalculado das parcelas em moeda interna(BRL) e moeda da transação(INCC,IGPM e etc)
+    IF ln_valor IS NOT INITIAL.
+      IF gs_vzzkopo-swhrkond EQ cc_brl.
+        gs_relat-vlr_parc_rec_mi = ln_valor.
+        gs_relat-moeda_parc_rec_mi = gs_vzzkopo-swhrkond.
+      ELSE.
+        WRITE ln_valor CURRENCY gs_vzzkopo-swhrkond TO gs_relat-vlr_parc_rec_mt.
+        gs_relat-vlr_parc_rec_mt_curr = ln_valor.
+        gs_relat-moeda_parc_rec_mt    = gs_vzzkopo-swhrkond.
+        gs_relat-moeda_parc_rec_mi    = cc_brl.
+        CALL FUNCTION 'CONVERT_TO_LOCAL_CURRENCY'
+          EXPORTING
+            date             = gs_vzzkopo-dfaell
+            foreign_amount   = ln_valor
+            foreign_currency = gs_vzzkopo-swhrkond
+            local_currency   = cc_brl
+          IMPORTING
+            local_amount     = gs_relat-vlr_parc_rec_mi.
+      ENDIF.
+      p_checkmodif = cc_x.
+      MODIFY gw_relat FROM gs_relat INDEX ln_tabix.
+    ENDIF.
+
+*   Desfaz atribuições dos ponteiros
+    UNASSIGN: <fs_sdloans>,
+              <fs_vdarl>,
+              <fs_vzzkopo_0201>,
+              <fs_tzk01>,
+              <fs_vzzkoko>.
+
+*   Limpa tabelas internas
+    CLEAR: rs_sbewart, r_sbewart[], gw_vvzzkopo[].
+
+  ENDLOOP.
+
+  IF NOT gw_log IS INITIAL.
+    PERFORM zf_exibir_log.
+  ENDIF.
+
+ENDFORM.                    " ZF_RECALCULAR_PARCELA
+
+*---------------------------------------------------------------------*
+*      Form  ZF_SALVAR_DADOS
+*---------------------------------------------------------------------*
+*      Salva os dados do ALV na tabela de Controle de Mudança de Datas
+*---------------------------------------------------------------------*
+FORM zf_salvar_dados .
+
+  SORT gw_relat BY marc DESCENDING empresa contrato ASCENDING.
+
+***Le os registros marcados para salvar
+  CLEAR gs_relat.
+  LOOP AT gw_relat INTO gs_relat.
+    IF gs_relat-marc IS INITIAL.
+      EXIT.
+    ENDIF.
+
+    READ TABLE gw_sdloans ASSIGNING <fs_sdloans> WITH KEY empresa        = gs_relat-empresa
+                                                          divisao        = gs_relat-empreendimento
+                                                          cliente        = gs_relat-cliente
+                                                          apartamento    = gs_relat-unidade
+                                                          ag_ordem_venda = gs_relat-projeto_financeiro
+                                                          contrato_serie = gs_relat-contrato.
+
+    READ TABLE gw_pfdata ASSIGNING <fs_pfdata> WITH KEY negocio       = gs_relat-negocio
+                                                        usuario_alter = sy-uname.
+
+*    break vgomez.
+    IF sy-subrc NE 0.
+      CLEAR gs_log.
+      gs_log-empresa  = gs_relat-empresa.
+      gs_log-contrato = gs_relat-contrato.
+      MESSAGE s013(zlloans001) INTO gs_log-obs.
+      APPEND gs_log TO gw_log.
+    ELSE.
+      CLEAR gs_alt_dat.
+      gs_alt_dat-mandt            =  sy-mandt.
+      gs_alt_dat-empresa          =  gs_relat-empresa.
+      gs_alt_dat-empreendimento   =  gs_relat-empreendimento.
+      gs_alt_dat-torre            =  <fs_sdloans>-torre.
+      gs_alt_dat-apartamento      =  gs_relat-unidade.
+      gs_alt_dat-contrato         =  gs_relat-contrato.
+      gs_alt_dat-dt_inicio_juros  =  gs_relat-dt_inicio_juros.
+      gs_alt_dat-negocio          =  gs_relat-negocio.
+      gs_alt_dat-cliente          =  gs_relat-cliente.
+      gs_alt_dat-dt_processamento =  sy-datum.
+      gs_alt_dat-dt_termino_obra  =  gs_relat-dt_fim_contrato.
+      gs_alt_dat-ag_ordem_venda   =  gs_relat-projeto_financeiro.
+      gs_alt_dat-dt_inicio_contr  =  gs_relat-dt_inicio_contr.
+      gs_alt_dat-dt_vencto_cond   =  gs_relat-dt_vencto.
+      gs_alt_dat-dt_calculo_cond  =  gs_relat-dt_calculo.
+      gs_alt_dat-valor_parcela    =  gs_relat-vlr_parc_mi.
+      gs_alt_dat-moeda_parcela    =  gs_relat-moeda_parc_mi.
+      gs_alt_dat-valor_parc_mt    =  gs_relat-vlr_parc_mt_curr.
+      gs_alt_dat-moeda_parc_mt    =  gs_relat-moeda_parc_mt.
+      gs_alt_dat-n_dt_inic_juros  =  gs_relat-n_dt_inic_juros.
+      gs_alt_dat-n_dt_venc_juros  =  gs_relat-n_dt_venc_juros.
+      gs_alt_dat-n_dt_calc_juros  =  gs_relat-n_dt_calc_juros.
+      gs_alt_dat-valor_rec_parc   =  gs_relat-vlr_parc_rec_mi.
+      gs_alt_dat-moeda_rec_parc   =  gs_relat-moeda_parc_rec_mi.
+      gs_alt_dat-vlr_recparc_mt   =  gs_relat-vlr_parc_rec_mt_curr.
+      gs_alt_dat-moeda_recparc_mt =  gs_relat-moeda_parc_rec_mt.
+      gs_alt_dat-status           =  cc_1.
+      gs_alt_dat-usuario_alter    =  sy-uname.
+      gs_alt_dat-dt_alter         =  sy-datum.
+      gs_alt_dat-usuario_aprov    =  <fs_pfdata>-usuario_aprov.
+      gs_alt_dat-dt_aprov         =  space.
+      APPEND gs_alt_dat TO gw_alt_dat.
+
+      CLEAR gs_envios.
+      gs_envios-usuario_aprov =  <fs_pfdata>-usuario_aprov.
+      gs_envios-usuario_alter =  sy-uname.
+      gs_envios-n_alter       =  cc_1.
+      COLLECT gs_envios INTO gw_envios.
+
+    ENDIF.
+  ENDLOOP.
+*  break mcorreia.
+  IF NOT gw_alt_dat IS INITIAL.
+    MODIFY ztbloans_alt_dat FROM TABLE gw_alt_dat.
+    COMMIT WORK.
+    PERFORM zf_enviar_email.
+  ENDIF.
+
+  IF NOT gw_log IS INITIAL.
+    PERFORM zf_exibir_log.
+
+  ELSE.
+***  Envia mensagem de erro
+    MESSAGE s005(zlloans001) DISPLAY LIKE 'I'.
+    LEAVE TO SCREEN 0.
+  ENDIF.
+
+ENDFORM.                    " ZF_SALVAR_DADOS
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_EXIBIR_LOG
+*---------------------------------------------------------------------*
+*      Exibe popup com os erros
+*---------------------------------------------------------------------*
+FORM zf_exibir_log .
+
+  DATA: ls_private  TYPE slis_data_caller_exit,
+        lw_fieldcat TYPE slis_t_fieldcat_alv WITH HEADER LINE.
+
+  CALL FUNCTION 'REUSE_ALV_FIELDCATALOG_MERGE'
+    EXPORTING
+      i_structure_name = 'ZSTLOANS_LOG010'
+    CHANGING
+      ct_fieldcat      = lw_fieldcat[].
+
+  CALL FUNCTION 'REUSE_ALV_POPUP_TO_SELECT'
+    EXPORTING
+      i_title       = text-009
+      i_tabname     = '1'
+      it_fieldcat   = lw_fieldcat[]
+      is_private    = ls_private
+    TABLES
+      t_outtab      = gw_log
+    EXCEPTIONS
+      program_error = 1
+      OTHERS        = 2.
+  IF sy-subrc <> 0.
+    MESSAGE i000(0k) WITH sy-subrc.
+  ENDIF.
+
+  CLEAR gw_log[].
+
+ENDFORM.                    " ZF_EXIBIR_LOG
+
+
+*---------------------------------------------------------------------*
+*      Form  ZF_ENVIAR_EMAIL
+*---------------------------------------------------------------------*
+*      Envia e-mail para o usuário aprovar as alterações de datas
+*---------------------------------------------------------------------*
+FORM zf_enviar_email.
+*  break mcorreia.
+  DATA: ls_document_data TYPE sodocchgi1.
+
+  DATA: lw_txt_email     TYPE TABLE OF solisti1,
+        ls_txt_email     TYPE solisti1,
+        lw_receivers     TYPE TABLE OF somlreci1,
+        ls_receivers     TYPE somlreci1,
+        lw_packing_list  TYPE TABLE OF sopcklsti1,
+        ls_packing_list  TYPE sopcklsti1.
+
+  SORT gw_envios BY usuario_aprov.
+  LOOP AT gw_envios INTO gs_envios.
+
+    READ TABLE gw_usr_email ASSIGNING <fs_usr_email> WITH KEY bname = gs_envios-usuario_aprov.
+
+    IF sy-subrc NE 0.
+      CONTINUE.
+    ENDIF.
+
+*   Grava dados do documento
+    CLEAR ls_document_data.
+    ls_document_data-obj_name  = text-003.
+    ls_document_data-obj_descr = text-004.
+    ls_document_data-obj_langu = sy-langu.
+    ls_document_data-doc_size  = '255'.
+
+*   Grava numero de linhas
+    CLEAR ls_packing_list.
+    ls_packing_list-head_start = cc_1.
+    ls_packing_list-body_start = cc_1.
+    ls_packing_list-body_num   = cc_3.
+    ls_packing_list-doc_type   = cc_raw.
+    ls_packing_list-doc_size   = cc_255.
+    APPEND ls_packing_list TO lw_packing_list.
+
+*   Grava Mensagem
+    CLEAR ls_txt_email.
+*---Linha 1
+    CONCATENATE text-005
+                gs_envios-n_alter
+                text-006
+           INTO ls_txt_email-line SEPARATED BY space.
+    APPEND ls_txt_email TO lw_txt_email.
+*---Linha 2
+    CONCATENATE text-007
+                gs_envios-usuario_alter
+                'em'
+                sy-datum
+                '.'
+           INTO ls_txt_email-line SEPARATED BY space.
+    APPEND ls_txt_email TO lw_txt_email.
+*---Linha 3
+    ls_txt_email-line = text-008.
+    APPEND ls_txt_email TO lw_txt_email.
+
+*   Grava dados do receptor da mensagem
+    CLEAR ls_receivers.
+    ls_receivers-receiver   = <fs_usr_email>-smtp_addr.
+    ls_receivers-rec_type   = 'U'.
+    APPEND ls_receivers TO lw_receivers.
+
+
+*   Chama função de envio de e-mail
+    CALL FUNCTION 'SO_NEW_DOCUMENT_ATT_SEND_API1'
+      EXPORTING
+        document_data              = ls_document_data
+        put_in_outbox              = cc_x
+        commit_work                = cc_x
+      TABLES
+        packing_list               = lw_packing_list
+        contents_txt               = lw_txt_email
+        receivers                  = lw_receivers
+      EXCEPTIONS
+        too_many_receivers         = 1
+        document_not_sent          = 2
+        document_type_not_exist    = 3
+        operation_no_authorization = 4
+        parameter_error            = 5
+        x_error                    = 6
+        enqueue_error              = 7
+        OTHERS                     = 8.
+    IF sy-subrc <> 0.
+      CLEAR gs_log.
+      gs_log-empresa  = gs_relat-empresa.
+      gs_log-contrato = gs_relat-contrato.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4
+      INTO gs_log-obs.
+      APPEND gs_log TO gw_log.
+    ENDIF.
+
+  ENDLOOP.
+ENDFORM.                    " ZF_ENVIAR_EMAIL

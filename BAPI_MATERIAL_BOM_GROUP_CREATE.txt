@@ -1,0 +1,98 @@
+REPORT ZSM_CREATE_SIMPLEBOM.
+
+* Data Declaration
+DATA:
+it_bomgroup LIKE bapi1080_bgr_c OCCURS 0 WITH HEADER LINE,
+it_variants LIKE bapi1080_bom_c OCCURS 0 WITH HEADER LINE,
+it_items LIKE bapi1080_itm_c OCCURS 0 WITH HEADER LINE,
+it_matrel LIKE bapi1080_mbm_c OCCURS 0 WITH HEADER LINE,
+it_itemas LIKE bapi1080_rel_itm_bom_c OCCURS 0 WITH HEADER LINE,
+it_return LIKE bapiret2 OCCURS 0 WITH HEADER LINE.
+
+* Fill the data
+* Material BoM Group Header Data
+CLEAR it_bomgroup.
+it_bomgroup-bom_group_identification = 'BAPI_SMP_COL1'.
+it_bomgroup-object_type = 'BGR'.
+it_bomgroup-object_id = 'SIMPLE1'.
+it_bomgroup-bom_usage = '5'. " YOU COULD CHANGE THE BOM USAGE TO YOUR
+NEEDS
+it_bomgroup-ltxt_lang = sy-langu.
+it_bomgroup-technical_type = ' '.
+it_bomgroup-bom_text = 'Simple BoM - FM'.
+APPEND it_bomgroup.
+
+* Header Details of the different variants
+CLEAR it_variants.
+it_variants-bom_group_identification = 'BAPI_SMP_COL1'.
+it_variants-object_type = 'BOM'.
+it_variants-object_id = 'SIMPLE1'.
+it_variants-alternative_bom = '01'.
+it_variants-bom_status = '01'.
+it_variants-base_qty = '1.000'.
+it_variants-valid_from_date = sy-datum.
+it_variants-function = 'NEW'.
+APPEND it_variants.
+
+* Details of the items of the variants
+CLEAR it_items.
+it_items-bom_group_identification = 'BAPI_SMP_COL1'.
+it_items-object_type = 'ITM'.
+it_items-object_id = 'SIMPLE1'.
+it_items-item_no = '0010'.
+it_items-item_cat = 'L'.
+it_items-component = 'COMPON1'.
+it_items-comp_qty = '2'.
+it_items-valid_from_date = sy-datum.
+APPEND it_items.
+
+CLEAR it_items.
+it_items-bom_group_identification = 'BAPI_SMP_COL1'.
+it_items-object_type = 'ITM'.
+it_items-object_id = 'SIMPLE1'.
+it_items-item_no = '0020'.
+it_items-item_cat = 'L'.
+it_items-component = 'COMPON2'.
+it_items-comp_qty = '3'.
+it_items-valid_from_date = sy-datum.
+APPEND it_items.
+
+
+* Details of the materials of the different variants
+CLEAR it_matrel.
+it_matrel-bom_group_identification = 'BAPI_SMP_COL1'.
+it_matrel-material = 'MAINMATERIAL'.
+it_matrel-bom_usage = '5'.
+it_matrel-alternative_bom = '01'.
+APPEND it_matrel.
+
+* Linking items to the corresponding variants
+CLEAR it_itemas.
+it_itemas-bom_group_identification = 'BAPI_SMP_COL1'.
+it_itemas-sub_object_type = 'ITM'.
+it_itemas-sub_object_id = 'SIMPLE1'.
+it_itemas-super_object_type = 'BOM'.
+it_itemas-super_object_id = 'SIMPLE1'.
+it_itemas-valid_from_date = sy-datum.
+it_itemas-function = 'NEW'.
+APPEND it_itemas.
+
+* Create variants
+CALL FUNCTION 'BAPI_MATERIAL_BOM_GROUP_CREATE'
+EXPORTING
+all_error = 'X'
+TABLES
+bomgroup = it_bomgroup
+variants = it_variants
+items = it_items
+materialrelations = it_matrel
+itemassignments = it_itemas
+return = it_return.
+
+CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'.
+
+LOOP AT it_return.
+WRITE:/ it_return-type, it_return-id, it_return-number,
+it_return-message.
+ENDLOOP.
+

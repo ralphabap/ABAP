@@ -1,0 +1,145 @@
+*---------------------------------------------------------------------------
+* Programa : Z_RECUPERA_EXTENSAO
+* Cliente  :
+* Módulo   :
+* Transação:
+* Descrição: Programa que recupera a extensão de um arquivo informado pelo
+*            usuário
+* Autor    : Jonas Rabello          Data: 22/10/2007
+*---------------------------------------------------------------------------
+* Histórico de Alterações:
+*---------------------------------------------------------------------------
+* Data       |Change # |Autor            |Alteração
+*---------------------------------------------------------------------------
+* 22/10/2007 |         |Jonas Rabello    |Desenvolvimento Inicial
+
+
+REPORT  z_recupera_extensao                                                    .
+
+*-------------------------------------------------------------------------
+* Definição de Variáveis
+*-------------------------------------------------------------------------
+DATA: gc_ext(3) TYPE c,       "Extensão do arquivo
+      gc_arq    TYPE string.  "Arquivo do qual será recuperada a extensão
+
+
+*-------------------------------------------------------------------------
+* Definição da Tela de Seleções
+*-------------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK parm WITH FRAME TITLE text-001.
+PARAMETERS:
+  pc_arq TYPE rlgrap-filename OBLIGATORY DEFAULT ' '.  "parâmetro para receber nome arquivo
+SELECTION-SCREEN END OF BLOCK parm.
+
+
+*-------------------------------------------------------------------------
+* Evento: at selection-screen
+*-------------------------------------------------------------------------
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR pc_arq.
+  CALL FUNCTION 'KD_GET_FILENAME_ON_F4'
+    EXPORTING
+      mask          = ',CSV,*.csv,Todos,*.*.'
+    CHANGING
+      file_name     = pc_arq
+    EXCEPTIONS
+      mask_too_long = 1
+      OTHERS        = 2.
+
+  CHECK sy-subrc NE 0.
+  MESSAGE s208(00) WITH text-002. "Erro de seleção do arquivo
+
+
+*-------------------------------------------------------------------------
+* Evento: Start-of-Selection
+*-------------------------------------------------------------------------
+START-OF-SELECTION.
+
+  gc_arq = pc_arq.
+  PERFORM zf_recupera_extensao
+  USING    gc_arq
+  CHANGING gc_ext.
+
+  MESSAGE s208(00) WITH gc_ext.
+
+*-------------------------------------------------------------------------
+* Form     : zf_recupera_extensao
+* Descrição: Recupera a extensão do arquivo escolhido pelo usuário
+* Entradas : pc_arq  “nome do arquivo
+* Saídas   : pc_ext  "extensão
+*-------------------------------------------------------------------------
+FORM zf_recupera_extensao
+  USING    value(pc_arq) TYPE string
+  CHANGING pc_ext        TYPE any.
+
+  CONSTANTS: cc_dot VALUE '.'. "constante indetificadora do find
+
+  DATA: gi_tam TYPE i,      "tamanho da string
+        gi_pto TYPE i,      "ponto de corte da string
+        gc_str TYPE string. "string invertida
+
+*** aplica um trim na string
+  SHIFT pc_arq LEFT DELETING LEADING space.
+
+*** inverte string para encontrar o ponto que separa a extensão
+  PERFORM zf_inverte_string
+  USING    pc_arq gc_str.
+
+*** procura o ponto e recupera a qtd de caracteres da extensão.
+  FIND cc_dot IN gc_str MATCH OFFSET gi_pto.
+
+*** recupera tamanho da string
+  gi_tam = STRLEN( pc_arq ).
+
+*** calcula ponto de corte
+  gi_pto = gi_tam - gi_pto.
+
+*** corta a string deixando os caracteres da extensão
+  SHIFT pc_arq BY gi_pto PLACES LEFT.
+
+*** devolve tipo de extensão do arquivo.
+  pc_ext = pc_arq.
+  TRANSLATE pc_ext TO UPPER CASE.
+
+ENDFORM.                    " zf_recupera_extensao
+
+
+*-------------------------------------------------------------------------
+* Form     : zf_inverte_string
+* Descrição: Inverte uma string
+* Entradas : pc_str  “string
+* Saídas   : pc_ivt  "string invertida
+*-------------------------------------------------------------------------
+FORM zf_inverte_string
+  USING    value(pc_arq) TYPE string
+           pc_str        TYPE string.
+
+  DATA: gi_tam TYPE i,      "tamanho da string
+        gi_pto TYPE i,      "ponto de corte da string
+        gc_arq TYPE string. "string de apoio
+
+
+*** limpa a string
+  CLEAR pc_str.
+
+*** aplica um trim na string
+  SHIFT pc_arq LEFT DELETING LEADING space.
+
+*** recupera tamanho da string
+  gi_tam = STRLEN( pc_arq ).
+
+*** inverte a string.
+  WHILE gi_tam > 0.
+
+    gc_arq = pc_arq(gi_tam).
+
+    gi_pto = gi_tam - 1.                    "calcula ponto de corte
+
+    SHIFT gc_arq BY gi_pto PLACES LEFT.     "corta a string deixando o último caracter
+
+    CONCATENATE pc_str gc_arq INTO pc_str.  "concatena o caracter de forma invertida
+
+    gi_tam = gi_tam - 1.
+
+  ENDWHILE.
+
+ENDFORM.                    " zf_inverte_string

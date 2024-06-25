@@ -1,0 +1,85 @@
+FUNCTION Z_CO_SHOW_DIR_UNIX.
+*"----------------------------------------------------------------------
+*"_
+*"       CHANGING
+*"             VALUE(P_PATH)
+*"----------------------------------------------------------------------
+DATA: BEGIN OF FILE OCCURS 0,
+           NAME(25)    TYPE C,
+           FILLER,
+           TYPE(10)    TYPE C,
+      END OF FILE.
+
+DATA: BEGIN OF TAB_FILE OCCURS 0,
+           CAMPO(20),
+      END OF TAB_FILE.
+
+DATA: W_QTDE(08) TYPE N VALUE 0,
+      W_CONT     TYPE I VALUE 1,
+      W_POS      TYPE I,
+      W_LIN      TYPE I.
+
+
+*---------------------------------------------------------------------*
+*        DIRETORIO_NO_UNIX                                            *
+*---------------------------------------------------------------------*
+WHILE W_CONT = 1.
+  CLEAR W_CONT.
+*---------------------------------------------------------------------*
+*       CARREGA_DIRETORIO                                             *
+*---------------------------------------------------------------------*
+  FREE FILE.
+  CALL 'C_DIR_READ_START' ID 'DIR' FIELD P_PATH.
+  WHILE SY-SUBRC = 0.
+    CALL 'C_DIR_READ_NEXT' ID 'TYPE' FIELD FILE-TYPE
+                           ID 'NAME' FIELD FILE-NAME.
+    IF SY-SUBRC = 0 AND FILE-NAME <> '.'.
+      APPEND FILE.
+    ENDIF.
+  ENDWHILE.
+  CALL 'C_DIR_READ_FINISH'.
+  DESCRIBE TABLE FILE LINES W_QTDE.
+  IF W_QTDE <> 0.
+*---------------------------------------------------------------------*
+*        MOSTRA_TELA                                                  *
+*---------------------------------------------------------------------*
+    CALL FUNCTION 'POPUP_WITH_TABLE_DISPLAY'
+         EXPORTING
+              ENDPOS_COL   = 72
+              ENDPOS_ROW   = 12
+              STARTPOS_COL = 36
+              STARTPOS_ROW = 3
+              TITLETEXT    = P_PATH
+         IMPORTING
+              CHOISE       = SY-TABIX
+         TABLES
+              VALUETAB     = FILE
+         EXCEPTIONS
+              BREAK_OFF    = 1
+              OTHERS       = 2.
+    IF SY-SUBRC = 0.
+      READ TABLE FILE INDEX SY-TABIX.
+      IF SY-SUBRC = 0.
+        IF FILE-TYPE = 'directory'.
+          W_CONT = 1.
+          IF FILE-NAME = '..' AND P_PATH <> '/'.
+*---------------------------------------------------------------------*
+*        LEAVE_LAST_NAME                                              *
+*---------------------------------------------------------------------*
+            SPLIT P_PATH AT '/' INTO TABLE TAB_FILE.
+            DESCRIBE TABLE TAB_FILE LINES W_LIN.
+            READ TABLE TAB_FILE INDEX W_LIN.
+            W_POS = STRLEN( P_PATH ) - STRLEN( TAB_FILE-CAMPO ) - 1.
+            P_PATH = P_PATH(W_POS).
+          ELSE.
+            CONCATENATE P_PATH FILE-NAME '/' INTO P_PATH.
+          ENDIF.
+        ELSE.
+          CONCATENATE P_PATH FILE-NAME INTO P_PATH.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDWHILE.
+ENDFUNCTION.
+

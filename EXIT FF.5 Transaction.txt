@@ -1,0 +1,14 @@
+Exit para manipular o arquivo lido do banco
+
+Ampliação
+FEB00001
+
+Exit
+EXIT_RFEBBU10_001 
+
+
+
+
+
+Alternativa:  FEB00004
+
